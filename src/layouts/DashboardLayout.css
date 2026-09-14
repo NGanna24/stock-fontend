@@ -1,26 +1,15 @@
-*{
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
-}
-
-body{
-
-    background:#f4f7fb;
-
-    font-family:Inter,sans-serif;
-}
-
-.app{
+.dashboard-layout{
 
     display:flex;
 
     height:100vh;
 
     overflow:hidden;
+
+    background:#f5f7fb;
 }
 
-.main-content{
+.dashboard-main{
 
     flex:1;
 
@@ -31,7 +20,7 @@ body{
     overflow:hidden;
 }
 
-.page-content{
+.dashboard-content{
 
     flex:1;
 
@@ -39,5 +28,5 @@ body{
 
     overflow-y:auto;
 
-    background:#f4f7fb;
+    background:#f5f7fb;
 }

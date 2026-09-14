@@ -1,0 +1,207 @@
+.inventaires-container,
+.inventaire-detail-container {
+    padding: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+}
+
+/* En-tête */
+.inventaires-header,
+.detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+}
+
+.inventaires-title,
+.detail-header-info h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.inventaires-subtitle,
+.detail-header-info p {
+    font-size: 14px;
+    color: #64748b;
+    margin: 4px 0 0;
+}
+
+.detail-header-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.back-btn {
+    background: #f1f5f9;
+    border: none;
+    border-radius: 8px;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+}
+
+.detail-header-info { flex: 1; }
+
+/* Statistiques */
+.inventaires-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.stat-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 14px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.stat-icon {
+    width: 42px; height: 42px;
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+}
+
+.stat-icon.total    { background: #e0e7ff; color: #3730a3; }
+.stat-icon.planifie { background: #fef3c7; color: #92400e; }
+.stat-icon.encours  { background: #dbeafe; color: #1e40af; }
+.stat-icon.termine  { background: #d1fae5; color: #065f46; }
+.stat-icon.annule   { background: #fee2e2; color: #991b1b; }
+.stat-icon.auj      { background: #f3e8ff; color: #6b21a8; }
+
+.stat-info { display: flex; flex-direction: column; gap: 2px; }
+.stat-label { font-size: 12px; color: #64748b; }
+.stat-value { font-size: 15px; font-weight: 700; color: #1e293b; }
+
+/* Filtres */
+.inventaires-filters,
+.detail-filters {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: center;
+    background: #fff; padding: 14px; border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    margin-bottom: 20px;
+}
+
+.checkbox-label {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 14px; color: #475569; cursor: pointer;
+    padding: 8px 12px; background: #f8fafc;
+    border-radius: 8px;
+}
+
+/* Tableau */
+.inventaires-table-container,
+.inventaire-lignes-table-container {
+    background: #fff; border-radius: 10px; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.inventaires-table,
+.inventaire-lignes-table {
+    width: 100%; border-collapse: collapse;
+}
+
+.inventaires-table th,
+.inventaire-lignes-table th {
+    padding: 12px 14px; text-align: left;
+    font-size: 12px; font-weight: 600; color: #475569;
+    background: #f8fafc; text-transform: uppercase;
+    letter-spacing: 0.03em; border-bottom: 1px solid #e2e8f0;
+}
+
+.inventaires-table td,
+.inventaire-lignes-table td {
+    padding: 12px 14px; font-size: 13px; color: #1e293b;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.inv-ref { font-family: monospace; font-weight: 600; color: #2563eb; }
+
+/* Badges de statut */
+.status-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 4px 10px; border-radius: 12px;
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+
+.status-planifie { background: #fef3c7; color: #92400e; }
+.status-en-cours { background: #dbeafe; color: #1e40af; }
+.status-termine  { background: #d1fae5; color: #065f46; }
+.status-annule   { background: #fee2e2; color: #991b1b; }
+
+/* Badges d'écart */
+.ecart-badge {
+    display: inline-block; padding: 3px 8px;
+    border-radius: 10px; font-size: 12px; font-weight: 600;
+}
+.ecart-ok  { background: #d1fae5; color: #065f46; }
+.ecart-neg { background: #fee2e2; color: #991b1b; }  /* écart positif = manquant */
+.ecart-pos { background: #dbeafe; color: #1e40af; }  /* écart négatif = surplus */
+.ecart-warn { background: #fee2e2; color: #991b1b; }
+
+/* Input quantité */
+.qte-input {
+    width: 100px; padding: 6px 10px;
+    border: 1px solid #e2e8f0; border-radius: 6px;
+    font-size: 13px; text-align: right;
+    outline: none;
+}
+.qte-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+.qte-input:disabled { background: #f8fafc; color: #94a3b8; }
+
+/* Boutons */
+.actions-cell { display: flex; gap: 6px; }
+.action-btn {
+    width: 32px; height: 32px; border-radius: 6px;
+    border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+}
+.btn-view   { background: #eff6ff; color: #2563eb; }
+.btn-play   { background: #d1fae5; color: #065f46; }
+.btn-cancel { background: #fef3c7; color: #92400e; }
+.btn-delete { background: #fee2e2; color: #991b1b; }
+.action-btn:hover { opacity: 0.85; transform: scale(1.05); }
+
+.btn-danger { background: #dc2626; color: #fff; }
+.btn-danger:hover { background: #b91c1c; }
+
+/* Modal (déjà défini dans Mouvements.css, réutilisable) */
+.form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+.form-group label { font-size: 13px; font-weight: 600; color: #475569; }
+.form-input {
+    padding: 9px 12px; border: 1px solid #e2e8f0;
+    border-radius: 8px; font-size: 14px; outline: none;
+    font-family: inherit;
+}
+.form-input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+
+/* Info grid */
+.detail-info-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px; margin-bottom: 20px;
+}
+.info-item {
+    background: #fff; padding: 12px;
+    border-radius: 8px; display: flex; flex-direction: column; gap: 2px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+.info-item label { font-size: 11px; color: #64748b; text-transform: uppercase; }
+.info-item span { font-size: 14px; font-weight: 600; color: #1e293b; }
+.text-warn { color: #dc2626 !important; }
+.text-ok { color: #059669 !important; }

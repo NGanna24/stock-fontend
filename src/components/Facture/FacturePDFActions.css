@@ -1,0 +1,351 @@
+/* components/Facture/FacturePDFActions.css */
+
+/* ============================================================
+   CONTENEUR DES BOUTONS
+   ============================================================ */
+.facture-pdf-actions-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 16px 20px;
+    background: #f8fafc;
+    border-top: 1px solid #e2e8f0;
+    border-radius: 0 0 12px 12px;
+    justify-content: center;
+}
+
+/* ============================================================
+   BOUTONS PDF
+   ============================================================ */
+.pdf-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+    background: white;
+    color: #1a202c;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.pdf-btn:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.pdf-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.pdf-btn-download {
+    background: #2563eb;
+    color: white;
+}
+.pdf-btn-download:hover:not(:disabled) {
+    background: #1d4ed8;
+    box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+}
+
+.pdf-btn-print {
+    background: #f59e0b;
+    color: white;
+}
+.pdf-btn-print:hover:not(:disabled) {
+    background: #d97706;
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+}
+
+.pdf-btn-email {
+    background: #10b981;
+    color: white;
+}
+.pdf-btn-email:hover:not(:disabled) {
+    background: #059669;
+    box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+}
+
+.pdf-btn-close {
+    background: #f1f5f9;
+    color: #64748b;
+}
+.pdf-btn-close:hover:not(:disabled) {
+    background: #e2e8f0;
+    color: #1a202c;
+}
+
+/* ============================================================
+   MODAL EMAIL
+   ============================================================ */
+.email-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    animation: fadeIn 0.25s ease;
+    padding: 20px;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        transform: translateY(30px) scale(0.98);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+    }
+}
+
+.email-modal {
+    background: white;
+    border-radius: 16px;
+    max-width: 520px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    animation: slideUp 0.3s ease;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+}
+
+.email-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px 24px;
+    border-bottom: 1px solid #e2e8f0;
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 10;
+    border-radius: 16px 16px 0 0;
+}
+
+.email-modal-header h3 {
+    margin: 0;
+    font-size: 18px;
+    color: #0f172a;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.email-modal-close {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #94a3b8;
+    padding: 8px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.email-modal-close:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+}
+
+.email-modal-body {
+    padding: 24px;
+}
+
+.email-modal-body .form-group {
+    margin-bottom: 16px;
+}
+
+.email-modal-body .form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    color: #334155;
+    margin-bottom: 5px;
+}
+
+.email-modal-body .form-input,
+.email-modal-body .form-textarea {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    background: #f8fafc;
+    color: #0f172a;
+    font-family: inherit;
+}
+
+.email-modal-body .form-input:focus,
+.email-modal-body .form-textarea:focus {
+    outline: none;
+    border-color: #2563eb;
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    background: white;
+}
+
+.email-modal-body .form-textarea {
+    resize: vertical;
+    min-height: 100px;
+}
+
+.email-attachment-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: #f0f4ff;
+    border-radius: 8px;
+    color: #2563eb;
+    font-size: 13px;
+    margin-top: 8px;
+}
+
+.email-modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 16px 24px;
+    border-top: 1px solid #e2e8f0;
+    background: white;
+    border-radius: 0 0 16px 16px;
+}
+
+.email-modal-footer .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.email-modal-footer .btn-secondary {
+    background: #f1f5f9;
+    color: #64748b;
+}
+.email-modal-footer .btn-secondary:hover {
+    background: #e2e8f0;
+}
+
+.email-modal-footer .btn-primary {
+    background: #2563eb;
+    color: white;
+}
+.email-modal-footer .btn-primary:hover:not(:disabled) {
+    background: #1d4ed8;
+}
+.email-modal-footer .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* ============================================================
+   LOADING OVERLAY
+   ============================================================ */
+.pdf-loading-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(4px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 3000;
+}
+
+.pdf-loading-spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #e2e8f0;
+    border-top: 4px solid #2563eb;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.pdf-loading-overlay p {
+    margin-top: 16px;
+    font-size: 14px;
+    color: #64748b;
+}
+
+/* ============================================================
+   SPINNER PETIT
+   ============================================================ */
+.spinner-small {
+    width: 16px;
+    height: 16px;
+    border: 2px solid #e2e8f0;
+    border-top: 2px solid white;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    display: inline-block;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 640px) {
+    .facture-pdf-actions-container {
+        flex-direction: column;
+        padding: 12px 16px;
+    }
+    
+    .pdf-btn {
+        width: 100%;
+        justify-content: center;
+        padding: 12px;
+    }
+    
+    .email-modal {
+        margin: 10px;
+        max-height: 95vh;
+    }
+    
+    .email-modal-header {
+        padding: 16px 18px;
+    }
+    
+    .email-modal-body {
+        padding: 16px 18px;
+    }
+    
+    .email-modal-footer {
+        flex-direction: column;
+    }
+    
+    .email-modal-footer .btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

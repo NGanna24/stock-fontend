@@ -1,0 +1,661 @@
+/* components/Dashboard/Header/Header.css */
+
+/* ============================================================================
+   HEADER PRINCIPAL
+   ============================================================================ */
+
+.header {
+    height: 75px;
+    background: white;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 30px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    transition: background-color 0.3s ease;
+}
+
+/* ============================================================================
+   PARTIE GAUCHE - RECHERCHE
+   ============================================================================ */
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 30px;
+    flex: 1;
+    min-width: 0;
+}
+
+.header-left h2 {
+    color: #1f2937;
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.search-box {
+    width: 420px;
+    max-width: 100%;
+    height: 45px;
+    background: #f3f4f6;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 15px;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+}
+
+.search-box:focus-within {
+    background: white;
+    border-color: #667eea;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.search-box svg {
+    color: #9ca3af;
+    flex-shrink: 0;
+}
+
+.search-box input {
+    flex: 1;
+    border: none;
+    background: none;
+    outline: none;
+    font-size: 15px;
+    font-family: inherit;
+    color: #1f2937;
+    min-width: 0;
+}
+
+.search-box input::placeholder {
+    color: #9ca3af;
+}
+
+/* ============================================================================
+   PARTIE DROITE - ICÔNES + PROFIL
+   ============================================================================ */
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+/* ============================================================================
+   BOUTONS ICÔNES
+   ============================================================================ */
+
+.icon-btn {
+    width: 45px;
+    height: 45px;
+    border: none;
+    background: #f3f4f6;
+    border-radius: 12px;
+    cursor: pointer;
+    position: relative;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: all 0.3s ease;
+    color: #6b7280;
+    flex-shrink: 0;
+    font-family: inherit;
+}
+
+.icon-btn:hover {
+    background: #e5e7eb;
+    color: #1f2937;
+    transform: translateY(-1px);
+}
+
+.icon-btn:active {
+    transform: translateY(0);
+}
+
+.icon-btn:focus-visible {
+    outline: 2px solid #667eea;
+    outline-offset: 2px;
+}
+
+/* ============================================================================
+   BADGES (notifications, alertes)
+   ============================================================================ */
+
+.badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 10px;
+    background: #2563eb;
+    color: white;
+    font-size: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    transition: transform 0.15s ease;
+    box-shadow: 0 0 0 2px white;
+    pointer-events: none;
+}
+
+.badge.red {
+    background: #ef4444;
+}
+
+.icon-btn:hover .badge {
+    transform: scale(1.15);
+}
+
+/* ============================================================================
+   PROFIL UTILISATEUR
+   ============================================================================ */
+
+.profile-container {
+    position: relative;
+    margin-left: 10px;
+}
+
+.profile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 5px 12px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 2px solid transparent;
+    user-select: none;
+}
+
+.profile:hover {
+    background: #f3f4f6;
+    border-color: #e5e7eb;
+}
+
+.profile-avatar {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 18px;
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+
+.profile-info {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+    min-width: 0;
+}
+
+.profile h4 {
+    font-size: 15px;
+    color: #111827;
+    margin: 0;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 150px;
+}
+
+.profile p {
+    font-size: 13px;
+    color: #6b7280;
+    margin: 0;
+}
+
+.dropdown-arrow {
+    transition: transform 0.3s ease;
+    color: #9ca3af;
+    flex-shrink: 0;
+}
+
+.dropdown-arrow.rotated {
+    transform: rotate(180deg);
+}
+
+/* ============================================================================
+   DROPDOWN MENU
+   ============================================================================ */
+
+.profile-dropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    min-width: 280px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    border: 1px solid #e5e7eb;
+    padding: 8px;
+    animation: slideDown 0.2s ease;
+    z-index: 1000;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.dropdown-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 12px 8px;
+}
+
+.dropdown-avatar {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    font-weight: 700;
+    flex-shrink: 0;
+    text-transform: uppercase;
+}
+
+.dropdown-user-info {
+    min-width: 0;
+    flex: 1;
+}
+
+.dropdown-user-info h4 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+    color: #1f2937;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dropdown-user-info p {
+    margin: 2px 0 0;
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.dropdown-user-info small {
+    font-size: 12px;
+    color: #9ca3af;
+}
+
+.dropdown-divider {
+    height: 1px;
+    background: #e5e7eb;
+    margin: 8px 12px;
+}
+
+/* ============================================================================
+   ITEMS DU DROPDOWN
+   ============================================================================ */
+
+.dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+    color: #374151;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    font-weight: 500;
+    font-family: inherit;
+    text-align: left;
+    position: relative;
+}
+
+.dropdown-item:hover {
+    background: #f3f4f6;
+}
+
+.dropdown-item:active {
+    background: #e5e7eb;
+}
+
+.dropdown-item svg {
+    color: #6b7280;
+    flex-shrink: 0;
+}
+
+.dropdown-item span {
+    flex: 1;
+}
+
+/* Badge dans le dropdown */
+.dropdown-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 6px;
+    background: #ef4444;
+    color: white;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-left: auto;
+}
+
+/* Item déconnexion */
+.dropdown-item.logout {
+    color: #ef4444;
+}
+
+.dropdown-item.logout:hover {
+    background: #fef2f2;
+}
+
+.dropdown-item.logout svg {
+    color: #ef4444;
+}
+
+/* ============================================================================
+   MODE SOMBRE
+   ============================================================================ */
+
+body.dark-mode .header {
+    background: #1e293b;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .search-box {
+    background: #334155;
+}
+
+body.dark-mode .search-box input {
+    color: #f1f5f9;
+}
+
+body.dark-mode .search-box input::placeholder {
+    color: #94a3b8;
+}
+
+body.dark-mode .search-box svg {
+    color: #94a3b8;
+}
+
+body.dark-mode .search-box:focus-within {
+    background: #334155;
+    border-color: #818cf8;
+}
+
+body.dark-mode .icon-btn {
+    background: #334155;
+    color: #cbd5e1;
+}
+
+body.dark-mode .icon-btn:hover {
+    background: #475569;
+    color: #f1f5f9;
+}
+
+body.dark-mode .profile:hover {
+    background: #334155;
+    border-color: #475569;
+}
+
+body.dark-mode .profile h4 {
+    color: #f1f5f9;
+}
+
+body.dark-mode .profile p {
+    color: #94a3b8;
+}
+
+body.dark-mode .profile-dropdown {
+    background: #1e293b;
+    border-color: #334155;
+}
+
+body.dark-mode .dropdown-user-info h4 {
+    color: #f1f5f9;
+}
+
+body.dark-mode .dropdown-user-info p,
+body.dark-mode .dropdown-user-info small {
+    color: #94a3b8;
+}
+
+body.dark-mode .dropdown-divider {
+    background: #334155;
+}
+
+body.dark-mode .dropdown-item {
+    color: #cbd5e1;
+}
+
+body.dark-mode .dropdown-item:hover {
+    background: #334155;
+}
+
+body.dark-mode .dropdown-item svg {
+    color: #94a3b8;
+}
+
+body.dark-mode .dropdown-item.logout {
+    color: #f87171;
+}
+
+body.dark-mode .dropdown-item.logout:hover {
+    background: #450a0a;
+}
+
+body.dark-mode .dropdown-item.logout svg {
+    color: #f87171;
+}
+
+body.dark-mode .badge {
+    box-shadow: 0 0 0 2px #1e293b;
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+
+/* Tablette */
+@media (max-width: 1024px) {
+    .search-box {
+        width: 300px;
+    }
+
+    .profile h4 {
+        max-width: 100px;
+    }
+}
+
+/* Mobile paysage */
+@media (max-width: 768px) {
+    .header {
+        padding: 0 16px;
+        height: 65px;
+    }
+
+    .header-left {
+        gap: 16px;
+    }
+
+    .search-box {
+        width: 220px;
+        height: 40px;
+        padding: 0 12px;
+    }
+
+    .search-box input {
+        font-size: 13px;
+    }
+
+    .icon-btn {
+        width: 40px;
+        height: 40px;
+    }
+
+    .profile-info {
+        display: none;
+    }
+
+    .profile {
+        padding: 4px 8px;
+        gap: 8px;
+    }
+
+    .profile-avatar {
+        width: 40px;
+        height: 40px;
+        font-size: 16px;
+    }
+
+    .profile-dropdown {
+        min-width: 260px;
+        right: -8px;
+    }
+}
+
+/* Mobile portrait */
+@media (max-width: 480px) {
+    .header {
+        padding: 0 10px;
+        height: 58px;
+    }
+
+    .header-left {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .search-box {
+        width: 100%;
+        max-width: 200px;
+        height: 36px;
+        padding: 0 10px;
+        gap: 6px;
+    }
+
+    .search-box input {
+        font-size: 12px;
+    }
+
+    .search-box svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .header-right {
+        gap: 8px;
+    }
+
+    .icon-btn {
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+    }
+
+    .icon-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .badge {
+        min-width: 16px;
+        height: 16px;
+        font-size: 9px;
+        padding: 0 4px;
+        top: -4px;
+        right: -4px;
+    }
+
+    .profile {
+        padding: 2px 4px;
+        gap: 6px;
+        border-radius: 10px;
+    }
+
+    .profile-avatar {
+        width: 34px;
+        height: 34px;
+        font-size: 14px;
+    }
+
+    .profile-dropdown {
+        min-width: 240px;
+        right: -10px;
+    }
+
+    .dropdown-item {
+        padding: 9px 10px;
+        font-size: 13px;
+    }
+
+    .dropdown-avatar {
+        width: 42px;
+        height: 42px;
+        font-size: 18px;
+    }
+}
+
+/* Très petit écran */
+@media (max-width: 380px) {
+    .header-right .icon-btn:nth-child(3) {
+        display: none; /* Masquer le bouton mode sombre */
+    }
+
+    .search-box {
+        max-width: 150px;
+    }
+}
+
+/* ============================================================================
+   TRANSITIONS GLOBALES
+   ============================================================================ */
+
+.header,
+.search-box,
+.icon-btn,
+.profile,
+.profile-dropdown,
+.dropdown-item,
+body.dark-mode * {
+    transition-property: background-color, color, border-color, box-shadow;
+    transition-duration: 0.2s;
+    transition-timing-function: ease;
+}
+
+/* Éviter les transitions sur les transformations */
+.icon-btn,
+.badge,
+.dropdown-arrow {
+    transition-property: background-color, color, transform, box-shadow;
+}

@@ -1,0 +1,394 @@
+/* pages/Auth/AuthPages.css */
+
+/* ==================== PAGE AUTH SPLIT-SCREEN ==================== */
+.auth-page-split {
+    min-height: 100vh;
+    display: flex;
+    background: #f8f9fa;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* ==================== SECTION GAUCHE - FORMULAIRE ==================== */
+.auth-form-section {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    background: white;
+    min-height: 100vh;
+}
+
+.auth-form-container {
+    max-width: 420px;
+    width: 100%;
+    padding: 20px 0;
+}
+
+.auth-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 40px;
+}
+
+.brand-icon {
+    font-size: 28px;
+}
+
+.brand-name {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1a1a2e;
+    letter-spacing: -0.5px;
+}
+
+.auth-header-split {
+    margin-bottom: 32px;
+}
+
+.auth-header-split h2 {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a1a2e;
+    margin: 0 0 8px 0;
+    letter-spacing: -0.5px;
+}
+
+.auth-header-split p {
+    font-size: 14px;
+    color: #6b7280;
+    margin: 0;
+}
+
+.auth-error-split {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    margin-bottom: 20px;
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1px solid #fecaca;
+    animation: slideIn 0.3s ease;
+}
+
+/* ==================== FORMULAIRE ==================== */
+.auth-form-split {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.form-group-split {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.input-wrapper-split {
+    position: relative;
+    display: flex;
+    align-items: center;
+    background: #f3f4f6;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+}
+
+.input-wrapper-split:focus-within {
+    background: white;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    border: 2px solid #667eea;
+}
+
+.input-icon-left {
+    position: absolute;
+    left: 14px;
+    color: #9ca3af;
+    pointer-events: none;
+}
+
+.input-wrapper-split input {
+    width: 100%;
+    padding: 14px 14px 14px 44px;
+    border: 2px solid transparent;
+    border-radius: 12px;
+    font-size: 15px;
+    background: transparent;
+    color: #1a1a2e;
+    outline: none;
+    transition: all 0.3s ease;
+}
+
+.input-wrapper-split input::placeholder {
+    color: #9ca3af;
+    font-weight: 400;
+}
+
+.password-toggle-split {
+    position: absolute;
+    right: 14px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #9ca3af;
+    padding: 4px;
+    transition: color 0.3s ease;
+}
+
+.password-toggle-split:hover {
+    color: #6b7280;
+}
+
+/* ==================== BOUTON ==================== */
+.auth-button-split {
+    width: 100%;
+    padding: 16px;
+    background: #1a1a2e;
+    color: white;
+    border: none;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-top: 8px;
+    letter-spacing: 0.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.auth-button-split:hover:not(:disabled) {
+    background: #2d2d44;
+    transform: translateY(-2px);
+    box-shadow: 0 10px 30px rgba(26, 26, 46, 0.3);
+}
+
+.auth-button-split:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.auth-button-split.loading {
+    opacity: 0.8;
+}
+
+.spinner {
+    animation: spin 1s linear infinite;
+}
+
+/* ==================== PIED DE PAGE ==================== */
+.auth-footer-split {
+    text-align: center;
+    margin-top: 24px;
+    padding-top: 20px;
+}
+
+.auth-footer-split p {
+    font-size: 14px;
+    color: #6b7280;
+}
+
+.auth-link-split {
+    color: #1a1a2e;
+    text-decoration: none;
+    font-weight: 600;
+    margin-left: 4px;
+    transition: color 0.3s ease;
+}
+
+.auth-link-split:hover {
+    color: #667eea;
+}
+
+/* ==================== SECTION DROITE ==================== */
+.auth-info-section {
+    flex: 1;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    position: relative;
+    overflow: hidden;
+    min-height: 100vh;
+}
+
+.auth-info-section::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    right: -50%;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle, rgba(102, 126, 234, 0.1) 0%, transparent 70%);
+    animation: pulseGlow 8s ease-in-out infinite;
+}
+
+.auth-info-content {
+    max-width: 420px;
+    width: 100%;
+    color: white;
+    position: relative;
+    z-index: 1;
+}
+
+.info-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    padding: 10px 20px;
+    border-radius: 50px;
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 32px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.auth-info-content h2 {
+    font-size: 32px;
+    font-weight: 700;
+    margin: 0 0 8px 0;
+    line-height: 1.2;
+    background: linear-gradient(135deg, #ffffff 0%, #a8b5e0 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.info-subtitle {
+    font-size: 16px;
+    color: rgba(255, 255, 255, 0.6);
+    margin: 0 0 40px 0;
+}
+
+.info-features {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-bottom: 40px;
+}
+
+.info-feature {
+    display: flex;
+    gap: 16px;
+    align-items: flex-start;
+    padding: 16px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    transition: all 0.3s ease;
+}
+
+.info-feature:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateX(5px);
+}
+
+.info-feature span {
+    font-size: 24px;
+}
+
+.info-feature h4 {
+    margin: 0 0 4px 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+
+.info-feature p {
+    margin: 0;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.6);
+    line-height: 1.4;
+}
+
+.info-footer {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.info-footer p {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.3);
+    margin: 0;
+}
+
+/* ==================== ANIMATIONS ==================== */
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes pulseGlow {
+    0%, 100% {
+        transform: scale(1) rotate(0deg);
+    }
+    50% {
+        transform: scale(1.1) rotate(10deg);
+    }
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 1024px) {
+    .auth-page-split {
+        flex-direction: column;
+    }
+    
+    .auth-form-section {
+        min-height: auto;
+        padding: 30px 20px;
+    }
+    
+    .auth-info-section {
+        min-height: auto;
+        padding: 40px 20px;
+    }
+    
+    .auth-info-content h2 {
+        font-size: 28px;
+    }
+}
+
+@media (max-width: 640px) {
+    .auth-form-container {
+        padding: 0;
+    }
+    
+    .auth-header-split h2 {
+        font-size: 24px;
+    }
+    
+    .auth-brand {
+        margin-bottom: 24px;
+    }
+    
+    .auth-info-content h2 {
+        font-size: 24px;
+    }
+    
+    .info-feature {
+        padding: 12px;
+    }
+}
