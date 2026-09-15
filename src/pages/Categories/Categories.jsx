@@ -750,7 +750,6 @@ const Categories = () => {
       {showModal && (
         <div
           className="modal-overlay"
-          onClick={() => !saving && setShowModal(false)}
         >
           <div
             className="modal-content"

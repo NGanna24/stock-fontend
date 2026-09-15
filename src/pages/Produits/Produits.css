@@ -206,8 +206,8 @@
 
 
 .stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow);
+  transform: translateY(-2px); 
+  box-shadow: var(--shadow); 
 }
 
 .stat-icon-wrapper {

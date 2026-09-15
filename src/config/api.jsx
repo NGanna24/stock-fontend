@@ -4,7 +4,6 @@ const BASE_URL = "https://miyo.n-double.com";
 
 export const API_URL = {
 
-
         // ==================== URLS DASHBOARD ====================
     DASHBOARD: {
         GET_STATS: `${BASE_URL}/api/dashboard/stats`,
@@ -25,6 +24,26 @@ export const API_URL = {
         LOGOUT: `${BASE_URL}/api/utilisateur/logout`,      
         CHANGE_PASSWORD: `${BASE_URL}/api/utilisateur/change-password`, 
     },
+    // ==================== URLS MAGASIN ====================
+MAGASIN: {
+    GET_MON_MAGASIN:    `${BASE_URL}/api/magasin/mon-magasin`,
+    UPDATE_MON_MAGASIN: `${BASE_URL}/api/magasin/mon-magasin`,
+    GET_BY_ID: (id) =>  `${BASE_URL}/api/magasin/${id}`,
+    UPLOAD_LOGO:        `${BASE_URL}/api/magasin/upload-logo`,  
+    DELETE_LOGO:        `${BASE_URL}/api/magasin/logo`,         
+},
+
+// ==================== URLS EMPLOYÉS ====================
+EMPLOYE: {
+    GET_ALL:    `${BASE_URL}/api/employes`,
+    GET_STATS:  `${BASE_URL}/api/employes/stats`,
+    GET_BY_ID:  (id) => `${BASE_URL}/api/employes/${id}`,
+    CREATE:     `${BASE_URL}/api/employes`,
+    UPDATE:     (id) => `${BASE_URL}/api/employes/${id}`,
+    TOGGLE:     (id) => `${BASE_URL}/api/employes/${id}/actif`,
+    DELETE:     (id) => `${BASE_URL}/api/employes/${id}`,
+    ROLES:      `${BASE_URL}/api/utilisateur/roles`, 
+},
     
     // ==================== URLS CATÉGORIES ====================
     CATEGORIE: {

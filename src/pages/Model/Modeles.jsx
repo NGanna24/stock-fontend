@@ -517,7 +517,6 @@ const Modeles = () => {
       {showModal && (
         <div
           className="modal-overlay"
-          onClick={() => !saving && setShowModal(false)}
         >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">

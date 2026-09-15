@@ -1024,10 +1024,10 @@ const RetoursFournisseurs = () => {
           MODAL - NOUVEAU RETOUR
           ============================================================ */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => !saving && setShowModal(false)}>
+        <div className="modal-overlay" >
           <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>🔄 Nouveau Retour Fournisseur</h2>
+              <h2>Nouveau Retour Fournisseur</h2>
               <button className="modal-close" onClick={() => !saving && setShowModal(false)}>
                 <X size={24} />
               </button>

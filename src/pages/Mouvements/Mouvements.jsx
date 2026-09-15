@@ -141,7 +141,7 @@ const Mouvements = () => {
             {/* En-tête */}
             <div className="mouvements-header">
                 <div>
-                    <h1 className="mouvements-title">📊 Mouvements de stock</h1>
+                    <h1 className="mouvements-title">Mouvements de stock</h1>
                     <p className="mouvements-subtitle">
                         {stats.total} mouvements enregistrés • Historique automatique
                     </p>
@@ -377,10 +377,10 @@ const Mouvements = () => {
 
             {/* Modal détails */}
             {showDetailModal && selectedMouvement && (
-                <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
+                <div className="modal-overlay">
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h2>📋 Détails du mouvement</h2>
+                            <h2>Détails du mouvement</h2>
                             <button className="modal-close" onClick={() => setShowDetailModal(false)}>
                                 <X size={24} />
                             </button>

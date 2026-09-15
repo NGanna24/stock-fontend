@@ -759,7 +759,7 @@ const Recettes = () => {
 
             {/* ==================== MODAL AJOUT ==================== */}
             {showModal && (
-                <div className="modal-overlay" onClick={() => !saving && setShowModal(false)}>
+                <div className="modal-overlay">
                     <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
                             <h2>Nouvelle Recette</h2>

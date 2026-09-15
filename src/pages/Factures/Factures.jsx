@@ -19,12 +19,13 @@ import {
   Ban,
 } from "lucide-react";
 import FactureService from "../../services/factureService";
+import MagasinService from "../../services/magasinService";
 import { useUser } from "../../context/AuthContext";
 import FacturePDFActions from "../../components/Facture/FacturePDFActions";
 import "./Factures.css";
 
 // ============================================================
-// HELPERS INTERNES (aucun nouveau fichier)
+// HELPERS INTERNES
 // ============================================================
 const formatMontant = (value) => {
   const num = Number(value || 0);
@@ -70,6 +71,9 @@ const Factures = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedFacture, setSelectedFacture] = useState(null);
 
+  // ✅ NOUVEAU : Magasin (pour le PDF)
+  const [magasin, setMagasin] = useState(null);
+
   // Statistiques
   const [stats, setStats] = useState({
     total_factures: 0,
@@ -92,6 +96,7 @@ const Factures = () => {
     if (isAuthenticated && token) {
       loadFactures();
       loadStats();
+      loadMagasin();   // ✅ NOUVEAU
     }
   }, [isAuthenticated, token]);
 
@@ -128,8 +133,18 @@ const Factures = () => {
     }
   };
 
+  // ✅ NOUVEAU : Chargement du magasin
+  const loadMagasin = async () => {
+    try {
+      const res = await MagasinService.getMonMagasin(token);
+      if (res.success) setMagasin(res.magasin);
+    } catch (error) {
+      console.error('❌ LoadMagasin error:', error);
+    }
+  };
+
   // ============================================================
-  // HELPERS DE CALCUL (recalcul local — corrige les incohérences)
+  // HELPERS DE CALCUL
   // ============================================================
   const getMontantPaye = (facture) => {
     if (facture.paiements && facture.paiements.length > 0) {
@@ -165,10 +180,26 @@ const Factures = () => {
   // ============================================================
   // ACTIONS
   // ============================================================
-  const handleView = (facture) => {
+const handleView = async (facture) => {
+    console.log('📦 Facture sélectionnée :', facture);
+
+    // Ouvrir le modal tout de suite avec les données de la liste
     setSelectedFacture(facture);
     setShowDetailModal(true);
-  };
+
+    // Puis recharger la facture complète avec ses lignes
+    try {
+        const res = await FactureService.getFactureById(token, facture.id_facture);
+        console.log('✅ Facture complète :', res);
+
+        if (res.success && res.data) {
+            console.log('📋 Lignes reçues :', res.data.lignes);
+            setSelectedFacture(res.data);
+        }
+    } catch (err) {
+        console.error('❌ Impossible de charger la facture complète :', err);
+    }
+};
 
   const handleExport = async () => {
     try {
@@ -218,6 +249,7 @@ const Factures = () => {
   const handleRefresh = () => {
     loadFactures();
     loadStats();
+    loadMagasin();
   };
 
   const getStatutBadge = (statut) => {
@@ -284,7 +316,7 @@ const Factures = () => {
       {/* En-tête */}
       <div className="factures-header">
         <div>
-          <h1 className="factures-title">📄 Factures</h1>
+          <h1 className="factures-title">Factures</h1>
           <p className="factures-subtitle">
             {stats.total_factures} factures au total
           </p>
@@ -497,10 +529,10 @@ const Factures = () => {
         const statutCalcule = getStatutCalcule(selectedFacture);
 
         return (
-          <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
-            <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-overlay">
+            <div className="modal-content large">
               <div className="modal-header">
-                <h2>📋 Détails de la facture</h2>
+                <h2>Détails de la facture</h2>
                 <button className="modal-close" onClick={() => setShowDetailModal(false)}>
                   <X size={24} />
                 </button>
@@ -583,7 +615,7 @@ const Factures = () => {
                 {/* Lignes produits */}
                 {selectedFacture.lignes && selectedFacture.lignes.length > 0 && (
                   <div className="detail-lignes">
-                    <h4>📦 Produits</h4>
+                    <h4>Produits</h4>
                     <div className="detail-lignes-wrapper">
                       <table className="detail-lignes-table">
                         <thead>
@@ -629,7 +661,7 @@ const Factures = () => {
                 {/* Paiements */}
                 {selectedFacture.paiements && selectedFacture.paiements.length > 0 && (
                   <div className="detail-paiements">
-                    <h4>💰 Paiements</h4>
+                    <h4>Paiements</h4>
                     <table className="detail-paiements-table">
                       <thead>
                         <tr>
@@ -662,11 +694,11 @@ const Factures = () => {
                 <FacturePDFActions
                   factureData={{
                     ...selectedFacture,
-                    // ✅ On force les valeurs recalculées pour le PDF
                     montant_total: montantTotal,
                     total_paye: montantPaye,
                     reste_a_payer: resteAPayer,
                     statut: statutCalcule,
+                    magasin: magasin,   // ✅ NOUVEAU : infos du magasin pour le PDF
                   }}
                   onClose={() => setShowDetailModal(false)}
                 />

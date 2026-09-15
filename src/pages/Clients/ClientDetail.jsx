@@ -210,7 +210,7 @@ const ClientDetail = () => {
             {client.produits_frequents && client.produits_frequents.length > 0 && (
                 <div className="dashboard-card">
                     <div className="card-header">
-                        <h3>🏆 Produits les plus achetés</h3>
+                        <h3> Produits les plus achetés</h3>
                     </div>
                     <div className="card-body">
                         <ul className="top-list">
@@ -239,7 +239,7 @@ const ClientDetail = () => {
             {/* Historique des commandes */}
             <div className="dashboard-card">
                 <div className="card-header">
-                    <h3>📦 Historique des commandes</h3>
+                    <h3>Historique des commandes</h3>
                     <span className="card-count">{client.commandes.length} commande(s)</span>
                 </div>
                 <div className="card-body">

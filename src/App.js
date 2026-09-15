@@ -8,7 +8,7 @@ import Achats from "./pages/Approvisionnement/Achat/Achat";
 import Fournisseurs from "./pages/Approvisionnement/Fournisseurs/Fournisseurs";
 import Entrees from "./pages/Stock/Entrees/Entrees";
 import Sorties from "./pages/Stock/Sorties/Sorties";
-import Ventes from "./pages/Ventes/Ventes"; 
+import Ventes from "./pages/Ventes/Ventes";
 import LoginPage from "./pages/Auth/LoginPage";
 import RegisterPage from "./pages/Auth/RegisterPage";
 import { AuthContextProvider, useUser } from "./context/AuthContext";
@@ -23,7 +23,7 @@ import Factures from "./pages/Factures/Factures";
 import RetoursClients from "./pages/RetoursClients/RetoursClients";
 import Mouvements from "./pages/Mouvements/Mouvements";
 import InventaireDetail from "./pages/Inventaires/Inventaires";
-import Inventaires from "./pages/Inventaires/Inventaires"; 
+import Inventaires from "./pages/Inventaires/Inventaires";
 import Clients from "./pages/Clients/Clients";
 import ClientDetail from "./pages/Clients/ClientDetail";
 import RapportVentes from "./pages/Rapports/RapportVentes/RapportVentes";
@@ -32,14 +32,19 @@ import RapportStocks from "./pages/Rapports/RapportStocks/RapportStocks";
 import BeneficesMarges from "./pages/BeneficesMarges/BeneficesMarges";
 import Alertes from "./pages/Alertes/Alertes";
 import Recettes from "./pages/Recettes/Recettes";
+import MonMagasin from "./pages/Magasin/MonMagasin";
+import Employes from "./pages/Employes/Employes";
 
+import ProtectedRouteByRole from "./components/ProtectedRouteByRole";
 
-// Composant de chargement
+// ==================== COMPOSANTS UTILITAIRES ====================
+
+// Écran de chargement
 const LoadingScreen = () => (
-    <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
+    <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
         height: '100vh',
         fontSize: '18px',
         color: '#666'
@@ -48,72 +53,53 @@ const LoadingScreen = () => (
     </div>
 );
 
-// Composant de protection des routes
+// Protection : connecté
 const ProtectedRoute = ({ children }) => {
     const { isAuthenticated, isInitialized } = useUser();
-    
-    if (!isInitialized) {
-        return <LoadingScreen />;
-    }
-    
-    if (!isAuthenticated) {
-        return <Navigate to="/login" replace />;
-    }
-    
+
+    if (!isInitialized) return <LoadingScreen />;
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+
     return children;
 };
 
-// Composant de redirection vers dashboard avec slug
+// Redirection racine → /{slug}/dashboard
 const RedirectToDashboard = () => {
     const { user, isAuthenticated, isInitialized } = useUser();
-    
-    if (!isInitialized) {
-        return <LoadingScreen />;
-    }
-    
-    if (!isAuthenticated) {
-        return <Navigate to="/login" replace />;
-    }
-    
+
+    if (!isInitialized) return <LoadingScreen />;
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+
     return <Navigate to={`/${user?.slug}/dashboard`} replace />;
 };
 
-// Composant de redirection pour les routes sans slug
+// Redirection d'une route sans slug → avec slug
 const RedirectWithSlug = () => {
     const { user, isAuthenticated, isInitialized } = useUser();
-    
-    if (!isInitialized) {
-        return <LoadingScreen />;
-    }
-    
-    if (!isAuthenticated) {
-        return <Navigate to="/login" replace />;
-    }
-    
-    // Récupérer le chemin actuel sans le slug
+
+    if (!isInitialized) return <LoadingScreen />;
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
+
     const path = window.location.pathname;
-    // Rediriger vers la même route mais avec le slug
     return <Navigate to={`/${user?.slug}${path}`} replace />;
 };
 
-// Composant principal
+// ==================== APP CONTENT ====================
 function AppContent() {
     return (
         <BrowserRouter>
             <Routes>
-                {/* Routes publiques */}
+                {/* ==================== ROUTES PUBLIQUES ==================== */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
-                
+
                 {/* Redirection racine */}
                 <Route path="/" element={<RedirectToDashboard />} />
-                
-                {/* Redirection pour /dashboard sans slug */}
                 <Route path="/dashboard" element={<RedirectWithSlug />} />
-                
-                {/* Routes protégées avec slug */}
-                <Route 
-                    path="/:slug" 
+
+                {/* ==================== ROUTES PROTÉGÉES ==================== */}
+                <Route
+                    path="/:slug"
                     element={
                         <ProtectedRoute>
                             <DashboardLayout />
@@ -121,47 +107,270 @@ function AppContent() {
                     }
                 >
                     <Route index element={<Dashboard />} />
+
+                    {/* ---------- Toujours accessible (connecté) ---------- */}
                     <Route path="dashboard" element={<Dashboard />} />
-                    <Route path="produits" element={<Produits />} />
-                    <Route path="categories" element={<Categories />} />
-                    <Route path="modeles" element={<Modeles />} />
-                    <Route path="marques" element={<Marques />} />
-                    <Route path="Unites" element={<Unites />} />
-                    <Route path="achats" element={<Achats />} />
-                    <Route path="fournisseurs" element={<Fournisseurs />} />
-                    <Route path="entrees" element={<Entrees />} />
-                    <Route path="sorties" element={<Sorties />} />
-                    <Route path="ventes" element={<Ventes />} />
-                    <Route path="commandes-achat" element={<CommandesAchats />} />
-                    <Route path="receptions" element={<Receptions />} />
-                    <Route path="retours-fournisseurs" element={<RetoursFournisseurs />} />
-                    <Route path="commandes-clients" element={<Ventes />} />
-                    <Route path="paiements" element={<Paiements />} />
-                    <Route path="factures" element={<Factures />} />
-                    <Route path="retours-fournisseurs" element={<RetoursFournisseurs />} />
-                    <Route path="retours-clients" element={<RetoursClients />} />
-                    <Route path="mouvements" element={<Mouvements />} />
-                    <Route path="inventaires" element={<Inventaires />} />
-                    <Route path="inventaires/:id" element={<InventaireDetail />} />   
-                    <Route path="clients" element={<Clients />} />
-                    <Route path="clients/:telephone" element={<ClientDetail />} /> 
-                    <Route path="rapport-ventes" element={<RapportVentes />} /> 
-                    <Route path="rapport-achats" element={<RapportAchats />} /> 
-                    <Route path="rapport-stocks" element={<RapportStocks />} /> 
-                    <Route path="benefices" element={<BeneficesMarges />} /> 
-                    <Route path="alertes" element={<Alertes />} /> 
-                    <Route path="recettes" element={<Recettes />} /> 
-                                    
+                    <Route path="alertes" element={<Alertes />} />
+
+                    {/* ---------- Accessibles à tous les rôles connectés ---------- */}
+                    <Route
+                        path="produits"
+                        element={
+                            <ProtectedRouteByRole itemId="produits">
+                                <Produits />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+
+                    {/* ---------- VENTES ---------- */}
+                    <Route
+                        path="clients"
+                        element={
+                            <ProtectedRouteByRole itemId="clients">
+                                <Clients />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="clients/:telephone"
+                        element={
+                            <ProtectedRouteByRole itemId="clients">
+                                <ClientDetail />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="commandes-clients"
+                        element={
+                            <ProtectedRouteByRole itemId="commandes-clients">
+                                <Ventes />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="ventes"
+                        element={
+                            <ProtectedRouteByRole itemId="commandes-clients">
+                                <Ventes />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="factures"
+                        element={
+                            <ProtectedRouteByRole itemId="factures">
+                                <Factures />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="recettes"
+                        element={
+                            <ProtectedRouteByRole itemId="recettes">
+                                <Recettes />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="retours-clients"
+                        element={
+                            <ProtectedRouteByRole itemId="retours-clients">
+                                <RetoursClients />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+
+                    {/* ---------- CATALOGUE & STOCK ---------- */}
+                    <Route
+                        path="categories"
+                        element={
+                            <ProtectedRouteByRole itemId="categories">
+                                <Categories />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="marques"
+                        element={
+                            <ProtectedRouteByRole itemId="marques">
+                                <Marques />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="modeles"
+                        element={
+                            <ProtectedRouteByRole itemId="modeles">
+                                <Modeles />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="unites"
+                        element={
+                            <ProtectedRouteByRole itemId="unites">
+                                <Unites />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="mouvements"
+                        element={
+                            <ProtectedRouteByRole itemId="mouvements">
+                                <Mouvements />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="inventaires"
+                        element={
+                            <ProtectedRouteByRole itemId="inventaires">
+                                <Inventaires />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="inventaires/:id"
+                        element={
+                            <ProtectedRouteByRole itemId="inventaires">
+                                <InventaireDetail />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+
+                    {/* ---------- APPROVISIONNEMENT ---------- */}
+                    <Route
+                        path="fournisseurs"
+                        element={
+                            <ProtectedRouteByRole itemId="fournisseurs">
+                                <Fournisseurs />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="commandes-achat"
+                        element={
+                            <ProtectedRouteByRole itemId="commandes-achat">
+                                <CommandesAchats />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="receptions"
+                        element={
+                            <ProtectedRouteByRole itemId="receptions">
+                                <Receptions />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="retours-fournisseurs"
+                        element={
+                            <ProtectedRouteByRole itemId="retours-fournisseurs">
+                                <RetoursFournisseurs />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="achats"
+                        element={
+                            <ProtectedRouteByRole itemId="commandes-achat">
+                                <Achats />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="entrees"
+                        element={
+                            <ProtectedRouteByRole itemId="inventaires">
+                                <Entrees />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="sorties"
+                        element={
+                            <ProtectedRouteByRole itemId="inventaires">
+                                <Sorties />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+
+                    {/* ---------- RAPPORTS ---------- */}
+                    <Route
+                        path="rapport-ventes"
+                        element={
+                            <ProtectedRouteByRole itemId="rapport-ventes">
+                                <RapportVentes />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="rapport-achats"
+                        element={
+                            <ProtectedRouteByRole itemId="rapport-achats">
+                                <RapportAchats />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="rapport-stocks"
+                        element={
+                            <ProtectedRouteByRole itemId="rapport-stocks">
+                                <RapportStocks />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="benefices"
+                        element={
+                            <ProtectedRouteByRole itemId="benefices">
+                                <BeneficesMarges />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+
+                    {/* ---------- ADMINISTRATION (admin uniquement) ---------- */}
+                    <Route
+                        path="mon-magasin"
+                        element={
+                            <ProtectedRouteByRole itemId="mon-magasin">
+                                <MonMagasin />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="employes"
+                        element={
+                            <ProtectedRouteByRole itemId="employes">
+                                <Employes />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="paiements"
+                        element={
+                            <ProtectedRouteByRole itemId="paiements">
+                                <Paiements />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+
+                    {/* Autres routes admin à brancher plus tard :
+                        - utilisateurs → /utilisateurs
+                        - roles → /roles
+                        - parametres → /parametres
+                    */}
                 </Route>
-                
-                {/* Route 404 */}
+
+                {/* ==================== 404 ==================== */}
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
         </BrowserRouter>
     );
 }
 
-// Wrapper avec le contexte
+// ==================== APP ====================
 function App() {
     return (
         <AuthContextProvider>

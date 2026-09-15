@@ -74,7 +74,7 @@ const RetoursClients = () => {
     lignes: []
   });
 
-  // ✅ NOUVEAUX ÉTATS : Recherche par numéro de commande
+  // Recherche par numéro de commande
   const [commandeSearch, setCommandeSearch] = useState("");
   const [commandeTrouvee, setCommandeTrouvee] = useState(null);
   const [searchingCommande, setSearchingCommande] = useState(false);
@@ -123,10 +123,6 @@ const RetoursClients = () => {
     setFormData({ ...formData, [name]: value });
   };
 
-  // ============================================================
-  // RESET FORMULAIRE
-  // ============================================================
-
   const resetRetourForm = () => {
     setFormData({
       id_commande_vente: "",
@@ -160,7 +156,6 @@ const RetoursClients = () => {
     setLignesCommande([]);
     setLignesSelectionnees({});
 
-    // Attendre au moins 3 caractères
     if (!numero || numero.trim().length < 3) {
       return;
     }
@@ -197,7 +192,6 @@ const RetoursClients = () => {
       lignes: []
     });
 
-    // ✅ Les lignes sont DÉJÀ dans la réponse (avec quantite_max_retournable)
     if (commande.lignes && commande.lignes.length > 0) {
       const lignesInit = {};
       commande.lignes.forEach(l => {
@@ -256,7 +250,6 @@ const RetoursClients = () => {
   const updateLigneRetour = (idLigne, field, value) => {
     const ligne = lignesSelectionnees[idLigne];
     
-    // Si c'est la quantité, valider le max
     if (field === 'quantite') {
       const maxRetournable = ligne?.quantite_max_retournable || 
                              lignesCommande.find(l => l.id_ligne_vente === idLigne)?.quantite_max_retournable || 
@@ -689,7 +682,7 @@ const RetoursClients = () => {
                         disabled={updatingStatut === retour.id_retour_client}
                         title="Rembourser"
                       >
-                        <banknote />
+                        <Banknote size={16} />
                       </button>
                       <button
                         className="action-btn btn-echange"
@@ -773,7 +766,7 @@ const RetoursClients = () => {
                 {renderMotif(retour.motif_retour)}
               </div>
               <div className="retour-montant">
-                <banknote />
+                <Banknote size={16} />
                 <span>{formatMontant(retour.montant_total)}</span>
               </div>
               <div className="retour-lignes-count">
@@ -826,70 +819,90 @@ const RetoursClients = () => {
         </div>
       </div>
 
-      {/* Statistiques */}
-      <div className="retours-clients-stats">
-        <div className="stat-card">
-          <div className="stat-icon total"><ShoppingBag size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Total</span>
-            <span className="stat-value">{stats.total}</span>
+      {/* ==================== VUE D'ENSEMBLE (KPI) ==================== */}
+      <div className="retours-kpi-grid">
+        <div className="retour-kpi-card kpi-total">
+          <div className="kpi-icon">
+            <ShoppingBag size={22} />
+          </div>
+          <div className="kpi-content">
+            <span className="kpi-label">Total retours</span>
+            <span className="kpi-value">{stats.total}</span>
+            <span className="kpi-sub">{formatMontant(stats.totalMontant)}</span>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon en-attente"><Clock size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">En attente</span>
-            <span className="stat-value">{stats.enAttente}</span>
+
+        <div className="retour-kpi-card kpi-encours">
+          <div className="kpi-icon">
+            <Clock size={22} />
+          </div>
+          <div className="kpi-content">
+            <span className="kpi-label">En cours</span>
+            <span className="kpi-value">
+              {stats.enAttente + stats.recu + stats.controle}
+            </span>
+            <span className="kpi-sub">à traiter</span>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon recu"><Package size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Reçus</span>
-            <span className="stat-value">{stats.recu}</span>
+
+        <div className="retour-kpi-card kpi-traite">
+          <div className="kpi-icon">
+            <CheckCircle size={22} />
+          </div>
+          <div className="kpi-content">
+            <span className="kpi-label">Traités</span>
+            <span className="kpi-value">
+              {stats.accepte + stats.refuse + stats.rembourse + stats.echange}
+            </span>
+            <span className="kpi-sub">terminés</span>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon controle"><AlertCircle size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Contrôle</span>
-            <span className="stat-value">{stats.controle}</span>
+
+        <div className="retour-kpi-card kpi-annule">
+          <div className="kpi-icon">
+            <Ban size={22} />
+          </div>
+          <div className="kpi-content">
+            <span className="kpi-label">Annulés</span>
+            <span className="kpi-value">{stats.annule}</span>
+            <span className="kpi-sub">clôturés</span>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon accepte"><CheckCircle size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Acceptés</span>
-            <span className="stat-value">{stats.accepte}</span>
-          </div>
+      </div>
+
+      {/* ==================== DÉTAIL PAR STATUT ==================== */}
+      <div className="retours-detail-grid">
+        <div className="detail-stat">
+          <span className="detail-stat-label">En attente</span>
+          <span className="detail-stat-value">{stats.enAttente}</span>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon refuse"><Ban size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Refusés</span>
-            <span className="stat-value">{stats.refuse}</span>
-          </div>
+        <div className="detail-stat">
+          <span className="detail-stat-label">Reçus</span>
+          <span className="detail-stat-value">{stats.recu}</span>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon rembourse"><Banknote/></div>
-          <div className="stat-info">
-            <span className="stat-label">Remboursés</span>
-            <span className="stat-value">{stats.rembourse}</span>
-          </div>
+        <div className="detail-stat">
+          <span className="detail-stat-label">Contrôle</span>
+          <span className="detail-stat-value">{stats.controle}</span>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon echange"><RotateCcw size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Échangés</span>
-            <span className="stat-value">{stats.echange}</span>
-          </div>
+        <div className="detail-stat">
+          <span className="detail-stat-label">Acceptés</span>
+          <span className="detail-stat-value text-success">{stats.accepte}</span>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon montant"><Banknote /></div>
-          <div className="stat-info">
-            <span className="stat-label">Total montant</span>
-            <span className="stat-value">{formatMontant(stats.totalMontant)}</span>
-          </div>
+        <div className="detail-stat">
+          <span className="detail-stat-label">Refusés</span>
+          <span className="detail-stat-value text-danger">{stats.refuse}</span>
+        </div>
+        <div className="detail-stat">
+          <span className="detail-stat-label">Remboursés</span>
+          <span className="detail-stat-value">{stats.rembourse}</span>
+        </div>
+        <div className="detail-stat">
+          <span className="detail-stat-label">Échangés</span>
+          <span className="detail-stat-value">{stats.echange}</span>
+        </div>
+        <div className="detail-stat">
+          <span className="detail-stat-label">Annulés</span>
+          <span className="detail-stat-value text-muted">{stats.annule}</span>
         </div>
       </div>
 
@@ -1008,7 +1021,7 @@ const RetoursClients = () => {
           MODAL - NOUVEAU RETOUR CLIENT
           ============================================================ */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => !saving && setShowModal(false)}>
+        <div className="modal-overlay" >
           <div className="modal-content large vente-modal" onClick={(e) => e.stopPropagation()}>
             
             {/* HEADER */}
@@ -1066,7 +1079,6 @@ const RetoursClients = () => {
                   </div>
                 </div>
 
-                {/* Message d'erreur de recherche */}
                 {searchCommandeError && (
                   <div className="search-error">
                     <AlertCircle size={16} />
@@ -1074,7 +1086,6 @@ const RetoursClients = () => {
                   </div>
                 )}
 
-                {/* Résultat de la recherche */}
                 {commandeTrouvee && !selectedCommande && (
                   <div className="commande-result-card">
                     <div className="commande-result-header">
@@ -1100,7 +1111,7 @@ const RetoursClients = () => {
                         <span>{commandeTrouvee.telephone}</span>
                       </div>
                       <div className="commande-result-item">
-                        <Banknote  />
+                        <Banknote size={14} />
                         <span>{formatMontant(commandeTrouvee.montant_total)}</span>
                       </div>
                       <div className="commande-result-item">
@@ -1120,7 +1131,6 @@ const RetoursClients = () => {
                   </div>
                 )}
 
-                {/* Commande sélectionnée */}
                 {selectedCommande && (
                   <div className="commande-selected-badge">
                     <CheckCircle size={18} />
@@ -1153,7 +1163,6 @@ const RetoursClients = () => {
                     </span>
                   </div>
 
-                  {/* Motif global */}
                   <div className="form-group">
                     <label>Motif global du retour *</label>
                     <select
@@ -1173,7 +1182,6 @@ const RetoursClients = () => {
                     </select>
                   </div>
 
-                  {/* Tableau des lignes */}
                   {lignesCommande.length === 0 ? (
                     <div className="empty-lignes">
                       <Box size={32} />
@@ -1303,7 +1311,6 @@ const RetoursClients = () => {
                     </div>
                   )}
 
-                  {/* Notes */}
                   <div className="form-group" style={{ marginTop: '16px' }}>
                     <label>Notes (optionnel)</label>
                     <textarea

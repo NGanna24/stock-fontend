@@ -1398,7 +1398,7 @@ const Ventes = () => {
           MODAL - NOUVELLE VENTE (STRUCTURE 2 COLONNES)
           ============================================================ */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => !saving && setShowModal(false)}>
+        <div className="modal-overlay" >
           <div className="modal-content large vente-modal" onClick={(e) => e.stopPropagation()}>
             {/* HEADER */}
             <div className="modal-header">
@@ -1783,7 +1783,7 @@ const Ventes = () => {
           MODAL - PAIEMENT
           ============================================================ */}
       {showPaiementModal && commandeEnCours && factureGeneree && (
-        <div className="modal-overlay" onClick={() => !saving && setShowPaiementModal(false)}>
+        <div className="modal-overlay">
           <div className="modal-content paiement-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>Paiement de la facture</h2>
@@ -1899,7 +1899,7 @@ const Ventes = () => {
           MODAL - FACTURE
           ============================================================ */}
       {showFactureModal && factureGeneree && (
-        <div className="modal-overlay" onClick={() => setShowFactureModal(false)}>
+        <div className="modal-overlay" >
           <div className="modal-content facture-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2> Facture N° {factureGeneree.numero_facture}</h2>
@@ -2239,7 +2239,7 @@ const Ventes = () => {
           TOAST
           ============================================================ */}
       {toast && (
-        <div className={`toast toast-${toast.type}`}>
+        <div className={`ventes-toast ventes-toast-${toast.type}`}>
           <span className="toast-message">{toast.message}</span>
           <button
             className="toast-close"

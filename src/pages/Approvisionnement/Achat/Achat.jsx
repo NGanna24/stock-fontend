@@ -594,7 +594,7 @@ const Achats = () => {
 
       {/* Modal d'ajout/édition */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+        <div className="modal-overlay">
           <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{editingAchat ? "Modifier la commande" : "Nouvelle commande"}</h2>

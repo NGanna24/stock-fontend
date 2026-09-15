@@ -2,259 +2,84 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useUser } from "../../../context/AuthContext";
+import { ROLE_PERMISSIONS } from "../../../config/rolePermissions";
 import {
-  ChevronDown,
-  ChevronRight,
-  LayoutDashboard,
-  Package,
-  Boxes,
-  Component,
-  Tag,
-  ShoppingBasket,
-  Truck,
-  PackageCheck,
-  ShoppingCart,
-  FileText,
-  Users,
-  RotateCcw,
-  Warehouse,
-  LayoutTemplate,
-  ClipboardList,
-  Layers,
-  AlertTriangle,
-  Wallet,
-  TrendingDown,
-  CreditCard,
-  BarChart3,
-  TrendingUp,
-  Banknote,
-  UserCog,
-  Shield,
-  Settings,
-  PanelLeftClose,
-  PanelLeftOpen,
-  LogOut,
-  Home,
-  Store,
-  Ruler,
+  ChevronDown, ChevronRight, LayoutDashboard, Package, Boxes,
+  Tag, ShoppingBasket, Truck, PackageCheck, ShoppingCart,
+  FileText, Users, RotateCcw, Warehouse, LayoutTemplate,
+  ClipboardList, Layers, AlertTriangle, TrendingDown, CreditCard,
+  BarChart3, TrendingUp, Banknote, Shield, Settings,
+  PanelLeftClose, PanelLeftOpen, LogOut, Store, Ruler,
 } from "lucide-react";
 import "./Sidebar.css";
 
 // ============================================================
-// CONFIGURATION DES MENUS (extraite du composant pour perf)
+// CONFIGURATION DES MENUS
 // ============================================================
 const MENU_CONFIG = [
-  // ========== SECTION PRINCIPAL ==========
   {
     section: "Principal",
     items: [
-      {
-        id: "dashboard",
-        title: "Tableau de bord",
-        icon: LayoutDashboard,
-        path: "/dashboard",
-      },
-      {
-        id: "alertes",
-        title: "Alertes",
-        icon: AlertTriangle,
-        path: "/alertes",
-        badge: "dynamic", // 🎯 Badge dynamique (nb alertes)
-        color: "#ef4444",
-      },
+      { id: "dashboard", title: "Tableau de bord", icon: LayoutDashboard, path: "/dashboard" },
+      { id: "alertes", title: "Alertes", icon: AlertTriangle, path: "/alertes", badge: "dynamic", color: "#ef4444" },
     ],
   },
-
-  // ========== SECTION VENTES ==========
   {
     section: "Ventes & Clients",
     icon: Store,
     items: [
-      {
-        id: "clients",
-        title: "Clients",
-        icon: Users,
-        path: "/clients",
-      },
-      {
-        id: "commandes-clients",
-        title: "Commandes clients",
-        icon: ShoppingCart,
-        path: "/commandes-clients",
-      },
-      {
-        id: "factures",
-        title: "Factures",
-        icon: FileText,
-        path: "/factures",
-      },
-      {
-        id: "recettes",
-        title: "Recettes",
-        icon: Banknote,
-        path: "/recettes",
-        highlight: "#10b981",
-      },
-      {
-        id: "retours-clients",
-        title: "Retours clients",
-        icon: RotateCcw,
-        path: "/retours-clients",
-      },
+      { id: "clients",           title: "Clients",           icon: Users,         path: "/clients" },
+      { id: "commandes-clients", title: "Commandes clients", icon: ShoppingCart,  path: "/commandes-clients" },
+      { id: "factures",          title: "Factures",          icon: FileText,      path: "/factures" },
+      { id: "recettes",          title: "Recettes",          icon: Banknote,      path: "/recettes",        highlight: "#10b981" },
+      { id: "retours-clients",   title: "Retours clients",   icon: RotateCcw,     path: "/retours-clients" },
     ],
   },
-
-  // ========== SECTION CATALOGUE & STOCK ==========
   {
     section: "Catalogue & Stock",
     icon: Package,
     items: [
-      {
-        id: "produits",
-        title: "Produits",
-        icon: Package,
-        path: "/produits",
-      },
-      {
-        id: "categories",
-        title: "Catégories",
-        icon: Boxes,
-        path: "/categories",
-      },
-      {
-        id: "marques",
-        title: "Marques",
-        icon: Tag,
-        path: "/marques",
-      },
-      {
-        id: "modeles",
-        title: "Modèles",
-        icon: LayoutTemplate,
-        path: "/modeles",
-      },
-      {
-        id: "unites",
-        title: "Unités",
-        icon: Ruler,
-        path: "/unites",
-      },
-      {
-        id: "mouvements",
-        title: "Mouvements",
-        icon: ClipboardList,
-        path: "/mouvements",
-      },
-      {
-        id: "inventaires",
-        title: "Inventaires",
-        icon: Layers,
-        path: "/inventaires",
-      },
+      { id: "produits",    title: "Produits",    icon: Package,        path: "/produits" },
+      { id: "categories",  title: "Catégories",  icon: Boxes,          path: "/categories" },
+      { id: "marques",     title: "Marques",     icon: Tag,            path: "/marques" },
+      { id: "modeles",     title: "Modèles",     icon: LayoutTemplate, path: "/modeles" },
+      { id: "unites",      title: "Unités",      icon: Ruler,          path: "/unites" },
+      { id: "mouvements",  title: "Mouvements",  icon: ClipboardList,  path: "/mouvements" },
+      { id: "inventaires", title: "Inventaires", icon: Layers,         path: "/inventaires" },
     ],
   },
-
-  // ========== SECTION APPROVISIONNEMENT ==========
   {
     section: "Approvisionnement",
     icon: Truck,
     items: [
-      {
-        id: "fournisseurs",
-        title: "Fournisseurs",
-        icon: Truck,
-        path: "/fournisseurs",
-      },
-      {
-        id: "commandes-achat",
-        title: "Commandes d'achat",
-        icon: ShoppingBasket,
-        path: "/commandes-achat",
-      },
-      {
-        id: "receptions",
-        title: "Réceptions",
-        icon: PackageCheck,
-        path: "/receptions",
-      },
-      {
-        id: "retours-fournisseurs",
-        title: "Retours fournisseurs",
-        icon: RotateCcw,
-        path: "/retours-fournisseurs",
-      },
-      {
-        id: "depenses",
-        title: "Dépenses",
-        icon: TrendingDown,
-        path: "/depenses",
-        highlight: "#ef4444",
-      },
+      { id: "fournisseurs",         title: "Fournisseurs",         icon: Truck,          path: "/fournisseurs" },
+      { id: "commandes-achat",      title: "Commandes d'achat",    icon: ShoppingBasket, path: "/commandes-achat" },
+      { id: "receptions",           title: "Réceptions",           icon: PackageCheck,   path: "/receptions" },
+      { id: "retours-fournisseurs", title: "Retours fournisseurs", icon: RotateCcw,      path: "/retours-fournisseurs" },
+      { id: "depenses",             title: "Dépenses",             icon: TrendingDown,   path: "/depenses", highlight: "#ef4444" },
     ],
   },
-
-  // ========== SECTION RAPPORTS ==========
   {
     section: "Rapports & Analyses",
     icon: BarChart3,
     items: [
-      {
-        id: "rapport-ventes",
-        title: "Rapport des ventes",
-        icon: TrendingUp,
-        path: "/rapport-ventes",
-      },
-      {
-        id: "rapport-achats",
-        title: "Rapport des achats",
-        icon: ShoppingBasket,
-        path: "/rapport-achats",
-      },
-      {
-        id: "rapport-stocks",
-        title: "Rapport des stocks",
-        icon: Warehouse,
-        path: "/rapport-stocks",
-      },
-      {
-        id: "benefices",
-        title: "Bénéfices & Marges",
-        icon: Banknote,
-        path: "/benefices",
-        highlight: "#10b981",
-      },
+      { id: "rapport-ventes",  title: "Rapport des ventes",  icon: TrendingUp,     path: "/rapport-ventes" },
+      { id: "rapport-achats",  title: "Rapport des achats",  icon: ShoppingBasket, path: "/rapport-achats" },
+      { id: "rapport-stocks",  title: "Rapport des stocks",  icon: Warehouse,      path: "/rapport-stocks" },
+      { id: "benefices",       title: "Bénéfices & Marges",  icon: Banknote,       path: "/benefices", highlight: "#10b981" },
     ],
   },
-
-  // ========== SECTION ADMINISTRATION ==========
   {
     section: "Administration",
     icon: Settings,
+    // ⚠️ Section entièrement réservée aux rôles listés ci-dessous
+    allowedRoles: ["admin"],
     items: [
-      {
-        id: "utilisateurs",
-        title: "Utilisateurs",
-        icon: Users,
-        path: "/utilisateurs",
-      },
-      {
-        id: "roles",
-        title: "Rôles & Permissions",
-        icon: Shield,
-        path: "/roles",
-      },
-      {
-        id: "paiements",
-        title: "Paiements",
-        icon: CreditCard,
-        path: "/paiements",
-      },
-      {
-        id: "parametres",
-        title: "Paramètres",
-        icon: Settings,
-        path: "/parametres",
-      },
+      { id: "mon-magasin",  title: "Mon magasin",         icon: Store,    path: "/mon-magasin" },
+      { id: "employes",     title: "Employés",            icon: Users,    path: "/employes" },
+      { id: "roles",        title: "Rôles & Permissions", icon: Shield,   path: "/roles" },
+      { id: "paiements",    title: "Paiements",           icon: CreditCard, path: "/paiements" },
+      { id: "parametres",   title: "Paramètres",          icon: Settings, path: "/parametres" },
     ],
   },
 ];
@@ -269,62 +94,86 @@ const Sidebar = () => {
 
   const [collapsed, setCollapsed] = useState(false);
 
-  // ✅ Ouvrir tous les groupes par défaut
-  const [openSections, setOpenSections] = useState(() => {
+  const userSlug = user?.slug || "";
+  const userRole = user?.role || "caissier"; // rôle par défaut (le moins permissif)
+
+  // ============================================================
+  // ✅ FILTRAGE DES MENUS SELON LE RÔLE
+  // ============================================================
+  const menuConfigFiltre = useMemo(() => {
+    const perms = ROLE_PERMISSIONS[userRole] || [];
+    const isFullAccess = perms.includes('*');
+
+    return MENU_CONFIG
+      .filter(section => {
+        // Section réservée aux rôles listés
+        if (section.allowedRoles) {
+          return section.allowedRoles.includes(userRole);
+        }
+        return true;
+      })
+      .map(section => ({
+        ...section,
+        // Filtrer les items selon les permissions
+        items: section.items.filter(item => 
+          isFullAccess || perms.includes(item.id)
+        ),
+      }))
+      // Supprimer les sections vides
+      .filter(section => section.items.length > 0);
+  }, [userRole]);
+
+  // ============================================================
+  // ÉTAT D'OUVERTURE DES SECTIONS
+  // ============================================================
+  const [openSections, setOpenSections] = useState({});
+
+  // Initialiser ouvertures quand les menus sont filtrés
+  useEffect(() => {
     const initial = {};
-    MENU_CONFIG.forEach(section => {
+    menuConfigFiltre.forEach(section => {
       initial[section.section] = true;
     });
-    return initial;
-  });
+    setOpenSections(initial);
+  }, [menuConfigFiltre]);
 
-  const userSlug = user?.slug || "";
-
-  // ========== TROUVER L'ÉLÉMENT ACTIF ==========
+  // ============================================================
+  // ITEM ACTIF
+  // ============================================================
   const activeItemId = useMemo(() => {
     const currentPath = location.pathname.replace(`/${userSlug}`, '') || '/dashboard';
-
-    for (const section of MENU_CONFIG) {
+    for (const section of menuConfigFiltre) {
       for (const item of section.items) {
-        if (item.path === currentPath) {
-          return item.id;
-        }
+        if (item.path === currentPath) return item.id;
       }
     }
     return 'dashboard';
-  }, [location.pathname, userSlug]);
+  }, [location.pathname, userSlug, menuConfigFiltre]);
 
-  // ========== OUVRIR AUTOMATIQUEMENT LA SECTION ACTIVE ==========
+  // Ouvrir auto la section active
   useEffect(() => {
-    for (const section of MENU_CONFIG) {
-      for (const item of section.items) {
+    menuConfigFiltre.forEach(section => {
+      section.items.forEach(item => {
         if (item.path === location.pathname.replace(`/${userSlug}`, '')) {
-          setOpenSections(prev => ({
-            ...prev,
-            [section.section]: true,
-          }));
-          break;
+          setOpenSections(prev => ({ ...prev, [section.section]: true }));
         }
-      }
-    }
-  }, [location.pathname, userSlug]);
+      });
+    });
+  }, [location.pathname, userSlug, menuConfigFiltre]);
 
-  // ========== TOGGLE SECTION ==========
+  // ============================================================
+  // ACTIONS
+  // ============================================================
   const toggleSection = (sectionName) => {
-    setOpenSections(prev => ({
-      ...prev,
-      [sectionName]: !prev[sectionName],
-    }));
+    setOpenSections(prev => ({ ...prev, [sectionName]: !prev[sectionName] }));
   };
 
-  // ========== NAVIGATION ==========
   const handleNavigation = (item) => {
     if (item.path) {
       navigate(`/${userSlug}${item.path}`);
     }
   };
 
-  // ========== DÉCONNEXION ==========
   const handleLogout = async () => {
     if (window.confirm("Êtes-vous sûr de vouloir vous déconnecter ?")) {
       await logout();
@@ -332,7 +181,9 @@ const Sidebar = () => {
     }
   };
 
-  // ========== RENDER ITEM ==========
+  // ============================================================
+  // RENDUS
+  // ============================================================
   const renderItem = (item) => {
     const Icon = item.icon;
     const isActive = activeItemId === item.id;
@@ -350,23 +201,15 @@ const Sidebar = () => {
           {!collapsed && <span>{item.title}</span>}
         </span>
 
-        {/* Badge dynamique */}
-        {!collapsed && item.badge === 'dynamic' && (
-          <span className="menu-badge">!</span>
-        )}
+        {!collapsed && item.badge === 'dynamic' && <span className="menu-badge">!</span>}
 
-        {/* Indicateur highlight */}
         {!collapsed && item.highlight && !isActive && (
-          <span
-            className="menu-dot"
-            style={{ background: item.highlight }}
-          />
+          <span className="menu-dot" style={{ background: item.highlight }} />
         )}
       </button>
     );
   };
 
-  // ========== RENDER SECTION ==========
   const renderSection = (section) => {
     const SectionIcon = section.icon;
     const isOpen = openSections[section.section];
@@ -374,7 +217,6 @@ const Sidebar = () => {
 
     return (
       <div key={section.section} className="menu-section">
-        {/* Titre de section (caché si collapsed) */}
         {!collapsed && section.section !== "Principal" ? (
           <button
             className={`section-header ${isOpen ? 'open' : ''} ${hasActiveItem ? 'has-active' : ''}`}
@@ -394,14 +236,12 @@ const Sidebar = () => {
           )
         )}
 
-        {/* Items de la section */}
         {(!collapsed || section.section === "Principal") && (
           <div className={`section-items ${isOpen ? 'open' : 'closed'}`}>
             {section.items.map(renderItem)}
           </div>
         )}
 
-        {/* Mode collapsed : afficher tous les items à plat */}
         {collapsed && section.section === "Principal" && (
           <div className="section-items">
             {section.items.map(renderItem)}
@@ -411,14 +251,15 @@ const Sidebar = () => {
     );
   };
 
-  // ========== RENDER ==========
+  // ============================================================
+  // RENDER PRINCIPAL
+  // ============================================================
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
-      {/* ==================== LOGO ==================== */}
       <div className="logo">
         {!collapsed && (
           <div className="logo-content">
-            <h2>StockPro</h2>
+            <h2>Miyo</h2>
             <span>Gestion des Stocks</span>
           </div>
         )}
@@ -426,28 +267,22 @@ const Sidebar = () => {
           className="collapse-btn"
           onClick={() => setCollapsed(prev => !prev)}
           aria-label={collapsed ? "Développer la sidebar" : "Réduire la sidebar"}
-          title={collapsed ? "Développer" : "Réduire"}
         >
           {collapsed ? <PanelLeftOpen size={22} /> : <PanelLeftClose size={22} />}
         </button>
       </div>
 
-      {/* ==================== NAVIGATION ==================== */}
       <nav className="sidebar-nav">
         {collapsed ? (
-          // ✅ Mode réduit : tous les items à plat
           <div className="collapsed-nav">
-            {MENU_CONFIG.flatMap(section => section.items).map(renderItem)}
+            {menuConfigFiltre.flatMap(section => section.items).map(renderItem)}
           </div>
         ) : (
-          // ✅ Mode étendu : sections avec titres
-          MENU_CONFIG.map(renderSection)
+          menuConfigFiltre.map(renderSection)
         )}
       </nav>
 
-      {/* ==================== FOOTER ==================== */}
       <div className="sidebar-footer">
-        {/* Déconnexion */}
         <button
           className="menu-item logout-item"
           onClick={handleLogout}
@@ -459,7 +294,6 @@ const Sidebar = () => {
           </span>
         </button>
 
-        {/* Info utilisateur */}
         {!collapsed && user && (
           <div className="user-info">
             <span className="user-avatar">

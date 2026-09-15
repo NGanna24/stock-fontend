@@ -1,0 +1,243 @@
+/* ==================== LOGO SECTION ==================== */
+.logo-section {
+    margin-bottom: 24px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.logo-section-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 12px;
+}
+
+.logo-upload-layout {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: 24px;
+    align-items: flex-start;
+}
+
+/* ==================== DROPZONE ==================== */
+.logo-dropzone {
+    width: 180px;
+    height: 180px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 2px dashed #cbd5e1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    cursor: pointer;
+    overflow: hidden;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.logo-dropzone:hover:not(.uploading) {
+    border-color: #2563eb;
+    background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.15);
+}
+
+.logo-dropzone.drag-over {
+    border-color: #2563eb;
+    background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+    transform: scale(1.02);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+}
+
+.logo-dropzone.uploading {
+    cursor: wait;
+    opacity: 0.85;
+}
+
+.logo-dropzone.has-image {
+    border-style: solid;
+    border-color: #e2e8f0;
+    background: #fff;
+    padding: 8px;
+}
+
+.logo-dropzone img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.logo-dropzone-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    color: #94a3b8;
+    text-align: center;
+    padding: 16px;
+}
+
+.logo-dropzone-icon {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #cbd5e1;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    transition: all 0.2s;
+}
+
+.logo-dropzone:hover .logo-dropzone-icon {
+    color: #2563eb;
+    transform: scale(1.05);
+}
+
+.logo-dropzone-empty span {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+}
+
+.logo-dropzone-empty small {
+    font-size: 10px;
+    color: #94a3b8;
+    font-style: italic;
+}
+
+/* Overlay au survol */
+.logo-hover-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.75);
+    backdrop-filter: blur(2px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    opacity: 0;
+    transition: opacity 0.2s;
+    pointer-events: none;
+}
+
+.logo-dropzone:hover .logo-hover-overlay {
+    opacity: 1;
+}
+
+.logo-dropzone:not(.has-image) .logo-hover-overlay {
+    display: none;
+}
+
+/* Overlay d'upload */
+.logo-uploading-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.95);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: #2563eb;
+    font-size: 12px;
+    font-weight: 700;
+    z-index: 10;
+}
+
+/* ==================== ACTIONS À DROITE ==================== */
+.logo-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-top: 8px;
+    min-width: 0;
+}
+
+.logo-actions-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 0;
+}
+
+.logo-actions-desc {
+    font-size: 12px;
+    color: #64748b;
+    margin: 0;
+    line-height: 1.5;
+    max-width: 360px;
+}
+
+.logo-actions-buttons {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+}
+
+/* ==================== BOUTONS SPÉCIAUX ==================== */
+.btn-sm {
+    padding: 9px 16px;
+    font-size: 13px;
+    border-radius: 8px;
+}
+
+.btn-danger-outline {
+    background: #fff;
+    color: #dc2626;
+    border: 1.5px solid #fecaca;
+    padding: 9px 12px;
+}
+
+.btn-danger-outline:hover:not(:disabled) {
+    background: #fef2f2;
+    border-color: #dc2626;
+    transform: translateY(-1px);
+}
+
+/* ==================== RESPONSIVE ==================== */
+@media (max-width: 768px) {
+    .logo-upload-layout {
+        grid-template-columns: 1fr;
+        gap: 16px;
+    }
+
+    .logo-dropzone {
+        width: 140px;
+        height: 140px;
+        margin: 0 auto;
+    }
+
+    .logo-actions {
+        text-align: center;
+        align-items: center;
+    }
+
+    .logo-actions-buttons {
+        justify-content: center;
+    }
+
+    .logo-actions-desc {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    .logo-dropzone {
+        width: 120px;
+        height: 120px;
+    }
+
+    .logo-dropzone-icon {
+        width: 42px;
+        height: 42px;
+    }
+}

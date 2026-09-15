@@ -613,22 +613,30 @@ const Produits = () => {
     setOpenDropdown(null);
   };
 
-  const handleSave = async () => {
-    if (!formData.nom.trim()) {
-      showToast("warning", "Veuillez saisir un nom de produit");
-      return;
-    }
-    if (!formData.id_fournisseur) {
-      showToast("warning", "Veuillez sélectionner un fournisseur");
-      return;
-    }
+const handleSave = async () => {
+  // ============================================================
+  // VALIDATIONS DE BASE
+  // ============================================================
+  if (!formData.nom.trim()) {
+    showToast("warning", "Veuillez saisir un nom de produit");
+    return;
+  }
+  if (!formData.id_fournisseur) {
+    showToast("warning", "Veuillez sélectionner un fournisseur");
+    return;
+  }
 
-    const unitesActives = unitesVente.filter((u) => !u.isDeleted);
-    if (unitesActives.length === 0) {
-      showToast("warning", "Veuillez ajouter au moins une unité de vente");
-      return;
-    }
+  // ============================================================
+  // UNITÉS DE VENTE — OPTIONNELLES
+  // ============================================================
+  // Si aucune unité de vente n'est définie, l'unité de base
+  // du produit servira d'unité de vente par défaut.
+  // C'est le cas pour les produits vendus uniquement à l'unité
+  // (ex : un moteur vendu à la pièce).
+  const unitesActives = unitesVente.filter((u) => !u.isDeleted);
 
+  // Si des unités de vente sont ajoutées, les valider
+  if (unitesActives.length > 0) {
     for (const unite of unitesActives) {
       if (!unite.nom || !unite.nom.trim()) {
         showToast("warning", "Toutes les unités de vente doivent avoir un nom");
@@ -643,60 +651,67 @@ const Produits = () => {
         return;
       }
     }
+  }
 
-    setSaving(true);
-    try {
-      const data = {
-        ...formData,
-        nom: formData.nom.trim(),
-        description: formData.description?.trim() || "",
-        prix_achat: parseFloat(formData.prix_achat) || 0,
-        prix_vente: parseFloat(formData.prix_vente) || 0,
-        quantite_stock: parseFloat(formData.quantite_stock) || 0,
-        quantite_minimale: parseFloat(formData.quantite_minimale) || 0,
-        quantite_maximale: parseFloat(formData.quantite_maximale) || 0,
-        id_fournisseur: formData.id_fournisseur || null,
-        id_categorie: formData.id_categorie || null,
-        id_marque: formData.id_marque || null,
-        id_modele: formData.id_modele || null,
-        id_unite: formData.id_unite || null,
-        unites_vente: unitesActives.map((u) => ({
-          id_unite_vente: u.id_unite_vente,
-          nom: u.nom.trim(),
-          quantite_base: parseFloat(u.quantite_base) || 1,
-          prix_vente: parseFloat(u.prix_vente) || 0,
-          prix_achat: parseFloat(u.prix_achat) || 0,
-          est_principal: u.est_principal,
-        })),
-        unites_vente_deleted: unitesVente
-          .filter((u) => u.isDeleted && u.id_unite_vente)
-          .map((u) => u.id_unite_vente),
-      };
+  // ============================================================
+  // SAUVEGARDE
+  // ============================================================
+  setSaving(true);
+  try {
+    const data = {
+      ...formData,
+      nom: formData.nom.trim(),
+      description: formData.description?.trim() || "",
+      prix_achat: parseFloat(formData.prix_achat) || 0,
+      prix_vente: parseFloat(formData.prix_vente) || 0,
+      quantite_stock: parseFloat(formData.quantite_stock) || 0,
+      quantite_minimale: parseFloat(formData.quantite_minimale) || 0,
+      quantite_maximale: parseFloat(formData.quantite_maximale) || 0,
+      id_fournisseur: formData.id_fournisseur || null,
+      id_categorie: formData.id_categorie || null,
+      id_marque: formData.id_marque || null,
+      id_modele: formData.id_modele || null,
+      id_unite: formData.id_unite || null,
 
-      const response = editingProduit
-        ? await ProduitService.updateProduit(token, editingProduit.id_produit, data)
-        : await ProduitService.createProduit(token, data);
+      // ✅ Tableau vide si aucune unité de vente
+      unites_vente: unitesActives.map((u) => ({
+        id_unite_vente: u.id_unite_vente,
+        nom: u.nom.trim(),
+        quantite_base: parseFloat(u.quantite_base) || 1,
+        prix_vente: parseFloat(u.prix_vente) || 0,
+        prix_achat: parseFloat(u.prix_achat) || 0,
+        est_principal: u.est_principal,
+      })),
 
-      if (response.success) {
-        showToast(
-          "success",
-          editingProduit ? "Produit modifié avec succès" : "Produit créé avec succès"
-        );
-        await loadProduits();
-        setShowModal(false);
-        setEditingProduit(null);
-        setFormData(INITIAL_FORM_DATA);
-        setUnitesVente([]);
-      } else {
-        showToast("error", response.message || "Erreur de sauvegarde");
-      }
-    } catch (err) {
-      console.error("❌ Save error:", err);
-      showToast("error", err.message || "Erreur de sauvegarde");
-    } finally {
-      setSaving(false);
+      unites_vente_deleted: unitesVente
+        .filter((u) => u.isDeleted && u.id_unite_vente)
+        .map((u) => u.id_unite_vente),
+    };
+
+    const response = editingProduit
+      ? await ProduitService.updateProduit(token, editingProduit.id_produit, data)
+      : await ProduitService.createProduit(token, data);
+
+    if (response.success) {
+      showToast(
+        "success",
+        editingProduit ? "Produit modifié avec succès" : "Produit créé avec succès"
+      );
+      await loadProduits();
+      setShowModal(false);
+      setEditingProduit(null);
+      setFormData(INITIAL_FORM_DATA);
+      setUnitesVente([]);
+    } else {
+      showToast("error", response.message || "Erreur de sauvegarde");
     }
-  };
+  } catch (err) {
+    console.error("❌ Save error:", err);
+    showToast("error", err.message || "Erreur de sauvegarde");
+  } finally {
+    setSaving(false);
+  }
+};
 
   const confirmDelete = (produit) => {
     setProduitToDelete(produit);
@@ -1305,7 +1320,6 @@ const Produits = () => {
       {showModal && (
         <div
           className="modal-overlay"
-          onClick={() => !saving && setShowModal(false)}
         >
           <div
             className="modal-content modal-lg"
@@ -1725,8 +1739,7 @@ const Produits = () => {
                 disabled={
                   saving ||
                   !formData.id_fournisseur ||
-                  !formData.nom.trim() ||
-                  unitesVente.filter((u) => !u.isDeleted).length === 0
+                  !formData.nom.trim() 
                 }
               >
                 {saving ? (

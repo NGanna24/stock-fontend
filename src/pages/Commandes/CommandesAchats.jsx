@@ -1745,7 +1745,7 @@ const CommandesAchat = () => {
           MODAL - NOUVELLE COMMANDE / ÉDITION
           ============================================================ */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => !saving && setShowModal(false)}>
+        <div className="modal-overlay">
           <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <div className="modal-header-content">

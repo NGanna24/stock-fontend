@@ -284,7 +284,7 @@ const BeneficesMarges = () => {
                             {formatMontant(totaux.benefice_brut)}
                         </span>
                         <span className="kpi-sub">
-                            {totaux.benefice_brut >= 0 ? '📈 Rentable' : '📉 Perte'}
+                            {totaux.benefice_brut >= 0 ? 'Rentable' : 'Perte'}
                         </span>
                     </div>
                 </div>

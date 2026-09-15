@@ -795,7 +795,7 @@ const Fournisseurs = () => {
 
       {/* Modal d'ajout/édition */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => !saving && setShowModal(false)}>
+        <div className="modal-overlay" >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>{editingFournisseur ? "Modifier le fournisseur" : "Ajouter un fournisseur"}</h2>

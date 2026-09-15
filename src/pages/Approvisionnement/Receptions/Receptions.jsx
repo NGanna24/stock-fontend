@@ -1106,7 +1106,7 @@ const Receptions = () => {
 
       <div className="receptions-header">
         <div>
-          <h1 className="receptions-title">📦 Réceptions de Stock</h1>
+          <h1 className="receptions-title">Réceptions de Stock</h1>
           <p className="receptions-subtitle">{stats.total} réceptions au total</p>
         </div>
         <div className="receptions-actions">
@@ -1267,10 +1267,10 @@ const Receptions = () => {
 
       {/* MODAL NOUVELLE RÉCEPTION */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => !saving && setShowModal(false)}>
+        <div className="modal-overlay">
           <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>📦 Nouvelle Réception</h2>
+              <h2>Nouvelle Réception</h2>
               <button className="modal-close" onClick={() => !saving && setShowModal(false)}>
                 <X size={24} />
               </button>
@@ -1320,7 +1320,7 @@ const Receptions = () => {
                   {commandesDisponibles.length === 0 && !loadingCommandes && (
                     <div className="commande-loading-indicator" style={{ color: '#f59e0b' }}>
                       <AlertCircle size={16} />
-                      ⚠️ Aucune commande en attente de réception
+                      Aucune commande en attente de réception
                     </div>
                   )}
                 </div>
@@ -1344,7 +1344,7 @@ const Receptions = () => {
                   <div className="info-message" style={{ marginTop: '16px' }}>
                     <Info size={18} />
                     <div>
-                      <p><strong>💡 Prix d'achat optionnel</strong></p>
+                      <p><strong> Prix d'achat optionnel</strong></p>
                       <small>
                         Vous pouvez saisir le prix d'achat réel facturé par le fournisseur.
                         Il sera automatiquement mis à jour sur l'unité et le produit.
@@ -1404,7 +1404,7 @@ const Receptions = () => {
         <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
           <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>📋 Détails de la réception</h2>
+              <h2>Détails de la réception</h2>
               <button className="modal-close" onClick={() => setShowDetailModal(false)}>
                 <X size={24} />
               </button>

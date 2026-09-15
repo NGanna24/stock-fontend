@@ -132,7 +132,7 @@ const Clients = () => {
             {/* En-tête */}
             <div className="clients-header">
                 <div>
-                    <h1 className="clients-title">👥 Clients</h1>
+                    <h1 className="clients-title">Clients</h1>
                     <p className="clients-subtitle">
                         {stats.total_clients} clients • {stats.clients_actifs_30j} actifs ce mois
                     </p>

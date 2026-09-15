@@ -186,7 +186,7 @@ const Inventaires = () => {
             {/* En-tête */}
             <div className="inventaires-header">
                 <div>
-                    <h1 className="inventaires-title">📋 Inventaires</h1>
+                    <h1 className="inventaires-title">Inventaires</h1>
                     <p className="inventaires-subtitle">
                         {stats.total} inventaires • {stats.en_cours} en cours
                     </p>
@@ -365,10 +365,10 @@ const Inventaires = () => {
 
             {/* Modal création */}
             {showCreateModal && (
-                <div className="modal-overlay" onClick={() => setShowCreateModal(false)}>
+                <div className="modal-overlay" >
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h2>➕ Nouvel inventaire</h2>
+                            <h2> Nouvel inventaire</h2>
                             <button className="modal-close" onClick={() => setShowCreateModal(false)}><X size={24} /></button>
                         </div>
                         <div className="modal-body">
