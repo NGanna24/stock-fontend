@@ -36,7 +36,7 @@ const formatDate = (dateStr) => {
 // ========== COULEURS STATUTS ==========
 const STATUT_COLORS = {
     'livree': '#10b981',
-    'expediee': '#3b82f6',
+    'expediee': '#995F2F',
     'en_preparation': '#8b5cf6',
     'confirmee': '#f59e0b',
     'en_attente': '#f97316',

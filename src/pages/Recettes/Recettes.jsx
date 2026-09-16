@@ -37,13 +37,13 @@ const formatDate = (dateStr) => {
 // ========== CONFIG MODES DE PAIEMENT ==========
 const MODES_PAIEMENT = {
     'especes': { label: 'Espèces', icon: Banknote, color: '#10b981', bg: '#d1fae5' },
-    'carte': { label: 'Carte', icon: CreditCard, color: '#3b82f6', bg: '#dbeafe' },
+    'carte': { label: 'Carte', icon: CreditCard, color: '#995F2F', bg: '#dbeafe' },
     'virement': { label: 'Virement', icon: Building2, color: '#8b5cf6', bg: '#e9d5ff' },
     'cheque': { label: 'Chèque', icon: FileText, color: '#f59e0b', bg: '#fef3c7' },
     'autre': { label: 'Autre', icon: Wallet, color: '#64748b', bg: '#f1f5f9' }
 };
 
-const PIE_COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#64748b'];
+const PIE_COLORS = ['#10b981', '#995F2F', '#8b5cf6', '#f59e0b', '#64748b'];
 
 // ========== ÉTAT INITIAL FORMULAIRE ==========
 const INITIAL_FORM_DATA = {

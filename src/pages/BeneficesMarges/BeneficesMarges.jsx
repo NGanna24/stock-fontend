@@ -41,7 +41,7 @@ const formatDate = (dateStr) => {
 
 // ========== COULEURS ============
 const CATEGORIE_COLORS = [
-    '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#3b82f6',
+    '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#995F2F',
     '#06b6d4', '#ec4899', '#f97316', '#84cc16', '#6366f1'
 ];
 
@@ -354,8 +354,8 @@ const BeneficesMarges = () => {
                                         <ComposedChart data={parJour}>
                                             <defs>
                                                 <linearGradient id="colorCA" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                                    <stop offset="5%" stopColor="#995F2F" stopOpacity={0.3} />
+                                                    <stop offset="95%" stopColor="#995F2F" stopOpacity={0} />
                                                 </linearGradient>
                                                 <linearGradient id="colorBenef" x1="0" y1="0" x2="0" y2="1">
                                                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
@@ -385,7 +385,7 @@ const BeneficesMarges = () => {
                                                 type="monotone"
                                                 dataKey="chiffre_affaires"
                                                 name="CA"
-                                                stroke="#3b82f6"
+                                                stroke="#995F2F"
                                                 fill="url(#colorCA)"
                                                 strokeWidth={2}
                                             />

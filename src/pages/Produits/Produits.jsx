@@ -91,7 +91,7 @@ const Toast = ({ type, message, onClose }) => {
     success: { icon: CheckCircle2, color: "#10b981", bg: "#ecfdf5" },
     error: { icon: XCircle, color: "#ef4444", bg: "#fef2f2" },
     warning: { icon: AlertTriangle, color: "#f59e0b", bg: "#fffbeb" },
-    info: { icon: Info, color: "#3b82f6", bg: "#eff6ff" },
+    info: { icon: Info, color: "#995F2F", bg: "#eff6ff" },
   };
 
   const { icon: Icon, color, bg } = config[type] || config.info;

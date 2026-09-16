@@ -51,7 +51,7 @@
 }
 
 .btn-primary {
-  background: #3b82f6;
+  background: #995F2F;
   color: white;
 }
 
@@ -117,7 +117,7 @@
 }
 
 .search-box:focus-within {
-  border-color: #3b82f6;
+  border-color: #995F2F;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
@@ -175,12 +175,12 @@
 
 .view-btn:hover {
   background: rgba(59, 130, 246, 0.1);
-  color: #3b82f6;
+  color: #995F2F;
 }
 
 .view-btn.active {
   background: white;
-  color: #3b82f6;
+  color: #995F2F;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
@@ -219,7 +219,7 @@
   height: 52px;
   border-radius: 12px;
   background: #eff6ff;
-  color: #3b82f6;
+  color: #995F2F;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -250,7 +250,7 @@
 
 .marque-action-btn.edit:hover {
   background: #eff6ff;
-  color: #3b82f6;
+  color: #995F2F;
 }
 
 .marque-action-btn.delete:hover {
@@ -376,7 +376,7 @@
 }
 
 .marque-icon-small {
-  color: #3b82f6;
+  color: #995F2F;
   flex-shrink: 0;
 }
 
@@ -440,7 +440,7 @@
 
 .action-btn.btn-edit:hover {
   background: #eff6ff;
-  color: #3b82f6;
+  color: #995F2F;
 }
 
 .action-btn.btn-delete:hover {
@@ -514,7 +514,7 @@
   width: 40px;
   height: 40px;
   border: 3px solid #e5e7eb;
-  border-top-color: #3b82f6;
+  border-top-color: #995F2F;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -523,7 +523,7 @@
   width: 16px;
   height: 16px;
   border: 2px solid #e5e7eb;
-  border-top-color: #3b82f6;
+  border-top-color: #995F2F;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   display: inline-block;
@@ -685,7 +685,7 @@
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #3b82f6;
+  border-color: #995F2F;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 

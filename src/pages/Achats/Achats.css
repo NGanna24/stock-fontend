@@ -128,7 +128,7 @@
 
 .stat-icon.delivered {
   background: #dbeafe;
-  color: #3b82f6;
+  color: #995F2F;
 }
 
 .stat-icon.received {
@@ -429,7 +429,7 @@
 }
 
 .btn-status {
-  color: #3b82f6;
+  color: #995F2F;
 }
 
 .btn-status:hover {

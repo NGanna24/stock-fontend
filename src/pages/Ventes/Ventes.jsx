@@ -1791,7 +1791,7 @@ const Ventes = () => {
                 <X size={22} />
               </button>
             </div>
-            <div className="modal-body">
+            <div className="modal-body"> 
               {error && (
                 <div className="modal-error">
                   <AlertTriangle size={16} />

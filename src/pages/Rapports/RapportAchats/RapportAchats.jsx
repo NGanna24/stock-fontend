@@ -36,7 +36,7 @@ const formatDate = (dateStr) => {
 // ========== COULEURS STATUTS ACHATS ============
 const STATUT_COLORS = {
     'recue': '#10b981',
-    'partiellement_recue': '#3b82f6',
+    'partiellement_recue': '#995F2F',
     'envoyee': '#8b5cf6',
     'en_attente': '#f59e0b',
     'annulee': '#ef4444'

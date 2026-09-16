@@ -36,7 +36,7 @@
 }
 
 .select-search-trigger.open {
-  border-color: #3b82f6;
+  border-color: #995F2F;
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
@@ -237,7 +237,7 @@
 }
 
 .select-option .check-mark {
-  color: #3b82f6;
+  color: #995F2F;
   flex-shrink: 0;
 }
 

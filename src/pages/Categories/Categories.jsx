@@ -453,8 +453,8 @@ const Categories = () => {
               <div
                 className="category-icon"
                 style={{
-                  backgroundColor: (category.couleur || "#3b82f6") + "20",
-                  color: category.couleur || "#3b82f6",
+                  backgroundColor: (category.couleur || "#995F2F") + "20",
+                  color: category.couleur || "#995F2F",
                 }}
               >
                 {getIconComponent(category.icon)}
@@ -583,8 +583,8 @@ const Categories = () => {
                       className="category-icon-small"
                       style={{
                         backgroundColor:
-                          (category.couleur || "#3b82f6") + "20",
-                        color: category.couleur || "#3b82f6",
+                          (category.couleur || "#995F2F") + "20",
+                        color: category.couleur || "#995F2F",
                       }}
                     >
                       {getIconComponent(category.icon)}
@@ -600,10 +600,10 @@ const Categories = () => {
                     <span
                       className="color-dot"
                       style={{
-                        backgroundColor: category.couleur || "#3b82f6",
+                        backgroundColor: category.couleur || "#995F2F",
                       }}
                     />
-                    {category.couleur || "#3b82f6"}
+                    {category.couleur || "#995F2F"}
                   </div>
                 </td>
                 <td>{renderStatusBadge(category)}</td>

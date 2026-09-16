@@ -1,6 +1,6 @@
 // config/api.js
-// const BASE_URL = "http://192.168.187.1:8080";
-const BASE_URL = "https://miyo.n-double.com";
+const BASE_URL = "http://192.168.187.1:8080";
+// const BASE_URL = "https://miyo.n-double.com";
 
 export const API_URL = {
 

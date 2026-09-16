@@ -185,7 +185,7 @@
     width: 45px;
     height: 45px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #995F2F;
     color: white;
     display: flex;
     align-items: center;
@@ -270,7 +270,7 @@
     width: 48px;
     height: 48px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: #995F2F;
     color: white;
     display: flex;
     align-items: center;
@@ -658,4 +658,147 @@ body.dark-mode * {
 .badge,
 .dropdown-arrow {
     transition-property: background-color, color, transform, box-shadow;
+}
+
+/* ============================================================================
+   LOGO DU MAGASIN (à la place de l'avatar utilisateur)
+   ============================================================================ */
+
+/* Logo dans la barre de profil */
+.profile-logo {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+    border: 2px solid #e5e7eb;
+    transition: border-color 0.2s ease;
+}
+
+.profile:hover .profile-logo {
+    border-color: #667eea;
+}
+
+.profile-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: white;
+    padding: 2px;
+}
+
+.profile-logo-initials {
+    font-size: 16px;
+    font-weight: 700;
+    color: white;
+    text-transform: uppercase;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Logo dans le dropdown (plus grand) */
+.dropdown-logo {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    /* background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: hidden;
+    border: 2px solid #e5e7eb;
+}
+
+.dropdown-logo img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: white;
+    padding: 2px;
+}
+
+.dropdown-logo-initials {
+    font-size: 18px;
+    font-weight: 700;
+    color: white;
+    text-transform: uppercase;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* ============================================================================
+   MODE SOMBRE
+   ============================================================================ */
+body.dark-mode .profile-logo {
+    border-color: #334155;
+}
+
+body.dark-mode .profile:hover .profile-logo {
+    border-color: #818cf8;
+}
+
+body.dark-mode .profile-logo img {
+    background: #1e293b;
+}
+
+body.dark-mode .dropdown-logo {
+    border-color: #334155;
+}
+
+body.dark-mode .dropdown-logo img {
+    background: #1e293b;
+}
+
+/* ============================================================================
+   RESPONSIVE
+   ============================================================================ */
+@media (max-width: 768px) {
+    .profile-logo {
+        width: 40px;
+        height: 40px;
+    }
+
+    .profile-logo-initials {
+        font-size: 14px;
+    }
+
+    .dropdown-logo {
+        width: 46px;
+        height: 46px;
+    }
+
+    .dropdown-logo-initials {
+        font-size: 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .profile-logo {
+        width: 34px;
+        height: 34px;
+    }
+
+    .profile-logo-initials {
+        font-size: 12px;
+    }
+
+    .dropdown-logo {
+        width: 40px;
+        height: 40px;
+    }
+
+    .dropdown-logo-initials {
+        font-size: 14px;
+    }
 }

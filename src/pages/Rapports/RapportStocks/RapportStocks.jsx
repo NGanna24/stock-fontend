@@ -36,7 +36,7 @@ const formatDate = (dateStr) => {
 
 // ========== COULEURS PIE CHART ============
 const CATEGORIE_COLORS = [
-    '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+    '#995F2F', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
     '#06b6d4', '#ec4899', '#f97316', '#84cc16', '#6366f1'
 ];
 
@@ -433,7 +433,7 @@ const RapportStocks = () => {
                                             <Tooltip formatter={(v) => [formatMontant(v), 'Valeur achat']} />
                                             <Bar
                                                 dataKey="valeur_achat"
-                                                fill="#3b82f6"
+                                                fill="#995F2F"
                                                 radius={[6, 6, 0, 0]}
                                                 maxBarSize={50}
                                             />

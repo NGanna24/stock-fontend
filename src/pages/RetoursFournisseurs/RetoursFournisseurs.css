@@ -157,7 +157,7 @@
 
 .stat-icon.total { background: #e0e7ff; color: #2563eb; }
 .stat-icon.en-attente { background: #fef3c7; color: #f59e0b; }
-.stat-icon.envoye { background: #dbeafe; color: #3b82f6; }
+.stat-icon.envoye { background: #dbeafe; color: #995F2F; }
 .stat-icon.recu-par-fournisseur { background: #d1fae5; color: #10b981; }
 .stat-icon.traite { background: #d1fae5; color: #10b981; }
 .stat-icon.annule { background: #fce4ec; color: #ef4444; }
@@ -535,7 +535,7 @@
 .btn-view { color: #2563eb; }
 .btn-view:hover { background: #eff6ff; }
 
-.btn-send { color: #3b82f6; }
+.btn-send { color: #995F2F; }
 .btn-send:hover { background: #dbeafe; }
 
 .btn-recu { color: #10b981; }

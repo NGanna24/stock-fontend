@@ -15,7 +15,7 @@
   --success-light: #ecfdf5;
   --warning: #f59e0b;
   --danger: #ef4444;
-  --info: #3b82f6;
+  --info: #995F2F;
   --purple: #8b5cf6;
   --purple-light: #ede9fe;
   --bg: #f1f5f9;
@@ -768,7 +768,7 @@
   width: 36px;
   height: 36px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(135deg, #995F2F 0%, #2563eb 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2055,7 +2055,7 @@
 .statut-dropdown-item .current-check { margin-left: auto; color: #10b981; }
 
 .statut-dropdown-item svg.status-en-attente { color: #f59e0b; }
-.statut-dropdown-item svg.status-confirmee { color: #3b82f6; }
+.statut-dropdown-item svg.status-confirmee { color: #995F2F; }
 .statut-dropdown-item svg.status-preparation { color: #8b5cf6; }
 .statut-dropdown-item svg.status-expediee { color: #06b6d4; }
 .statut-dropdown-item svg.status-livree { color: #10b981; }
@@ -2137,7 +2137,7 @@
 }
 
 .ventes-toast-info::before {
-  background-color: #3b82f6;
+  background-color: #995F2F;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='16' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12.01' y2='8'/%3E%3C/svg%3E");
 }
 

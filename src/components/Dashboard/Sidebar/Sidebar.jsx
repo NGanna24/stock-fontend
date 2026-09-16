@@ -79,7 +79,7 @@ const MENU_CONFIG = [
       { id: "employes",     title: "Employés",            icon: Users,    path: "/employes" },
       { id: "roles",        title: "Rôles & Permissions", icon: Shield,   path: "/roles" },
       { id: "paiements",    title: "Paiements",           icon: CreditCard, path: "/paiements" },
-      { id: "parametres",   title: "Paramètres",          icon: Settings, path: "/parametres" },
+      // { id: "parametres",   title: "Paramètres",          icon: Settings, path: "/parametres" },
     ],
   },
 ];
@@ -122,7 +122,7 @@ const Sidebar = () => {
       // Supprimer les sections vides
       .filter(section => section.items.length > 0);
   }, [userRole]);
-
+ 
   // ============================================================
   // ÉTAT D'OUVERTURE DES SECTIONS
   // ============================================================
@@ -149,7 +149,7 @@ const Sidebar = () => {
     }
     return 'dashboard';
   }, [location.pathname, userSlug, menuConfigFiltre]);
-
+ 
   // Ouvrir auto la section active
   useEffect(() => {
     menuConfigFiltre.forEach(section => {
@@ -256,21 +256,44 @@ const Sidebar = () => {
   // ============================================================
   return (
     <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
-      <div className="logo">
-        {!collapsed && (
-          <div className="logo-content">
-            <h2>Miyo</h2>
-            <span>Gestion des Stocks</span>
-          </div>
-        )}
-        <button
-          className="collapse-btn"
-          onClick={() => setCollapsed(prev => !prev)}
-          aria-label={collapsed ? "Développer la sidebar" : "Réduire la sidebar"}
-        >
-          {collapsed ? <PanelLeftOpen size={22} /> : <PanelLeftClose size={22} />}
-        </button>
-      </div>
+<div className="logo">
+    {!collapsed && (
+        <div className="logo-content">
+            <div className="logo-brand">
+                {/* ✅ Logo Miyo depuis public/ */}
+                <img
+                    src="/logo-miyo.png"
+                    alt="Miyo"
+                    className="logo-miyo-image"
+                    onError={(e) => {
+                        e.target.style.display = 'none';
+                        e.target.nextElementSibling.style.display = 'block';
+                    }}
+                />
+                <div className="logo-text">
+                    <h2>Miyo</h2>
+                    <span>Gestion des Stocks</span>
+                </div>
+            </div>
+        </div>
+    )}
+
+    {/* Logo seul en mode réduit */}
+    {collapsed && (
+        <img
+            src="/logo-miyo.png"
+            alt="Miyo"
+            className="logo-miyo-image-collapsed"
+        />
+    )}
+
+    <button
+        className="collapse-btn"
+        onClick={() => setCollapsed(prev => !prev)}
+    >
+        {collapsed ? <PanelLeftOpen size={22} /> : <PanelLeftClose size={22} />}
+    </button>
+</div>
 
       <nav className="sidebar-nav">
         {collapsed ? (
@@ -294,17 +317,6 @@ const Sidebar = () => {
           </span>
         </button>
 
-        {!collapsed && user && (
-          <div className="user-info">
-            <span className="user-avatar">
-              {user.fullname ? user.fullname.charAt(0).toUpperCase() : "U"}
-            </span>
-            <div className="user-details">
-              <p className="user-name">{user.fullname || "Utilisateur"}</p>
-              <small className="user-role">{user.role || "Client"}</small>
-            </div>
-          </div>
-        )}
       </div>
     </aside>
   );

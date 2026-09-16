@@ -4,6 +4,7 @@ import "./Header.css";
 import { useUser } from "../../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import AlerteService from "../../../services/alerteService";
+import MagasinService from "../../../services/magasinService";
 
 import {
     Search,
@@ -18,6 +19,9 @@ import {
     User
 } from "lucide-react";
 
+// ✅ URL du backend
+const API_BASE_URL = 'https://miyo-stock.n-double.com';
+
 const Header = () => {
     const { user, logout } = useUser();
     const navigate = useNavigate();
@@ -26,13 +30,31 @@ const Header = () => {
     const [notificationsCount, setNotificationsCount] = useState(0);
     const [darkMode, setDarkMode] = useState(false);
 
+    // ✅ État pour le magasin
+    const [magasin, setMagasin] = useState(null);
+
     // Infos utilisateur
     const userFullname = user?.fullname || "Utilisateur";
     const userRole = user?.role || "client";
     const userSlug = user?.slug || "";
     const userTelephone = user?.telephone || "";
 
-    // ✅ Charger le nombre d'alertes
+    // ==================== CHARGEMENT MAGASIN ====================
+    useEffect(() => {
+        const loadMagasin = async () => {
+            const token = localStorage.getItem('token');
+            if (!token || !user?.slug) return;
+            try {
+                const res = await MagasinService.getMonMagasin(token);
+                if (res.success) setMagasin(res.magasin);
+            } catch (e) {
+                console.error('❌ Erreur chargement magasin:', e);
+            }
+        };
+        loadMagasin();
+    }, [user?.slug]);
+
+    // ==================== CHARGEMENT ALERTES ====================
     useEffect(() => {
         const loadAlertesCount = async () => {
             const token = localStorage.getItem('token');
@@ -56,7 +78,7 @@ const Header = () => {
         return () => clearInterval(interval);
     }, [user?.slug]);
 
-    // ✅ Gérer le mode sombre (localStorage)
+    // ==================== MODE SOMBRE ====================
     useEffect(() => {
         const saved = localStorage.getItem('darkMode');
         if (saved === 'true') {
@@ -66,36 +88,29 @@ const Header = () => {
     }, []);
 
     // ==================== NAVIGATIONS ====================
-
-    // ✅ Redirection vers le profil
     const goToProfile = () => {
         navigate(`/${userSlug}/profile`);
         setShowDropdown(false);
     };
 
-    // ✅ Redirection vers les paramètres
     const goToSettings = () => {
         navigate(`/${userSlug}/settings`);
         setShowDropdown(false);
     };
 
-    // ✅ Redirection vers le dashboard
     const goToDashboard = () => {
         navigate(`/${userSlug}/dashboard`);
         setShowDropdown(false);
     };
 
-    // ✅ Redirection vers les alertes de stock
     const goToAlertes = () => {
         navigate(`/${userSlug}/alertes`);
     };
 
-    // ✅ Redirection vers les notifications (commandes en attente)
     const goToNotifications = () => {
         navigate(`/${userSlug}/commandes-clients`);
     };
 
-    // ✅ Toggle du thème sombre
     const toggleDarkMode = () => {
         const newValue = !darkMode;
         setDarkMode(newValue);
@@ -107,20 +122,20 @@ const Header = () => {
         localStorage.setItem('darkMode', newValue.toString());
     };
 
-    // ✅ Déconnexion
     const handleLogout = async () => {
         await logout();
         navigate('/login');
     };
 
     // ==================== HELPERS ====================
-
     const getRoleLabel = (role) => {
         const roles = {
             'admin': 'Administrateur',
             'client': 'Client',
             'user': 'Utilisateur',
-            'manager': 'Gestionnaire'
+            'manager': 'Gestionnaire',
+            'caissier': 'Caissier',
+            'magasinier': 'Magasinier'
         };
         return roles[role] || role;
     };
@@ -130,13 +145,32 @@ const Header = () => {
         return name.charAt(0).toUpperCase();
     };
 
+    // ✅ URL complète du logo
+    const getLogoUrl = () => {
+        // console.log("le logo ",`${API_BASE_URL}${magasin.logo_url}`);
+        if (!magasin?.logo_url) return null;
+        if (magasin.logo_url.startsWith('http')) return magasin.logo_url;
+        return `${API_BASE_URL}${magasin.logo_url}`;
+    };
+
+    // ✅ Initiales du magasin (fallback)
+    const getMagasinInitiales = () => {
+        const nom = magasin?.nom_commercial || 'Mon magasin';
+        return nom
+            .split(' ')
+            .map(w => w[0])
+            .join('')
+            .substring(0, 2)
+            .toUpperCase();
+    };
+
     const toggleDropdown = () => {
         setShowDropdown(!showDropdown);
     };
 
     return (
         <header className="header">
-            <div className="headerleft">
+            <div className="">
                 <div className="search-box">
                     <Search size={18} />
                     <input
@@ -147,7 +181,7 @@ const Header = () => {
             </div>
 
             <div className="header-right">
-                {/* ✅ ICÔNE 1 : Alertes de stock → /alertes */}
+                {/* ICÔNE 1 : Alertes de stock */}
                 <button
                     className="icon-btn"
                     onClick={goToAlertes}
@@ -160,7 +194,7 @@ const Header = () => {
                     )}
                 </button>
 
-                {/* ✅ ICÔNE 2 : Notifications → /commandes-clients */}
+                {/* ✅ ICÔNE 2 : Notifications */}
                 <button
                     className="icon-btn"
                     onClick={goToNotifications}
@@ -173,7 +207,7 @@ const Header = () => {
                     )}
                 </button>
 
-                {/* ✅ ICÔNE 3 : Mode sombre (toggle, pas de redirection) */}
+                {/* ✅ ICÔNE 3 : Mode sombre */}
                 <button
                     className="icon-btn"
                     onClick={toggleDarkMode}
@@ -183,7 +217,7 @@ const Header = () => {
                     {darkMode ? <Sun size={20} /> : <Moon size={20} />}
                 </button>
 
-                {/* ✅ ICÔNE 4 : Paramètres → /settings */}
+                {/* ✅ ICÔNE 4 : Paramètres */}
                 <button
                     className="icon-btn"
                     onClick={goToSettings}
@@ -193,15 +227,31 @@ const Header = () => {
                     <Settings size={20} />
                 </button>
 
-                {/* ✅ PROFIL avec dropdown */}
+                {/* ✅ PROFIL : LOGO DU MAGASIN à la place de l'avatar */}
                 <div className="profile-container">
                     <div className="profile" onClick={toggleDropdown}>
-                        <div className="profile-avatar">
-                            {getInitial(userFullname)}
+                        {/* ✅ Logo du magasin (au lieu de l'avatar utilisateur) */}
+                        <div className="profile-logo">
+                            {getLogoUrl() ? (
+                                <img
+                                    src={getLogoUrl()}
+                                    alt={magasin?.nom_commercial || 'Logo'}
+                                    onError={(e) => {
+                                        e.target.style.display = 'none';
+                                        e.target.nextSibling.style.display = 'flex';
+                                    }}
+                                />
+                            ) : null}
+                            <span
+                                className="profile-logo-initials"
+                                style={{ display: getLogoUrl() ? 'none' : 'flex' }}
+                            >
+                                {getMagasinInitiales()}
+                            </span>
                         </div>
 
                         <div className="profile-info">
-                            <h4>{userFullname}</h4>
+                            <h4>{magasin?.nom_commercial || userFullname}</h4>
                             <p>{getRoleLabel(userRole)}</p>
                         </div>
 
@@ -213,51 +263,54 @@ const Header = () => {
 
                     {showDropdown && (
                         <div className="profile-dropdown">
+                            {/* ========== HEADER DU DROPDOWN ========== */}
                             <div className="dropdown-header">
-                                <div className="dropdown-avatar">
-                                    {getInitial(userFullname)}
+                                {/* ✅ Logo du magasin en grand */}
+                                <div className="dropdown-logo">
+                                    {getLogoUrl() ? (
+                                        <img
+                                            src={getLogoUrl()}
+                                            alt={magasin?.nom_commercial || 'Logo'}
+                                            onError={(e) => {
+                                                e.target.style.display = 'none';
+                                                e.target.nextSibling.style.display = 'flex';
+                                            }}
+                                        />
+                                    ) : null}
+                                    <span
+                                        className="dropdown-logo-initials"
+                                        style={{ display: getLogoUrl() ? 'none' : 'flex' }}
+                                    >
+                                        {getMagasinInitiales()}
+                                    </span>
                                 </div>
+
                                 <div className="dropdown-user-info">
-                                    <h4>{userFullname}</h4>
-                                    <p>{getRoleLabel(userRole)}</p>
-                                    <small>{userTelephone}</small>
+                                    <h4>{magasin?.nom_commercial || 'Mon magasin'}</h4>
+                                    <p>{userFullname}</p>
+                                    <small>{getRoleLabel(userRole)} • {userTelephone}</small>
                                 </div>
                             </div>
 
                             <div className="dropdown-divider"></div>
 
-                            {/* ✅ Mon profil */}
-                            <button
-                                className="dropdown-item"
-                                onClick={goToProfile}
-                            >
+                            {/* ========== ITEMS ========== */}
+                            <button className="dropdown-item" onClick={goToProfile}>
                                 <User size={18} />
                                 <span>Mon profil</span>
                             </button>
 
-                            {/* ✅ Paramètres */}
-                            <button
-                                className="dropdown-item"
-                                onClick={goToSettings}
-                            >
+                            <button className="dropdown-item" onClick={goToSettings}>
                                 <Settings size={18} />
                                 <span>Paramètres</span>
                             </button>
 
-                            {/* ✅ Tableau de bord */}
-                            <button
-                                className="dropdown-item"
-                                onClick={goToDashboard}
-                            >
+                            <button className="dropdown-item" onClick={goToDashboard}>
                                 <Warehouse size={18} />
                                 <span>Tableau de bord</span>
                             </button>
 
-                            {/* ✅ Alertes de stock (avec badge) */}
-                            <button
-                                className="dropdown-item"
-                                onClick={goToAlertes}
-                            >
+                            <button className="dropdown-item" onClick={goToAlertes}>
                                 <TriangleAlert size={18} />
                                 <span>Alertes de stock</span>
                                 {alertesCount > 0 && (
@@ -267,11 +320,7 @@ const Header = () => {
 
                             <div className="dropdown-divider"></div>
 
-                            {/* ✅ Déconnexion */}
-                            <button
-                                className="dropdown-item logout"
-                                onClick={handleLogout}
-                            >
+                            <button className="dropdown-item logout" onClick={handleLogout}>
                                 <LogOut size={18} />
                                 <span>Déconnexion</span>
                             </button>

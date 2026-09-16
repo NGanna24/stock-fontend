@@ -140,7 +140,7 @@
   color: white;
 }
 
-.kpi-total .kpi-icon    { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+.kpi-total .kpi-icon    { background: linear-gradient(135deg, #995F2F, #2563eb); }
 .kpi-encours .kpi-icon  { background: linear-gradient(135deg, #f59e0b, #d97706); }
 .kpi-traite .kpi-icon   { background: linear-gradient(135deg, #10b981, #059669); }
 .kpi-annule .kpi-icon   { background: linear-gradient(135deg, #ef4444, #dc2626); }
@@ -612,7 +612,7 @@
 
 .btn-view { color: #2563eb; }
 .btn-view:hover { background: #eff6ff; }
-.btn-recu { color: #3b82f6; }
+.btn-recu { color: #995F2F; }
 .btn-recu:hover { background: #dbeafe; }
 .btn-controle { color: #f59e0b; }
 .btn-controle:hover { background: #fef3c7; }
