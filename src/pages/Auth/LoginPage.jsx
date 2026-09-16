@@ -50,7 +50,6 @@ function LoginPage() {
                 <div className="auth-form-container">
                     {/* Logo */}
                     <div className="auth-brand">
-                        <span className="brand-icon">📦</span>
                         <span className="brand-name">StockPro</span>
                     </div>
 
@@ -147,11 +146,7 @@ function LoginPage() {
             {/* Partie droite - Information */}
             <div className="auth-info-section">
                 <div className="auth-info-content">
-                    <div className="info-badge">
-                        <span>🔐</span>
-                        <span>Bienvenue !</span>
-                    </div>
-                    
+                   
                     <h2>Gérez votre stock en toute simplicité</h2>
                     <p className="info-subtitle">
                         Connectez-vous pour accéder à votre tableau de bord
@@ -159,14 +154,12 @@ function LoginPage() {
 
                     <div className="info-features">
                         <div className="info-feature">
-                            <span>📊</span>
                             <div>
                                 <h4>Gestion de stock</h4>
                                 <p>Suivez vos produits en temps réel</p>
                             </div>
                         </div>
                         <div className="info-feature">
-                            <span>📈</span>
                             <div>
                                 <h4>Rapports détaillés</h4>
                                 <p>Analysez vos ventes et vos achats</p>
@@ -175,7 +168,7 @@ function LoginPage() {
                     </div>
 
                     <div className="info-footer">
-                        <p>© 2024 StockPro. Tous droits réservés.</p>
+                        <p>© 2026 miyo. Tous droits réservés.</p>
                     </div>
                 </div>
             </div>

@@ -8,6 +8,7 @@ import {
     Lock, 
     Eye, 
     EyeOff,
+
     ArrowRight,
     CheckCircle,
     AlertCircle,
@@ -250,10 +251,7 @@ function RegisterPage() {
             {/* Partie droite - Informations */}
             <div className="auth-info-section">
                 <div className="auth-info-content">
-                    <div className="info-badge">
-                        <Sparkles size={24} />
-                        <span>Bienvenue !</span>
-                    </div>
+                   
                     
                     <h2>Pour rester connecté avec nous</h2>
                     <p className="info-subtitle">connectez-vous avec vos informations personnelles</p>
@@ -281,7 +279,7 @@ function RegisterPage() {
                     </Link>
 
                     <div className="info-footer">
-                        <p>© 2024 StockPro. Tous droits réservés.</p>
+                        <p>© 2026 miyo. Tous droits réservés.</p>
                     </div>
                 </div>
             </div>
