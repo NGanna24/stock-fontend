@@ -56,7 +56,7 @@ const MENU_CONFIG = [
       { id: "commandes-achat",      title: "Commandes d'achat",    icon: ShoppingBasket, path: "/commandes-achat" },
       { id: "receptions",           title: "Réceptions",           icon: PackageCheck,   path: "/receptions" },
       { id: "retours-fournisseurs", title: "Retours fournisseurs", icon: RotateCcw,      path: "/retours-fournisseurs" },
-      { id: "depenses",             title: "Dépenses",             icon: TrendingDown,   path: "/depenses", highlight: "#ef4444" },
+      // { id: "depenses",             title: "Dépenses",             icon: TrendingDown,   path: "/depenses", highlight: "#ef4444" },
     ],
   },
   {

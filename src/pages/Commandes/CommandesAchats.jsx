@@ -11,7 +11,9 @@ import CommandeAchatService from "../../services/commandeAchatService";
 import FournisseurService from "../../services/fournisseurService";
 import ProduitService from "../../services/produitService";
 import UniteVenteService from "../../services/uniteVenteService";
+import MagasinService from "../../services/magasinService";
 import { useUser } from "../../context/AuthContext";
+import BonCommandePDFActions from "../../components/commande/BonCommandePDFActions";
 import "./CommandesAchats.css";
 
 const CommandesAchat = () => {
@@ -38,6 +40,9 @@ const CommandesAchat = () => {
   const [notification, setNotification] = useState(null);
   const [openMenuId, setOpenMenuId] = useState(null);
 
+  // Magasin (pour le PDF)
+  const [magasin, setMagasin] = useState(null);
+
   // ============================================================
   // ÉTATS MODALS
   // ============================================================
@@ -57,8 +62,7 @@ const CommandesAchat = () => {
   // ============================================================
   const [formData, setFormData] = useState({
     id_fournisseur: "",
-    date_commande: "",
-    notes: "",
+    date_commande: "",   // ← toujours rempli automatiquement (invisible)
     lignes: []
   });
 
@@ -110,6 +114,7 @@ const CommandesAchat = () => {
       loadCommandes();
       loadFournisseurs();
       loadAllProduits();
+      loadMagasin();
     }
   }, [isAuthenticated, token]);
 
@@ -193,6 +198,15 @@ const CommandesAchat = () => {
     }
   };
 
+  const loadMagasin = async () => {
+    try {
+      const res = await MagasinService.getMonMagasin(token);
+      if (res.success) setMagasin(res.magasin);
+    } catch (error) {
+      console.error('❌ LoadMagasin error:', error);
+    }
+  };
+
   // ============================================================
   // NOTIFICATIONS
   // ============================================================
@@ -217,14 +231,15 @@ const CommandesAchat = () => {
     return parseFloat(value.toString().replace(/,/g, '').replace(/[^0-9.]/g, '')) || 0;
   };
 
-  // Calculer la quantité en unités de base
+  // Date du jour au format YYYY-MM-DD (utilisée automatiquement)
+  const getTodayISO = () => new Date().toISOString().split('T')[0];
+
   const calculerQuantiteBase = () => {
     if (!selectedUnite || !ligneForm.quantite) return 0;
     const qte = parseInt(ligneForm.quantite) || 0;
     return qte * (selectedUnite.quantite_base || 1);
   };
 
-  // ✅ Calculer le sous-total (0 si prix non saisi)
   const calculerSousTotalLigne = () => {
     if (!ligneForm.quantite) return 0;
     const qte = parseInt(ligneForm.quantite) || 0;
@@ -416,9 +431,6 @@ const CommandesAchat = () => {
     }, 200);
   };
 
-  // ============================================================
-  // ✅ SÉLECTION DU PRODUIT AVEC UNITÉ DE BASE INTÉGRÉE
-  // ============================================================
   const selectProduit = async (produit) => {
     setLigneForm({
       id_produit: produit.id_produit,
@@ -433,27 +445,23 @@ const CommandesAchat = () => {
     setLoadingUnites(true);
 
     try {
-      // 1. Charger les unités de vente du produit
       const res = await UniteVenteService.getByProduit(token, produit.id_produit);
       const unitesPersonnalisees = (res.success && res.data) ? res.data : [];
 
-      // 2. ✅ Construire l'unité de base (toujours en premier)
       const uniteBase = {
-        id_unite_vente: null,           // null = unité de base (bidon)
+        id_unite_vente: null,
         nom: produit.unite_nom || produit.unite_symbole || 'Unité',
         symbole: produit.unite_symbole || '',
-        quantite_base: 1,               // 1 = unité de base
+        quantite_base: 1,
         prix_achat: produit.prix_achat || 0,
         prix_vente: produit.prix_vente || 0,
         est_principal: false,
-        est_unite_base: true,           // ✅ marqueur pour l'UI
+        est_unite_base: true,
       };
 
-      // 3. Fusionner : unité de base + unités personnalisées
       const toutesLesUnites = [uniteBase, ...unitesPersonnalisees];
       setUnitesVente(toutesLesUnites);
 
-      // 4. Sélectionner par défaut : l'unité principale OU l'unité de base
       const principale = unitesPersonnalisees.find(
         u => u.est_principal === 1 || u.est_principal === true
       );
@@ -462,12 +470,11 @@ const CommandesAchat = () => {
       setLigneForm(prev => ({
         ...prev,
         id_unite_vente: defaut.id_unite_vente,
-        prix_achat: defaut.prix_achat || 0   // ✅ 0 si inconnu
+        prix_achat: defaut.prix_achat || 0
       }));
 
     } catch (error) {
       console.error('❌ Erreur chargement unités:', error);
-      // Fallback : uniquement l'unité de base
       const uniteBase = {
         id_unite_vente: null,
         nom: produit.unite_nom || produit.unite_symbole || 'Unité',
@@ -494,11 +501,7 @@ const CommandesAchat = () => {
     }, 200);
   };
 
-  // ============================================================
-  // ✅ CHANGEMENT D'UNITÉ (avec gestion du null = unité de base)
-  // ============================================================
   const handleUniteChange = (uniteId) => {
-    // uniteId peut être null (unité de base) ou un id
     const unite = unitesVente.find(u =>
       u.id_unite_vente === uniteId ||
       (uniteId === null && u.id_unite_vente === null)
@@ -508,7 +511,7 @@ const CommandesAchat = () => {
       setLigneForm(prev => ({
         ...prev,
         id_unite_vente: unite.id_unite_vente,
-        prix_achat: unite.prix_achat || 0   // ✅ 0 si inconnu
+        prix_achat: unite.prix_achat || 0
       }));
     }
   };
@@ -536,7 +539,6 @@ const CommandesAchat = () => {
       const cleanValue = value.replace(/[^0-9]/g, '');
       setLigneForm({ ...ligneForm, quantite: cleanValue });
     } else if (name === 'prix_achat') {
-      // ✅ Autoriser le prix à rester vide
       const cleanValue = value.replace(/[^0-9,.]/g, '');
       setLigneForm({ ...ligneForm, prix_achat: cleanValue });
     } else {
@@ -544,9 +546,6 @@ const CommandesAchat = () => {
     }
   };
 
-  // ============================================================
-  // ✅ AJOUTER UNE LIGNE (prix OPTIONNEL)
-  // ============================================================
   const addLigne = () => {
     if (!ligneForm.id_produit) {
       showNotification("Veuillez sélectionner un produit", 'warning');
@@ -572,7 +571,6 @@ const CommandesAchat = () => {
     const quantite = parseInt(ligneForm.quantite);
     const idProduit = parseInt(ligneForm.id_produit);
 
-    // ✅ Prix OPTIONNEL : null si vide ou 0
     let prixAchat = null;
     if (ligneForm.prix_achat && ligneForm.prix_achat !== '') {
       const parsed = parseFloat(ligneForm.prix_achat);
@@ -583,7 +581,6 @@ const CommandesAchat = () => {
 
     const quantiteTotaleBase = quantite * (selectedUnite.quantite_base || 1);
 
-    // Fusionner avec une ligne existante (même produit + même unité)
     const ligneExistanteIndex = formData.lignes.findIndex(
       l => l.id_produit === idProduit &&
            l.id_unite_vente === selectedUnite.id_unite_vente
@@ -594,7 +591,6 @@ const CommandesAchat = () => {
       nouvellesLignes = [...formData.lignes];
       nouvellesLignes[ligneExistanteIndex].quantite += quantite;
       nouvellesLignes[ligneExistanteIndex].quantite_totale_base += quantiteTotaleBase;
-      // ✅ Remplacer le prix seulement s'il est fourni
       if (prixAchat !== null) {
         nouvellesLignes[ligneExistanteIndex].prix_achat = prixAchat;
       }
@@ -603,12 +599,12 @@ const CommandesAchat = () => {
         ...formData.lignes,
         {
           id_produit: idProduit,
-          id_unite_vente: selectedUnite.id_unite_vente,   // null si unité de base
+          id_unite_vente: selectedUnite.id_unite_vente,
           nom_unite_vente: selectedUnite.nom,
           quantite_base: selectedUnite.quantite_base,
           quantite_totale_base: quantiteTotaleBase,
           quantite: quantite,
-          prix_achat: prixAchat,                         // null si non saisi
+          prix_achat: prixAchat,
           produit_nom: produit.nom,
           modele_nom: produit.modele_nom || '',
           unite: selectedUnite.nom,
@@ -627,7 +623,7 @@ const CommandesAchat = () => {
 
     const unitLabel = selectedUnite.nom + (quantite > 1 ? 's' : '');
     showNotification(
-      `✅ ${produit.nom} ajouté (${quantite} ${unitLabel} = ${quantiteTotaleBase} unités de base)`,
+      `✅ ${produit.nom} ajouté (${quantite} ${unitLabel})`,
       'success'
     );
 
@@ -657,7 +653,6 @@ const CommandesAchat = () => {
     const q = parseInt(ligne.quantite) || 0;
     if (q <= 0) { showNotification("Quantité invalide", 'warning'); return; }
 
-    // ✅ Prix optionnel
     let p = null;
     if (ligne.prix_achat !== null && ligne.prix_achat !== '' && ligne.prix_achat !== undefined) {
       const parsed = parseNumber(ligne.prix_achat);
@@ -687,8 +682,7 @@ const CommandesAchat = () => {
     setEditingCommande(null);
     setFormData({
       id_fournisseur: "",
-      date_commande: new Date().toISOString().split('T')[0],
-      notes: "",
+      date_commande: getTodayISO(),   // ← auto, invisible
       lignes: []
     });
     setFournisseurSearch("");
@@ -718,7 +712,7 @@ const CommandesAchat = () => {
           quantite_base: parseFloat(l.quantite_base) || 1,
           quantite_totale_base: parseFloat(l.quantite_totale_base) || parseFloat(l.quantite),
           quantite: parseFloat(l.quantite) || 0,
-          prix_achat: l.prix_achat !== null ? parseFloat(l.prix_achat) : null,   // ✅ null préservé
+          prix_achat: l.prix_achat !== null ? parseFloat(l.prix_achat) : null,
           produit_nom: l.produit_nom || 'Produit inconnu',
           modele_nom: l.modele_nom || '',
           unite: l.nom_unite_vente || l.unite_symbole || '',
@@ -727,8 +721,9 @@ const CommandesAchat = () => {
 
         setFormData({
           id_fournisseur: commandeComplete.id_fournisseur || "",
-          date_commande: commandeComplete.date_commande ? commandeComplete.date_commande.split('T')[0] : "",
-          notes: commandeComplete.notes || "",
+          date_commande: commandeComplete.date_commande
+            ? commandeComplete.date_commande.split('T')[0]
+            : getTodayISO(),
           lignes: lignesExistantes
         });
 
@@ -760,18 +755,26 @@ const CommandesAchat = () => {
     }
   };
 
-  const handleView = (commande) => {
+  const handleView = async (commande) => {
     setSelectedCommande(commande);
     setShowDetailModal(true);
+
+    try {
+      const res = await CommandeAchatService.getCommandeById(
+        token,
+        commande.id_commande_achat
+      );
+      if (res.success && res.data) {
+        setSelectedCommande(res.data);
+      }
+    } catch (err) {
+      console.error('❌ Impossible de charger la commande complète :', err);
+    }
   };
 
   const handleSave = async () => {
     if (!formData.id_fournisseur) {
       showNotification("Veuillez sélectionner un fournisseur", 'warning');
-      return;
-    }
-    if (!formData.date_commande) {
-      showNotification("Veuillez sélectionner une date", 'warning');
       return;
     }
     if (formData.lignes.length === 0) {
@@ -789,8 +792,8 @@ const CommandesAchat = () => {
     try {
       const data = {
         id_fournisseur: parseInt(formData.id_fournisseur),
-        date_commande: formData.date_commande,
-        notes: formData.notes || null,
+        date_commande: formData.date_commande || getTodayISO(),   // ← auto
+        notes: null,                                              // ← supprimé
         lignes: formData.lignes.map(l => ({
           id_produit: l.id_produit,
           id_unite_vente: l.id_unite_vente,
@@ -798,7 +801,7 @@ const CommandesAchat = () => {
           quantite_base: l.quantite_base,
           quantite: l.quantite,
           quantite_totale_base: l.quantite_totale_base,
-          prix_achat: l.prix_achat   // ✅ peut être null
+          prix_achat: l.prix_achat
         }))
       };
 
@@ -1116,196 +1119,6 @@ const CommandesAchat = () => {
             ))
           )}
         </div>
-      </div>
-    );
-  };
-
-  // ============================================================
-  // RENDU LIGNES TABLEAU
-  // ============================================================
-  const renderLignesTable = () => {
-    if (formData.lignes.length === 0) {
-      return (
-        <div className="empty-lignes">
-          <Package size={32} />
-          <p>Aucun produit ajouté</p>
-          <small>Recherchez et ajoutez des produits à la commande</small>
-        </div>
-      );
-    }
-
-    return (
-      <div className="lignes-table-container">
-        <div className="lignes-header">
-          <span className="lignes-count">{formData.lignes.length} produit(s)</span>
-          <span className="lignes-total">
-            Total: <strong>
-              {calculerTotalCommande() > 0
-                ? formatMontant(calculerTotalCommande())
-                : 'À définir à la réception'}
-            </strong>
-          </span>
-        </div>
-        <table className="lignes-table">
-          <thead>
-            <tr>
-              <th style={{ width: '25%' }}>Produit</th>
-              <th style={{ width: '12%' }}>Unité</th>
-              <th style={{ width: '10%' }}>Qté</th>
-              <th style={{ width: '13%' }}>Prix unit.</th>
-              <th style={{ width: '15%' }}>Total</th>
-              <th style={{ width: '10%' }}>Réf.</th>
-              <th style={{ width: '15%' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {formData.lignes.map((ligne, index) => {
-              const isEditing = editingLigneIndex === index;
-              const quantite = parseFloat(ligne.quantite) || 0;
-              const prix = parseFloat(ligne.prix_achat) || 0;
-              const total = quantite * prix;
-              const hasPrix = ligne.prix_achat !== null && ligne.prix_achat > 0;
-
-              return (
-                <tr key={index} className={isEditing ? 'editing-row' : ''}>
-                  <td>
-                    {isEditing ? (
-                      <select
-                        value={ligne.id_produit}
-                        onChange={(e) => {
-                          const produit = produitsFiltres.find(p => p.id_produit === parseInt(e.target.value));
-                          if (produit) {
-                            updateLigne(index, 'id_produit', produit.id_produit);
-                            updateLigne(index, 'produit_nom', produit.nom);
-                            updateLigne(index, 'modele_nom', produit.modele_nom || '');
-                            updateLigne(index, 'reference', produit.reference || '');
-                          }
-                        }}
-                        className="form-select-sm"
-                      >
-                        {produitsFiltres.map(p => (
-                          <option key={p.id_produit} value={p.id_produit}>
-                            {p.nom} {p.modele_nom ? `- ${p.modele_nom}` : ''}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="ligne-produit">
-                        <span className="ligne-nom">{ligne.produit_nom}</span>
-                        {ligne.modele_nom && (
-                          <span className="ligne-modele">{ligne.modele_nom}</span>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                  <td>
-                    <span className="unite-badge">
-                      <Box size={12} />
-                      {ligne.nom_unite_vente || ligne.unite}
-                      {ligne.quantite_base > 1 && (
-                        <small> ({ligne.quantite_base})</small>
-                      )}
-                    </span>
-                  </td>
-                  <td>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={ligne.quantite}
-                        onChange={(e) => updateLigne(index, 'quantite', e.target.value.replace(/[^0-9]/g, ''))}
-                        className="form-input-sm"
-                      />
-                    ) : (
-                      <span className="ligne-quantite">
-                        <strong>{quantite}</strong>
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={ligne.prix_achat ?? ''}
-                        onChange={(e) => updateLigne(index, 'prix_achat', e.target.value.replace(/[^0-9,.]/g, ''))}
-                        className="form-input-sm"
-                        placeholder="À définir"
-                      />
-                    ) : (
-                      hasPrix ? formatMontant(prix) : <em style={{ color: '#94a3b8' }}>À définir</em>
-                    )}
-                  </td>
-                  <td className="montant-cell">
-                    {hasPrix ? (
-                      <>
-                        <strong>{formatMontant(total)}</strong>
-                        {ligne.quantite_base > 1 && (
-                          <div className="unites-total">
-                            = {ligne.quantite_totale_base} unités
-                          </div>
-                        )}
-                      </>
-                    ) : (
-                      <em style={{ color: '#94a3b8' }}>—</em>
-                    )}
-                  </td>
-                  <td className="ref-cell">{ligne.reference || '-'}</td>
-                  <td>
-                    {isEditing ? (
-                      <div className="ligne-actions">
-                        <button
-                          className="btn-save-edit"
-                          onClick={() => saveLigneEdit(index)}
-                          title="Valider"
-                        >
-                          <Check size={16} />
-                        </button>
-                        <button
-                          className="btn-cancel-edit"
-                          onClick={cancelEditLigne}
-                          title="Annuler"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="ligne-actions">
-                        <button
-                          className="btn-edit-ligne"
-                          onClick={() => startEditLigne(index)}
-                          title="Modifier"
-                          disabled={saving}
-                        >
-                          <Edit size={16} />
-                        </button>
-                        <button
-                          className="btn-remove-ligne"
-                          onClick={() => removeLigne(index)}
-                          disabled={saving}
-                          title="Supprimer"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr className="total-row">
-              <td colSpan="4"><strong>Total de la commande</strong></td>
-              <td>
-                <strong>
-                  {calculerTotalCommande() > 0
-                    ? formatMontant(calculerTotalCommande())
-                    : <em style={{ color: '#94a3b8', fontWeight: 'normal' }}>À définir à la réception</em>}
-                </strong>
-              </td>
-              <td colSpan="2"></td>
-            </tr>
-          </tfoot>
-        </table>
       </div>
     );
   };
@@ -1742,49 +1555,52 @@ const CommandesAchat = () => {
       )}
 
       {/* ============================================================
-          MODAL - NOUVELLE COMMANDE / ÉDITION
+          MODAL - NOUVELLE COMMANDE / ÉDITION (SPLIT-VIEW)
           ============================================================ */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-header-content">
-                <div className="modal-header-icon">
-                  <ShoppingBasket size={24} />
+        <div className="modal-overlay" onClick={() => !saving && setShowModal(false)}>
+          <div className="commande-modal" onClick={(e) => e.stopPropagation()}>
+
+            {/* ================= HEADER ================= */}
+            <header className="commande-modal-header">
+              <div className="commande-modal-title-group">
+                <div className="commande-modal-icon">
+                  <ShoppingBasket size={22} />
                 </div>
                 <div>
-                  <h2>{editingCommande ? "Modifier la commande" : "Nouvelle commande d'achat"}</h2>
-                  <p className="modal-subtitle">
+                  <h2>{editingCommande ? "Modifier la commande" : "Nouvelle commande"}</h2>
+                  <p className="commande-modal-subtitle">
                     {editingCommande
-                      ? `Modification de la commande ${editingCommande.numero_commande}`
-                      : 'Remplissez les informations pour créer une commande'}
+                      ? `Commande ${editingCommande.numero_commande}`
+                      : 'Sélectionnez un fournisseur puis ajoutez vos produits'}
                   </p>
                 </div>
               </div>
-              <button className="modal-close" onClick={() => !saving && setShowModal(false)}>
-                <X size={24} />
+              <button
+                className="commande-modal-close"
+                onClick={() => !saving && setShowModal(false)}
+              >
+                <X size={20} />
               </button>
-            </div>
-            <div className="modal-body">
-              {error && (
-                <div className="modal-error">
-                  <AlertCircle size={18} />
-                  <p>{error}</p>
-                </div>
-              )}
+            </header>
 
-              {/* Informations générales */}
-              <div className="form-section">
-                <div className="section-header">
-                  <h4><Building size={18} /> Informations générales</h4>
-                  <span className="section-badge">Obligatoire</span>
-                </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Fournisseur *</label>
+            {/* ================= BODY SPLIT ================= */}
+            <div className="commande-modal-body">
+
+              {/* ---------- COLONNE GAUCHE ---------- */}
+              <div className="commande-modal-left">
+
+                {/* Section Fournisseur */}
+                <section className="commande-section">
+                  <h3 className="commande-section-title">
+                    <Building size={15} />
+                    Fournisseur
+                  </h3>
+
+                  <div className="commande-field">
                     <div className="combobox-wrapper">
                       <div className="combobox-input-wrapper">
-                        <Building size={18} className="combobox-icon" />
+                        <Building size={16} className="combobox-icon" />
                         <input
                           type="text"
                           className="combobox-input"
@@ -1801,267 +1617,360 @@ const CommandesAchat = () => {
                           autoComplete="off"
                         />
                         <ChevronDown
-                          size={18}
+                          size={16}
                           className="combobox-arrow"
                           onClick={toggleFournisseurDropdown}
                         />
                       </div>
                       {renderFournisseurDropdown()}
                     </div>
-                    {(editingCommande && formData.lignes.length > 0) && (
+                    {editingCommande && formData.lignes.length > 0 && (
                       <small className="form-hint warning">
                         ⚠️ Le fournisseur ne peut pas être modifié car des produits ont déjà été ajoutés
                       </small>
                     )}
                   </div>
-                  <div className="form-group">
-                    <label>Date de commande *</label>
-                    <div className="input-wrapper">
-                      <Calendar size={18} className="input-icon" />
-                      <input
-                        type="date"
-                        name="date_commande"
-                        value={formData.date_commande}
-                        onChange={handleInputChange}
-                        disabled={saving}
-                        className="form-input"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label>Notes</label>
-                  <textarea
-                    name="notes"
-                    value={formData.notes}
-                    onChange={handleInputChange}
-                    placeholder="Notes supplémentaires (optionnel)..."
-                    rows="2"
-                    disabled={saving}
-                    className="form-textarea"
-                  />
-                </div>
-              </div>
+                </section>
 
-              {/* Produits */}
-              <div className="form-section">
-                <div className="section-header">
-                  <h4><Package size={18} /> Produits</h4>
-                  <span className="section-badge">{formData.lignes.length} produit(s)</span>
-                </div>
+                {/* Section Ajout produit (barre horizontale) */}
+                <section className="commande-section">
+                  <h3 className="commande-section-title">
+                    <Plus size={15} />
+                    Ajouter un produit
+                  </h3>
 
-                {renderLignesTable()}
-
-                {/* Section d'ajout */}
-                <div className="add-ligne-section">
-                  <div className="add-ligne-header">
-                    <span className="add-ligne-title">
-                      {formData.lignes.length > 0 ? 'Ajouter un produit' : 'Ajouter des produits'}
-                    </span>
-                    {formData.id_fournisseur && (
-                      <span className="add-ligne-hint">
-                        {produitsFiltres.length} produit(s) disponible(s)
-                      </span>
-                    )}
-                  </div>
-
-                  {/* 1. Produit */}
-                  <div className="form-group">
-                    <label>
-                      <span className="step-indicator">1</span> Produit *
-                    </label>
-                    <div className="combobox-wrapper">
-                      <div className="combobox-input-wrapper">
-                        <input
-                          type="text"
-                          name="produit_search"
-                          className="combobox-input"
-                          placeholder={
-                            !formData.id_fournisseur
-                              ? "Sélectionnez d'abord un fournisseur"
-                              : "Rechercher un produit..."
-                          }
-                          value={produitSearch}
-                          onChange={(e) => rechercherProduits(e.target.value)}
-                          onFocus={() => {
-                            if (formData.id_fournisseur && produitSearch.length === 0) {
-                              setProduitSearchResults(produitsFiltres);
+                  <div className="add-product-bar">
+                    {/* Produit */}
+                    <div className="add-product-search">
+                      <div className="combobox-wrapper">
+                        <div className="combobox-input-wrapper">
+                          <Search size={16} className="combobox-icon" />
+                          <input
+                            type="text"
+                            name="produit_search"
+                            className="combobox-input"
+                            placeholder={
+                              !formData.id_fournisseur
+                                ? "Choisir un fournisseur d'abord"
+                                : "Rechercher un produit..."
                             }
-                            setShowProduitDropdown(true);
-                          }}
-                          disabled={saving || !formData.id_fournisseur || editingLigneIndex !== null}
-                          autoComplete="off"
-                        />
-                        {isSearchingProduit && (
-                          <Loader size={16} className="combobox-spinner spinning" />
-                        )}
-                        <ChevronDown
-                          size={18}
-                          className="combobox-arrow"
-                          onClick={toggleProduitDropdown}
-                        />
+                            value={produitSearch}
+                            onChange={(e) => rechercherProduits(e.target.value)}
+                            onFocus={() => {
+                              if (formData.id_fournisseur && produitSearch.length === 0) {
+                                setProduitSearchResults(produitsFiltres);
+                              }
+                              setShowProduitDropdown(true);
+                            }}
+                            disabled={saving || !formData.id_fournisseur || editingLigneIndex !== null}
+                            autoComplete="off"
+                          />
+                          {isSearchingProduit && (
+                            <Loader size={14} className="combobox-spinner spinning" />
+                          )}
+                          <ChevronDown
+                            size={16}
+                            className="combobox-arrow"
+                            onClick={toggleProduitDropdown}
+                          />
+                        </div>
+                        {renderProduitDropdown()}
                       </div>
-                      {renderProduitDropdown()}
                     </div>
-                  </div>
 
-                  {/* 2. Unité (avec unité de base intégrée) */}
-                  {ligneForm.id_produit && (
-                    <div className="unite-vente-section">
-                      <label>
-                        <span className="step-indicator">2</span> Unité *
-                      </label>
-
-                      {loadingUnites ? (
-                        <div className="loading-unites">
-                          <Loader size={16} className="spinning" />
-                          <span>Chargement des unités...</span>
-                        </div>
-                      ) : unitesVente.length === 0 ? (
-                        <div className="empty-unites">
-                          <AlertTriangle size={16} />
-                          <span>Aucune unité disponible</span>
-                        </div>
-                      ) : (
-                        <div className="unites-buttons">
-                          {unitesVente.map((unite, idx) => (
-                            <button
-                              key={unite.id_unite_vente ?? `base-${idx}`}
-                              type="button"
-                              className={`unite-btn ${selectedUnite?.id_unite_vente === unite.id_unite_vente ? 'active' : ''}`}
-                              onClick={() => handleUniteChange(unite.id_unite_vente)}
-                              disabled={saving}
-                            >
-                              <Box size={16} />
-                              <div className="unite-btn-content">
-                                <span className="unite-btn-nom">
-                                  {unite.nom}
-                                  {unite.est_unite_base && (
-                                    <small className="badge-base"> (base)</small>
-                                  )}
-                                </span>
+                    {/* Unité + Qté + Prix + Ajouter (si produit sélectionné) */}
+                    {ligneForm.id_produit && (
+                      <>
+                        <div className="add-product-unite">
+                          <div className="unite-chips">
+                            {unitesVente.map((unite, idx) => (
+                              <button
+                                key={unite.id_unite_vente ?? `base-${idx}`}
+                                type="button"
+                                className={`unite-chip ${selectedUnite?.id_unite_vente === unite.id_unite_vente ? 'active' : ''}`}
+                                onClick={() => handleUniteChange(unite.id_unite_vente)}
+                                disabled={saving}
+                                title={unite.est_unite_base ? 'Unité de base' : `× ${unite.quantite_base}`}
+                              >
+                                {unite.nom}
                                 {unite.quantite_base > 1 && (
-                                  <span className="unite-btn-base">
-                                    × {unite.quantite_base} unités
-                                  </span>
+                                  <small>×{unite.quantite_base}</small>
                                 )}
-                                {unite.prix_achat > 0 && (
-                                  <span className="unite-btn-prix">
-                                    {formatMontant(unite.prix_achat)}
-                                  </span>
-                                )}
-                                {(!unite.prix_achat || unite.prix_achat === 0) && (
-                                  <span className="unite-btn-prix" style={{ color: '#94a3b8' }}>
-                                    Prix à définir
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          ))}
+                              </button>
+                            ))}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  )}
 
-                  {/* 3. Quantité + Prix (prix optionnel) */}
-                  {ligneForm.id_produit && selectedUnite && (
-                    <div className="quantite-prix-grid">
-                      <div className="form-group">
-                        <label>
-                          <span className="step-indicator">3</span> Quantité *
-                        </label>
                         <input
                           type="text"
                           name="quantite"
+                          className="add-product-qty"
+                          placeholder="Qté"
                           value={ligneForm.quantite}
                           onChange={handleLigneChange}
-                          placeholder={`Nombre de ${selectedUnite.nom.toLowerCase()}s`}
                           disabled={saving || editingLigneIndex !== null}
-                          className="form-input"
                           autoFocus
                         />
-                        <small className="form-hint">
-                          En {selectedUnite.nom.toLowerCase()}
-                        </small>
-                      </div>
-                    </div>
-                  )}
 
-                  {/* 4. Aperçu */}
-                  {ligneForm.id_produit && selectedUnite && ligneForm.quantite && parseInt(ligneForm.quantite) > 0 && (
-                    <div className="quantite-preview">
-                      <div className="quantite-preview-line">
-                        <span className="quantite-preview-label">Vous commandez :</span>
-                        <span className="quantite-preview-value">
-                          <strong>{ligneForm.quantite}</strong> {selectedUnite.nom}
-                          {parseInt(ligneForm.quantite) > 1 ? 's' : ''}
+                        <input
+                          type="text"
+                          name="prix_achat"
+                          className="add-product-price"
+                          placeholder="Prix (optionnel)"
+                          value={ligneForm.prix_achat}
+                          onChange={handleLigneChange}
+                          disabled={saving || editingLigneIndex !== null}
+                        />
+
+                        <button
+                          type="button"
+                          className="add-product-btn"
+                          onClick={addLigne}
+                          disabled={
+                            saving ||
+                            editingLigneIndex !== null ||
+                            !ligneForm.quantite ||
+                            parseInt(ligneForm.quantite) <= 0
+                          }
+                          title="Ajouter au panier"
+                        >
+                          <Plus size={18} />
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Aperçu compact */}
+                  {ligneForm.id_produit && selectedUnite && ligneForm.quantite > 0 && (
+                    <div className="add-product-preview">
+                      <span>
+                        <strong>{ligneForm.quantite}</strong> {selectedUnite.nom}
+                        {selectedUnite.quantite_base > 1 && (
+                          <> → <strong>{calculerQuantiteBase()}</strong> unités de base</>
+                        )}
+                      </span>
+                      {ligneForm.prix_achat > 0 && (
+                        <span className="add-product-preview-total">
+                          = {formatMontant(calculerSousTotalLigne())}
                         </span>
+                      )}
+                    </div>
+                  )}
+                </section>
+
+                {/* Section Liste produits */}
+                <section className="commande-section commande-section-list">
+                  <h3 className="commande-section-title">
+                    <Package size={15} />
+                    Produits ({formData.lignes.length})
+                  </h3>
+
+                  {formData.lignes.length === 0 ? (
+                    <div className="commande-empty">
+                      <div className="commande-empty-icon">
+                        <Package size={28} />
                       </div>
+                      <p>Aucun produit ajouté</p>
+                      <small>Utilisez la barre ci-dessus pour ajouter</small>
+                    </div>
+                  ) : (
+                    <div className="commande-lignes-list">
+                      {formData.lignes.map((ligne, index) => {
+                        const isEditing = editingLigneIndex === index;
+                        const quantite = parseFloat(ligne.quantite) || 0;
+                        const prix = parseFloat(ligne.prix_achat) || 0;
+                        const total = quantite * prix;
+                        const hasPrix = ligne.prix_achat !== null && ligne.prix_achat > 0;
 
-                      {selectedUnite.quantite_base > 1 && (
-                        <>
-                          <div className="quantite-preview-line highlight">
-                            <span className="quantite-preview-label">Soit en unités de base :</span>
-                            <span className="quantite-preview-value">
-                              <strong>{calculerQuantiteBase()}</strong> unités
+                        return (
+                          <div
+                            key={index}
+                            className={`commande-ligne-item ${isEditing ? 'editing' : ''}`}
+                          >
+                            <div className="commande-ligne-main">
+                              <span className="commande-ligne-nom">
+                                {ligne.produit_nom}
+                              </span>
+                              {ligne.modele_nom && (
+                                <span className="commande-ligne-modele">
+                                  {ligne.modele_nom}
+                                </span>
+                              )}
+                            </div>
+
+                            <span className="commande-ligne-unite">
+                              {ligne.nom_unite_vente}
+                              {ligne.quantite_base > 1 && (
+                                <small>×{ligne.quantite_base}</small>
+                              )}
                             </span>
-                          </div>
 
-                          <div className="quantite-preview-line">
-                            <span className="quantite-preview-label">Formule :</span>
-                            <span className="quantite-preview-formule">
-                              {ligneForm.quantite} × {selectedUnite.quantite_base} = {calculerQuantiteBase()}
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={ligne.quantite}
+                                onChange={(e) =>
+                                  updateLigne(index, 'quantite', e.target.value.replace(/[^0-9]/g, ''))
+                                }
+                                className="commande-ligne-input"
+                              />
+                            ) : (
+                              <span className="commande-ligne-qty">
+                                ×{quantite}
+                              </span>
+                            )}
+
+                            {isEditing ? (
+                              <input
+                                type="text"
+                                value={ligne.prix_achat ?? ''}
+                                onChange={(e) =>
+                                  updateLigne(index, 'prix_achat', e.target.value.replace(/[^0-9,.]/g, ''))
+                                }
+                                placeholder="—"
+                                className="commande-ligne-input"
+                              />
+                            ) : (
+                              <span className={`commande-ligne-price ${!hasPrix ? 'empty' : ''}`}>
+                                {hasPrix ? formatMontant(prix) : 'À définir'}
+                              </span>
+                            )}
+
+                            <span className="commande-ligne-total">
+                              {hasPrix ? formatMontant(total) : '—'}
                             </span>
+
+                            <div className="commande-ligne-actions">
+                              {isEditing ? (
+                                <>
+                                  <button
+                                    className="ligne-action-btn save"
+                                    onClick={() => saveLigneEdit(index)}
+                                    title="Valider"
+                                  >
+                                    <Check size={14} />
+                                  </button>
+                                  <button
+                                    className="ligne-action-btn cancel"
+                                    onClick={cancelEditLigne}
+                                    title="Annuler"
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  <button
+                                    className="ligne-action-btn edit"
+                                    onClick={() => startEditLigne(index)}
+                                    disabled={saving}
+                                    title="Modifier"
+                                  >
+                                    <Edit size={14} />
+                                  </button>
+                                  <button
+                                    className="ligne-action-btn delete"
+                                    onClick={() => removeLigne(index)}
+                                    disabled={saving}
+                                    title="Supprimer"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
-                        </>
-                      )}
-
-                      {ligneForm.prix_achat && parseFloat(ligneForm.prix_achat) > 0 ? (
-                        <div className="quantite-preview-line total">
-                          <span className="quantite-preview-label">Total ligne :</span>
-                          <span className="quantite-preview-total">
-                            {formatMontant(calculerSousTotalLigne())}
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="quantite-preview-line total">
-                          <span className="quantite-preview-label">Total ligne :</span>
-                          <span className="quantite-preview-value" style={{ fontStyle: 'italic', color: '#94a3b8' }}>
-                            À définir à la réception
-                          </span>
-                        </div>
-                      )}
+                        );
+                      })}
                     </div>
                   )}
-
-                  {/* 5. Bouton Ajouter */}
-                  {ligneForm.id_produit && selectedUnite && ligneForm.quantite && parseInt(ligneForm.quantite) > 0 && (
-                    <div className="add-ligne-action">
-                      <button
-                        type="button"
-                        className="btn btn-primary"
-                        onClick={addLigne}
-                        disabled={saving || editingLigneIndex !== null}
-                      >
-                        <Plus size={18} />
-                        <span>Ajouter au panier</span>
-                      </button>
-                    </div>
-                  )}
-
-                  {editingLigneIndex !== null && (
-                    <div className="form-hint warning">
-                      ⚠️ Vous êtes en train de modifier une ligne. Validez ou annulez la modification avant d'ajouter un nouveau produit.
-                    </div>
-                  )}
-                </div>
+                </section>
               </div>
+
+              {/* ---------- COLONNE DROITE : RÉCAP ---------- */}
+              <aside className="commande-modal-right">
+                <div className="commande-recap">
+                  <h3 className="commande-recap-title">
+                    <ShoppingBasket size={16} />
+                    Récapitulatif
+                  </h3>
+
+                  <div className="commande-recap-info">
+                    <div className="commande-recap-line">
+                      <span className="recap-label">Fournisseur</span>
+                      <span className="recap-value">
+                        {fournisseurSearch || '—'}
+                      </span>
+                    </div>
+                    <div className="commande-recap-line">
+                      <span className="recap-label">Produits</span>
+                      <span className="recap-value">{formData.lignes.length}</span>
+                    </div>
+                  </div>
+
+                  <div className="commande-recap-divider" />
+
+                  {formData.lignes.length > 0 && (
+                    <div className="commande-recap-list">
+                      {formData.lignes.map((l, i) => {
+                        const hasPrix = l.prix_achat !== null && l.prix_achat > 0;
+                        return (
+                          <div key={i} className="commande-recap-item">
+                            <span className="recap-item-name">
+                              {l.produit_nom}
+                            </span>
+                            <span className="recap-item-qty">
+                              ×{l.quantite} {l.nom_unite_vente}
+                            </span>
+                            {hasPrix ? (
+                              <span className="recap-item-total">
+                                {formatMontant(l.quantite * l.prix_achat)}
+                              </span>
+                            ) : (
+                              <span className="recap-item-total empty">—</span>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  <div className="commande-recap-divider" />
+
+                  <div className="commande-recap-totaux">
+                    <div className="recap-total-line">
+                      <span>Sous-total</span>
+                      <span>
+                        {calculerTotalCommande() > 0
+                          ? formatMontant(calculerTotalCommande())
+                          : '—'}
+                      </span>
+                    </div>
+
+                    <div className="recap-total-final">
+                      <span>Total</span>
+                      <span>
+                        {calculerTotalCommande() > 0
+                          ? formatMontant(calculerTotalCommande())
+                          : <em>À définir</em>}
+                      </span>
+                    </div>
+
+                    {calculerTotalCommande() === 0 && formData.lignes.length > 0 && (
+                      <p className="recap-note">
+                        Les prix seront renseignés à la réception
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </aside>
             </div>
 
-            <div className="modal-footer">
+            {/* ================= FOOTER ================= */}
+            <footer className="commande-modal-footer">
               <button
                 className="btn btn-secondary"
-                onClick={() => setShowModal(false)}
+                onClick={() => !saving && setShowModal(false)}
                 disabled={saving}
               >
                 Annuler
@@ -2069,26 +1978,33 @@ const CommandesAchat = () => {
               <button
                 className="btn btn-primary"
                 onClick={handleSave}
-                disabled={saving || formData.lignes.length === 0 || editingLigneIndex !== null}
+                disabled={
+                  saving ||
+                  !formData.id_fournisseur ||
+                  formData.lignes.length === 0 ||
+                  editingLigneIndex !== null
+                }
               >
                 {saving ? (
                   <>
-                    <Loader size={18} className="spinning" />
+                    <Loader size={16} className="spinning" />
                     <span>Enregistrement...</span>
                   </>
                 ) : (
                   <>
-                    <Check size={18} />
+                    <Check size={16} />
                     <span>{editingCommande ? "Mettre à jour" : "Créer la commande"}</span>
                   </>
                 )}
               </button>
-            </div>
+            </footer>
           </div>
         </div>
       )}
 
-      {/* MODAL - DÉTAILS */}
+      {/* ============================================================
+          MODAL - DÉTAILS
+          ============================================================ */}
       {showDetailModal && selectedCommande && (
         <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
           <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
@@ -2160,14 +2076,9 @@ const CommandesAchat = () => {
                         : <em style={{ color: '#94a3b8' }}>À définir</em>}
                     </span>
                   </div>
-                  <div className="detail-item">
-                    <label>Notes</label>
-                    <span>{selectedCommande.notes || 'Aucune note'}</span>
-                  </div>
                 </div>
               </div>
 
-              {/* ✅ Lignes de la commande */}
               {selectedCommande.lignes && selectedCommande.lignes.length > 0 && (
                 <div className="detail-lignes">
                   <h4><Package size={16} /> Produits commandés</h4>
@@ -2242,16 +2153,24 @@ const CommandesAchat = () => {
                 </div>
               )}
             </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowDetailModal(false)}>
-                Fermer
-              </button>
+
+            {/* Boutons PDF + WhatsApp */}
+            <div className="modal-footer" style={{ padding: 0, border: 'none', display: 'block' }}>
+              <BonCommandePDFActions
+                commandeData={{
+                  ...selectedCommande,
+                  magasin: magasin,
+                }}
+                onClose={() => setShowDetailModal(false)}
+              />
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL - SUPPRESSION */}
+      {/* ============================================================
+          MODAL - SUPPRESSION
+          ============================================================ */}
       {showDeleteModal && (
         <div className="modal-overlay" onClick={() => !deleting && setShowDeleteModal(false)}>
           <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>

@@ -505,11 +505,7 @@ useEffect(() => {
                     <div className="dashboard-card chart-card">
                         <div className="card-header">
                             <h3>Ventes du jour</h3>
-                            <span className="card-badge">
-                                {kpis.ventes_jour > 0
-                                    ? formatMontantCourt(kpis.ventes_jour)
-                                    : 'Aucune'}
-                            </span>
+                           
                         </div>
                         <div className="card-body">
                             {ventes_jour_chart.some(h => h.montant > 0) ? (

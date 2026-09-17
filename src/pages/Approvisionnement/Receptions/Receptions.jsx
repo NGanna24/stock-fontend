@@ -1,42 +1,18 @@
 // pages/Receptions/Receptions.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
-  Plus,
-  Search,
-  Eye,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  X,
-  Check,
-  RefreshCw,
-  Grid,
-  List,
-  Package,
-  Banknote,
-  Calendar,
-  Clock,
-  AlertCircle,
-  CheckCircle,
-  Ban,
-  FileText,
-  Building,
-  Truck,
-  ClipboardList,
-  CheckSquare,
-  Square,
-  AlertTriangle,
-  Trash2,
-  ShoppingBag,
-  Box,
-  CheckCheck,
-  Info
+  Plus, Search, Eye, ChevronLeft, ChevronRight, Download, X, Check,
+  RefreshCw, Grid, List, Package, Banknote, Calendar, Clock,
+  AlertCircle, CheckCircle, Ban, FileText, Building, Truck,
+  ClipboardList, CheckSquare, Square, AlertTriangle, Trash2,
+  ShoppingBag, Box, CheckCheck, Info, ChevronDown
 } from "lucide-react";
 import ReceptionService from "../../../services/receptionService";
 import CommandeAchatService from "../../../services/commandeAchatService";
 import FournisseurService from "../../../services/fournisseurService";
 import ProduitService from "../../../services/produitService";
 import { useUser } from "../../../context/AuthContext";
+import ConfirmModal from "../../../components/ConfirmModal/ConfirmModal";
 import "./Receptions.css";
 
 const Receptions = () => {
@@ -46,7 +22,6 @@ const Receptions = () => {
   // États principaux
   const [receptions, setReceptions] = useState([]);
   const [commandesDisponibles, setCommandesDisponibles] = useState([]);
-  const [commandesFiltrees, setCommandesFiltrees] = useState([]);
   const [fournisseurs, setFournisseurs] = useState([]);
   const [produits, setProduits] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -59,7 +34,7 @@ const Receptions = () => {
   const [filterStatut, setFilterStatut] = useState("");
   const [toastMessage, setToastMessage] = useState(null);
 
-  // États pour les modals
+  // Modals
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -69,26 +44,55 @@ const Receptions = () => {
   const [deleting, setDeleting] = useState(false);
   const [updatingStatut, setUpdatingStatut] = useState(null);
 
-  // État du formulaire de réception
+  // Formulaire
   const [formData, setFormData] = useState({
     id_commande_achat: "",
     lignes: []
   });
 
-  // État pour suivre si toutes les lignes sont validées
   const [toutValide, setToutValide] = useState(false);
   const [commandeSelectionnee, setCommandeSelectionnee] = useState(null);
 
-  // Ref pour le toast
-  const toastTimeoutRef = useRef(null);
+  // ============ ÉTATS DU SÉLECTEUR DE COMMANDE ============
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerSearch, setPickerSearch] = useState("");
+  const [pickerHighlighted, setPickerHighlighted] = useState(0);
+  const pickerRef = useRef(null);
+  const pickerInputRef = useRef(null);
 
-  // Vérifier les permissions
+  // Modal de confirmation générique
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    details: null,
+    type: 'warning',
+    confirmLabel: 'Confirmer',
+    onConfirm: null,
+  });
+
+  const openConfirm = (config) => {
+    setConfirmModal({
+      isOpen: true,
+      title: config.title || 'Confirmation',
+      message: config.message || '',
+      details: config.details || null,
+      type: config.type || 'warning',
+      confirmLabel: config.confirmLabel || 'Confirmer',
+      onConfirm: config.onConfirm || null,
+    });
+  };
+
+  const closeConfirm = () => {
+    setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+  };
+
+  const toastTimeoutRef = useRef(null);
   const canManage = user && ['admin', 'manager'].includes(user.role);
 
   // ============================================================
-  // CHARGEMENT DES DONNÉES
+  // CHARGEMENT
   // ============================================================
-
   useEffect(() => {
     if (isAuthenticated && token) {
       loadReceptions();
@@ -98,27 +102,31 @@ const Receptions = () => {
     }
   }, [isAuthenticated, token]);
 
-  // Nettoyer le toast
   useEffect(() => {
     return () => {
-      if (toastTimeoutRef.current) {
-        clearTimeout(toastTimeoutRef.current);
-      }
+      if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
     };
   }, []);
 
-  // Afficher un toast de succès
+  // Fermer le picker au clic extérieur
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) {
+        setPickerOpen(false);
+      }
+    };
+    if (pickerOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [pickerOpen]);
+
   const showToast = (message) => {
     setToastMessage(message);
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
-    }
-    toastTimeoutRef.current = setTimeout(() => {
-      setToastMessage(null);
-    }, 4000);
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    toastTimeoutRef.current = setTimeout(() => setToastMessage(null), 4000);
   };
 
-  // Charger les réceptions
   const loadReceptions = async () => {
     setLoading(true);
     setError(null);
@@ -137,7 +145,6 @@ const Receptions = () => {
     }
   };
 
-  // Charger UNIQUEMENT les commandes en attente
   const loadCommandesDisponibles = async () => {
     setLoadingCommandes(true);
     try {
@@ -147,17 +154,11 @@ const Receptions = () => {
       ]);
 
       let commandesList = [];
-      if (responseEnAttente.success) {
-        commandesList = [...commandesList, ...responseEnAttente.data];
-      }
-      if (responsePartiel.success) {
-        commandesList = [...commandesList, ...responsePartiel.data];
-      }
+      if (responseEnAttente.success) commandesList = [...commandesList, ...responseEnAttente.data];
+      if (responsePartiel.success) commandesList = [...commandesList, ...responsePartiel.data];
 
       commandesList.sort((a, b) => new Date(b.date_commande) - new Date(a.date_commande));
-
       setCommandesDisponibles(commandesList);
-      setCommandesFiltrees(commandesList);
     } catch (error) {
       console.error('❌ LoadCommandesDisponibles error:', error);
     } finally {
@@ -168,9 +169,7 @@ const Receptions = () => {
   const loadFournisseurs = async () => {
     try {
       const response = await FournisseurService.getActiveFournisseurs(token);
-      if (response.success) {
-        setFournisseurs(response.data || []);
-      }
+      if (response.success) setFournisseurs(response.data || []);
     } catch (error) {
       console.error('❌ LoadFournisseurs error:', error);
     }
@@ -179,18 +178,45 @@ const Receptions = () => {
   const loadAllProduits = async () => {
     try {
       const response = await ProduitService.getAllProduits(token);
-      if (response.success) {
-        setProduits(response.data || []);
-      }
+      if (response.success) setProduits(response.data || []);
     } catch (error) {
       console.error('❌ LoadProduits error:', error);
     }
   };
 
   // ============================================================
-  // GESTION DU FORMULAIRE
+  // COMMANDES FILTRÉES POUR LE PICKER
   // ============================================================
+  const filteredCommandes = useMemo(() => {
+    const term = pickerSearch.trim().toLowerCase();
+    if (!term) {
+      // Par défaut : TOP 10 des plus urgentes (anciennes d'abord)
+      const sorted = [...commandesDisponibles].sort((a, b) => {
+        // Partiellement reçues en premier
+        const aPartiel = a.statut === 'partiellement_recue' ? 0 : 1;
+        const bPartiel = b.statut === 'partiellement_recue' ? 0 : 1;
+        if (aPartiel !== bPartiel) return aPartiel - bPartiel;
+        // Puis par date croissante (les plus anciennes = urgentes)
+        return new Date(a.date_commande) - new Date(b.date_commande);
+      });
+      return sorted.slice(0, 10);
+    }
 
+    // Sinon filtre
+    return commandesDisponibles
+      .filter(c =>
+        c.numero_commande?.toLowerCase().includes(term) ||
+        c.fournisseur_nom?.toLowerCase().includes(term) ||
+        new Date(c.date_commande).toLocaleDateString('fr-FR').includes(term)
+      )
+      .slice(0, 50);
+  }, [commandesDisponibles, pickerSearch]);
+
+  const isDefaultList = pickerSearch.trim() === "";
+
+  // ============================================================
+  // FORMULAIRE
+  // ============================================================
   useEffect(() => {
     if (formData.id_commande_achat) {
       const commande = commandesDisponibles.find(
@@ -207,7 +233,6 @@ const Receptions = () => {
     }
   }, [formData.id_commande_achat, commandesDisponibles]);
 
-  // ✅ CORRIGÉ : Charger les détails d'une commande AVEC les infos d'unité
   const chargerDetailsCommande = async (idCommande) => {
     setLoading(true);
     try {
@@ -215,7 +240,6 @@ const Receptions = () => {
       if (response.success && response.data) {
         const commande = response.data;
 
-        // ✅ Construire les lignes de réception avec TOUS les champs d'unité
         const lignesReception = (commande.lignes || []).map(l => {
           const qteBase = parseFloat(l.quantite_base) || 1;
           const quantiteCommandee = parseFloat(l.quantite) || 0;
@@ -228,23 +252,15 @@ const Receptions = () => {
             id_ligne_achat: l.id_ligne_achat || null,
             produit_nom: l.produit_nom || 'Produit inconnu',
             produit_reference: l.reference || '',
-
-            // ✅ Infos d'unité de vente
             id_unite_vente: l.id_unite_vente || null,
             nom_unite_vente: l.nom_unite_vente || l.unite_vente_nom || 'Unité',
             quantite_base: qteBase,
-
-            // Quantités
             quantite_commandee: quantiteCommandee,
             quantite_totale_base_commandee: quantiteCommandee * qteBase,
             quantite_recue: quantiteCommandee,
             quantite_totale_base: quantiteCommandee * qteBase,
             ecart: 0,
-
-            // ✅ Prix d'achat (saisi ou null)
             prix_achat_unite_vente: prixAchatUV,
-
-            // Autres
             unite: l.nom_unite_vente || l.unite_symbole || '',
             valide: true,
             etat_marchandise: 'bon',
@@ -254,13 +270,8 @@ const Receptions = () => {
           };
         });
 
-        setFormData(prev => ({
-          ...prev,
-          lignes: lignesReception
-        }));
-
-        const toutesValides = lignesReception.every(l => l.valide === true);
-        setToutValide(toutesValides);
+        setFormData(prev => ({ ...prev, lignes: lignesReception }));
+        setToutValide(lignesReception.every(l => l.valide === true));
       }
     } catch (error) {
       console.error('❌ Erreur lors du chargement des détails:', error);
@@ -275,7 +286,6 @@ const Receptions = () => {
     setFormData({ ...formData, [name]: value });
   };
 
-  // ✅ CORRIGÉ : Basculer la validation d'une ligne
   const toggleValiderLigne = (index) => {
     const nouvellesLignes = [...formData.lignes];
     const qteBase = nouvellesLignes[index].quantite_base || 1;
@@ -295,12 +305,9 @@ const Receptions = () => {
       nouvellesLignes[index].quantite_commandee - nouvellesLignes[index].quantite_recue;
 
     setFormData({ ...formData, lignes: nouvellesLignes });
-
-    const toutesValides = nouvellesLignes.every(l => l.valide === true);
-    setToutValide(toutesValides);
+    setToutValide(nouvellesLignes.every(l => l.valide === true));
   };
 
-  // ✅ CORRIGÉ : Valider TOUTES les lignes
   const validerTout = () => {
     const nouvellesLignes = formData.lignes.map(l => {
       const qteBase = l.quantite_base || 1;
@@ -316,7 +323,6 @@ const Receptions = () => {
     setToutValide(true);
   };
 
-  // ✅ CORRIGÉ : Désélectionner toutes les lignes
   const deselectionnerTout = () => {
     const nouvellesLignes = formData.lignes.map(l => ({
       ...l,
@@ -329,7 +335,6 @@ const Receptions = () => {
     setToutValide(false);
   };
 
-  // ✅ CORRIGÉ : Modifier la quantité reçue + recalculer quantite_totale_base
   const handleQuantiteRecueChange = (index, value) => {
     const nouvellesLignes = [...formData.lignes];
     const qteRecue = parseFloat(value) || 0;
@@ -340,19 +345,22 @@ const Receptions = () => {
     nouvellesLignes[index].quantite_totale_base = qteRecue * qteBase;
     nouvellesLignes[index].ecart = qteCommandee - qteRecue;
 
-    if (qteRecue < qteCommandee) {
-      nouvellesLignes[index].valide = false;
-    } else if (qteRecue === qteCommandee) {
+    if (qteRecue > 0) {
       nouvellesLignes[index].valide = true;
+    } else {
+      nouvellesLignes[index].valide = false;
+    }
+
+    if (qteRecue < qteCommandee) {
+      nouvellesLignes[index].etat_marchandise = 'partiel';
+    } else {
+      nouvellesLignes[index].etat_marchandise = 'bon';
     }
 
     setFormData({ ...formData, lignes: nouvellesLignes });
-
-    const toutesValides = nouvellesLignes.every(l => l.valide === true);
-    setToutValide(toutesValides);
+    setToutValide(nouvellesLignes.every(l => l.valide === true));
   };
 
-  // ✅ NOUVEAU : Modifier le prix d'achat unitaire
   const handlePrixAchatChange = (index, value) => {
     const nouvellesLignes = [...formData.lignes];
     nouvellesLignes[index].prix_achat_unite_vente =
@@ -378,18 +386,81 @@ const Receptions = () => {
     setFormData({ ...formData, lignes: nouvellesLignes });
   };
 
+  const handleNotesChange = (index, value) => {
+    const nouvellesLignes = [...formData.lignes];
+    nouvellesLignes[index].notes = value;
+    setFormData({ ...formData, lignes: nouvellesLignes });
+  };
+
+  // ============================================================
+  // ACTIONS PICKER
+  // ============================================================
+  const handlePickerOpen = () => {
+    if (saving || loadingCommandes) return;
+    setPickerOpen(true);
+    setPickerSearch("");
+    setPickerHighlighted(0);
+    setTimeout(() => pickerInputRef.current?.focus(), 50);
+  };
+
+  const handlePickerSelect = (commande) => {
+    setFormData(prev => ({ ...prev, id_commande_achat: commande.id_commande_achat }));
+    setPickerOpen(false);
+    setPickerSearch("");
+  };
+
+  const handlePickerClear = () => {
+    setFormData(prev => ({ ...prev, id_commande_achat: "", lignes: [] }));
+    setCommandeSelectionnee(null);
+    setToutValide(false);
+    setTimeout(() => handlePickerOpen(), 50);
+  };
+
+  const handlePickerKeyDown = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setPickerHighlighted(prev => Math.min(prev + 1, filteredCommandes.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setPickerHighlighted(prev => Math.max(prev - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredCommandes[pickerHighlighted]) {
+        handlePickerSelect(filteredCommandes[pickerHighlighted]);
+      }
+    } else if (e.key === 'Escape') {
+      setPickerOpen(false);
+    }
+  };
+
+  const formatDateCommande = (dateStr) => {
+    try {
+      return new Date(dateStr).toLocaleDateString('fr-FR');
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatJoursEcoules = (dateStr) => {
+    try {
+      const diff = Math.floor((new Date() - new Date(dateStr)) / (1000 * 60 * 60 * 24));
+      if (diff === 0) return "Aujourd'hui";
+      if (diff === 1) return "Hier";
+      return `J+${diff}`;
+    } catch {
+      return "";
+    }
+  };
+
   // ============================================================
   // ACTIONS CRUD
   // ============================================================
-
   const handleAdd = () => {
-    setFormData({
-      id_commande_achat: "",
-      lignes: []
-    });
+    setFormData({ id_commande_achat: "", lignes: [] });
     setToutValide(false);
     setCommandeSelectionnee(null);
     setError(null);
+    setPickerSearch("");
     setShowModal(true);
   };
 
@@ -398,7 +469,6 @@ const Receptions = () => {
     setShowDetailModal(true);
   };
 
-  // ✅ CORRIGÉ : Enregistrer la réception avec TOUS les champs
   const handleSave = async () => {
     if (!formData.id_commande_achat) {
       setError("Veuillez sélectionner une commande");
@@ -418,10 +488,72 @@ const Receptions = () => {
       }
     }
 
+    const lignesAvecEcart = formData.lignes.filter(l => l.valide && l.ecart !== 0);
+
+    if (lignesAvecEcart.length > 0) {
+      const manquants = lignesAvecEcart.filter(l => l.ecart > 0);
+      const surplus = lignesAvecEcart.filter(l => l.ecart < 0);
+
+      openConfirm({
+        title: '⚠️ Écarts détectés',
+        message: `${lignesAvecEcart.length} ligne(s) présente(nt) un écart avec la commande initiale.`,
+        details: (
+          <>
+            {manquants.length > 0 && (
+              <div className="detail-section">
+                <span className="detail-label">📉 Manquants</span>
+                <ul>
+                  {manquants.map((l, i) => (
+                    <li key={i}>
+                      <strong>{l.produit_nom}</strong> : commandé <strong>{l.quantite_commandee} {l.nom_unite_vente}</strong>, reçu <strong>{l.quantite_recue} {l.nom_unite_vente}</strong>
+                      <span style={{ color: '#ef4444', marginLeft: '6px' }}>
+                        (-{l.ecart} {l.nom_unite_vente})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {surplus.length > 0 && (
+              <div className="detail-section">
+                <span className="detail-label">📈 Surplus</span>
+                <ul>
+                  {surplus.map((l, i) => (
+                    <li key={i}>
+                      <strong>{l.produit_nom}</strong> : commandé <strong>{l.quantite_commandee} {l.nom_unite_vente}</strong>, reçu <strong>{l.quantite_recue} {l.nom_unite_vente}</strong>
+                      <span style={{ color: '#2563eb', marginLeft: '6px' }}>
+                        (+{Math.abs(l.ecart)} {l.nom_unite_vente})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <p style={{ marginTop: '10px', fontSize: '12px', color: '#64748b' }}>
+              La commande sera marquée <strong>"partiellement reçue"</strong> si des manquants existent.
+            </p>
+          </>
+        ),
+        type: 'warning',
+        confirmLabel: 'Confirmer la réception',
+        onConfirm: () => {
+          closeConfirm();
+          handleSaveConfirmed();
+        },
+      });
+      return;
+    }
+
+    handleSaveConfirmed();
+  };
+
+  const handleSaveConfirmed = async () => {
     setSaving(true);
     setError(null);
 
     try {
+      const lignesValidees = formData.lignes.filter(l => l.valide === true);
+
       const data = {
         id_commande_achat: parseInt(formData.id_commande_achat),
         date_reception: new Date().toISOString().split('T')[0],
@@ -431,7 +563,6 @@ const Receptions = () => {
           const qteRecue = parseFloat(l.quantite_recue) || 0;
           const quantiteTotaleBase = qteRecue * qteBase;
 
-          // ✅ Prix d'achat : null si non saisi
           let prixAchatUV = null;
           if (
             l.prix_achat_unite_vente !== null &&
@@ -439,29 +570,19 @@ const Receptions = () => {
             l.prix_achat_unite_vente !== ''
           ) {
             const parsed = parseFloat(l.prix_achat_unite_vente);
-            if (!isNaN(parsed) && parsed > 0) {
-              prixAchatUV = parsed;
-            }
+            if (!isNaN(parsed) && parsed > 0) prixAchatUV = parsed;
           }
 
           return {
             id_produit: l.id_produit,
             id_ligne_achat: l.id_ligne_achat || null,
-
-            // ✅ Infos d'unité de vente
             id_unite_vente: l.id_unite_vente || null,
             nom_unite_vente: l.nom_unite_vente || 'Unité',
             quantite_base: qteBase,
             quantite_totale_base: quantiteTotaleBase,
-
-            // Quantités
             quantite_commandee: l.quantite_commandee || 0,
             quantite_recue: qteRecue,
-
-            // ✅ Prix d'achat (optionnel)
             prix_achat_unite_vente: prixAchatUV,
-
-            // Autres
             etat_marchandise: l.etat_marchandise || 'bon',
             num_lot: l.num_lot || null,
             date_peremption: l.date_peremption || null,
@@ -476,13 +597,10 @@ const Receptions = () => {
         await loadReceptions();
         await loadCommandesDisponibles();
         setShowModal(false);
-        setFormData({
-          id_commande_achat: "",
-          lignes: []
-        });
+        setFormData({ id_commande_achat: "", lignes: [] });
         setToutValide(false);
         setCommandeSelectionnee(null);
-        showToast('✅ Réception enregistrée avec succès !');
+        showToast('✓ Réception enregistrée avec succès !');
       } else {
         setError(response.message || 'Erreur lors de la sauvegarde');
       }
@@ -501,7 +619,6 @@ const Receptions = () => {
 
   const handleDelete = async () => {
     if (!receptionToDelete) return;
-
     setDeleting(true);
     setError(null);
 
@@ -538,7 +655,7 @@ const Receptions = () => {
       if (response.success) {
         await loadReceptions();
         await loadCommandesDisponibles();
-        showToast('✅ Statut mis à jour avec succès');
+        showToast('✓ Statut mis à jour avec succès');
       } else {
         setError(response.message || 'Erreur lors du changement de statut');
       }
@@ -556,14 +673,8 @@ const Receptions = () => {
       if (response.success && response.data) {
         const headers = ["ID", "Numéro", "Date", "Fournisseur", "Commande", "Montant", "Statut", "Notes"];
         const rows = response.data.map(r => [
-          r.id,
-          r.numero,
-          r.date,
-          r.fournisseur,
-          r.commande,
-          formatMontant(r.montant),
-          r.statut,
-          r.notes || ""
+          r.id, r.numero, r.date, r.fournisseur, r.commande,
+          formatMontant(r.montant), r.statut, r.notes || ""
         ]);
 
         let csv = headers.join(",") + "\n";
@@ -589,11 +700,8 @@ const Receptions = () => {
   // ============================================================
   // UTILITAIRES
   // ============================================================
-
   const formatMontant = (value) => {
-    if (value === undefined || value === null || isNaN(value)) {
-      return '0';
-    }
+    if (value === undefined || value === null || isNaN(value)) return '0';
     const num = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : value;
     if (isNaN(num)) return '0';
     return Math.round(num).toLocaleString('fr-FR') + ' FCFA';
@@ -608,8 +716,7 @@ const Receptions = () => {
 
     const totalMontant = receptions.reduce((sum, r) => {
       const montant = r.montant_total !== undefined && r.montant_total !== null
-        ? parseFloat(r.montant_total)
-        : 0;
+        ? parseFloat(r.montant_total) : 0;
       return sum + (isNaN(montant) ? 0 : montant);
     }, 0);
 
@@ -626,7 +733,6 @@ const Receptions = () => {
       reception.notes?.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchStatut = filterStatut ? reception.statut === filterStatut : true;
-
     return matchSearch && matchStatut;
   });
 
@@ -636,9 +742,8 @@ const Receptions = () => {
   const totalPages = Math.ceil(filteredReceptions.length / itemsPerPage);
 
   // ============================================================
-  // RENDU
+  // RENDU STATUT
   // ============================================================
-
   const renderStatut = (statut) => {
     const configs = {
       'en_attente': { label: 'En attente', className: 'status-en-attente', icon: Clock },
@@ -658,14 +763,167 @@ const Receptions = () => {
     );
   };
 
-  // ✅ CORRIGÉ : Tableau de réception avec prix d'achat
+  // ============================================================
+  // PICKER DE COMMANDE (Recherche dynamique)
+  // ============================================================
+  const renderCommandePicker = () => {
+    const isSelected = !!commandeSelectionnee;
+
+    return (
+      <div className="commande-picker" ref={pickerRef}>
+        <label className="picker-label">
+          <ShoppingBag size={14} />
+          Commande d'achat *
+        </label>
+
+        {isSelected ? (
+          <div className="picker-selected">
+            <div className="picker-selected-main">
+              <div className="picker-selected-icon">
+                <FileText size={20} />
+              </div>
+              <div className="picker-selected-info">
+                <span className="picker-selected-num">
+                  {commandeSelectionnee.numero_commande}
+                </span>
+                <span className="picker-selected-meta">
+                  <Building size={12} />
+                  {commandeSelectionnee.fournisseur_nom}
+                  <span className="picker-sep">·</span>
+                  <Calendar size={12} />
+                  {formatDateCommande(commandeSelectionnee.date_commande)}
+                  <span className="picker-sep">·</span>
+                  <Banknote size={12} />
+                  {formatMontant(commandeSelectionnee.montant_total)}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="picker-change-btn"
+              onClick={handlePickerClear}
+              disabled={saving}
+            >
+              Changer
+            </button>
+          </div>
+        ) : (
+          <div className="picker-input-wrapper">
+            <Search size={18} className="picker-search-icon" />
+            <input
+              ref={pickerInputRef}
+              type="text"
+              className="picker-input"
+              placeholder="Rechercher une commande (n°, fournisseur, date...)"
+              value={pickerSearch}
+              onChange={(e) => {
+                setPickerSearch(e.target.value);
+                setPickerHighlighted(0);
+              }}
+              onFocus={handlePickerOpen}
+              onClick={handlePickerOpen}
+              onKeyDown={handlePickerKeyDown}
+              disabled={saving || loadingCommandes}
+            />
+            {loadingCommandes ? (
+              <span className="spinner-small picker-spinner" />
+            ) : (
+              <ChevronDown
+                size={18}
+                className={`picker-chevron ${pickerOpen ? 'open' : ''}`}
+              />
+            )}
+          </div>
+        )}
+
+        {pickerOpen && !isSelected && (
+          <div className="picker-dropdown">
+            <div className="picker-dropdown-header">
+              {isDefaultList ? (
+                <>
+                  <Clock size={14} />
+                  <span>
+                    Commandes en attente — les {filteredCommandes.length} plus urgentes
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Search size={14} />
+                  <span>
+                    {filteredCommandes.length} résultat(s) pour « {pickerSearch} »
+                  </span>
+                </>
+              )}
+            </div>
+
+            <div className="picker-dropdown-list">
+              {filteredCommandes.length === 0 ? (
+                <div className="picker-empty">
+                  <Search size={28} />
+                  <p>Aucune commande trouvée</p>
+                  <small>Essayez un autre numéro ou fournisseur</small>
+                </div>
+              ) : (
+                filteredCommandes.map((c, idx) => {
+                  const isHighlighted = idx === pickerHighlighted;
+                  const isPartiel = c.statut === 'partiellement_recue';
+                  return (
+                    <div
+                      key={c.id_commande_achat}
+                      className={`picker-item ${isHighlighted ? 'highlighted' : ''}`}
+                      onClick={() => handlePickerSelect(c)}
+                      onMouseEnter={() => setPickerHighlighted(idx)}
+                    >
+                      <div className="picker-item-left">
+                        <span className={`picker-item-status ${isPartiel ? 'partiel' : 'attente'}`}>
+                          {isPartiel ? <AlertCircle size={12} /> : <Clock size={12} />}
+                          {isPartiel ? 'Partielle' : 'En attente'}
+                        </span>
+                        <span className="picker-item-num">
+                          {c.numero_commande}
+                        </span>
+                      </div>
+                      <div className="picker-item-right">
+                        <span className="picker-item-fournisseur">
+                          <Building size={12} />
+                          {c.fournisseur_nom}
+                        </span>
+                        <span className="picker-item-date">
+                          <Calendar size={12} />
+                          {formatDateCommande(c.date_commande)}
+                          <span className="picker-item-jours">
+                            {formatJoursEcoules(c.date_commande)}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {filteredCommandes.length > 0 && (
+              <div className="picker-dropdown-footer">
+                <span className="picker-hint">
+                  ↑↓ pour naviguer · ⏎ pour sélectionner · Échap pour fermer
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ============================================================
+  // RENDU LIGNES RÉCEPTION (SANS Récap, SANS Prix optionnel)
+  // ============================================================
   const renderLignesReception = () => {
     if (formData.lignes.length === 0) {
       return (
         <div className="empty-lignes">
-          <ClipboardList size={40} />
+          <ClipboardList size={48} />
           <p>Aucun produit dans cette commande</p>
-          <small>Sélectionnez une commande pour afficher les produits à recevoir</small>
         </div>
       );
     }
@@ -673,9 +931,11 @@ const Receptions = () => {
     const lignesValides = formData.lignes.filter(l => l.valide === true).length;
     const totalLignes = formData.lignes.length;
     const pourcentage = totalLignes > 0 ? Math.round((lignesValides / totalLignes) * 100) : 0;
+    const nbLignesAvecEcart = formData.lignes.filter(l => l.ecart !== 0).length;
 
     return (
       <div className="lignes-reception-container">
+
         <div className="lignes-reception-header">
           <div className="lignes-info">
             <span className="lignes-count">
@@ -689,8 +949,13 @@ const Receptions = () => {
                 <><AlertCircle size={14} /> {lignesValides} validé(s)</>
               )}
             </span>
+            {nbLignesAvecEcart > 0 && (
+              <span className="lignes-status status-warning">
+                <AlertTriangle size={14} /> {nbLignesAvecEcart} écart(s)
+              </span>
+            )}
             <div className="validation-progress">
-              <span style={{ fontSize: '12px', color: '#64748b' }}>{pourcentage}%</span>
+              <span className="progress-label">{pourcentage}%</span>
               <div className="validation-progress-bar">
                 <div className="fill" style={{ width: `${pourcentage}%` }} />
               </div>
@@ -722,100 +987,102 @@ const Receptions = () => {
           <table className="lignes-reception-table">
             <thead>
               <tr>
-                <th style={{ width: '4%' }}>✅</th>
-                <th style={{ width: '16%' }}>Produit</th>
-                <th style={{ width: '9%' }}>Unité</th>
-                <th style={{ width: '8%' }}>Commandé</th>
-                <th style={{ width: '9%' }}>Reçu</th>
-                <th style={{ width: '7%' }}>Écart</th>
-                <th style={{ width: '11%' }}>Prix d'achat *</th>
-                <th style={{ width: '10%' }}>État</th>
-                <th style={{ width: '8%' }}>Lot</th>
-                <th style={{ width: '9%' }}>Péremption</th>
-                <th style={{ width: '9%' }}>Notes</th>
+                <th className="col-check"></th>
+                <th className="col-produit">Produit</th>
+                <th className="col-qte">Commandé</th>
+                <th className="col-recu">Reçu</th>
+                <th className="col-ecart">Écart</th>
+                <th className="col-prix">Prix d'achat</th>
+                <th className="col-etat">État</th>
+                <th className="col-date">Péremption</th>
               </tr>
             </thead>
             <tbody>
               {formData.lignes.map((ligne, index) => {
                 const estValide = ligne.valide === true;
-                const aEcart = ligne.ecart > 0;
                 const qteBase = ligne.quantite_base || 1;
-                const qteRecue = ligne.quantite_recue || 0;
-                const qteTotaleBase = qteRecue * qteBase;
-                const prixUV = parseFloat(ligne.prix_achat_unite_vente) || 0;
-                const prixBase = prixUV > 0 ? prixUV / qteBase : 0;
+                const uniteLabel = ligne.nom_unite_vente || 'Unité';
 
                 return (
                   <tr key={index} className={estValide ? 'ligne-valide' : 'ligne-invalide'}>
-                    <td>
+                    <td className="col-check">
                       <button
                         type="button"
                         className="btn-check-ligne"
                         onClick={() => toggleValiderLigne(index)}
                         disabled={saving}
-                        data-tooltip={estValide ? 'Désélectionner' : 'Valider cette ligne'}
+                        title={estValide ? 'Désélectionner' : 'Valider cette ligne'}
                       >
-                        {estValide ? <CheckSquare size={20} color="#10b981" /> : <Square size={20} color="#9ca3af" />}
+                        {estValide
+                          ? <CheckSquare size={20} color="#10b981" />
+                          : <Square size={20} color="#9ca3af" />}
                       </button>
                     </td>
-                    <td>
+                    <td className="col-produit">
                       <div className="produit-cell">
                         <strong>{ligne.produit_nom}</strong>
                         {ligne.produit_reference && (
-                          <span className="ref-label"> ({ligne.produit_reference})</span>
+                          <span className="ref-label">({ligne.produit_reference})</span>
                         )}
                       </div>
                     </td>
-                    <td>
-                      <span className="unite-badge">
-                        <Box size={12} />
-                        {ligne.nom_unite_vente}
-                        {qteBase > 1 && <small> (×{qteBase})</small>}
+               
+                    <td className="col-qte">
+                      <span className="qte-display">
+                        <strong>{ligne.quantite_commandee}</strong>
+                        <span className="qte-unite">{uniteLabel}</span>
                       </span>
                     </td>
-                    <td className="quantite-commandee">{ligne.quantite_commandee}</td>
-                    <td>
-                      <input
-                        type="number"
-                        value={ligne.quantite_recue || ''}
-                        onChange={(e) => handleQuantiteRecueChange(index, e.target.value)}
-                        className={`form-input-number ${!estValide ? 'input-invalide' : ''}`}
-                        min="0"
-                        step="1"
-                        disabled={saving}
-                        placeholder="0"
-                      />
-                      {qteBase > 1 && qteRecue > 0 && (
-                        <small className="unite-base-info">
-                          = {qteTotaleBase} unités
-                        </small>
+                    <td className="col-recu">
+                      <div className="qte-input-group">
+                        <input
+                          type="number"
+                          value={ligne.quantite_recue || ''}
+                          onChange={(e) => handleQuantiteRecueChange(index, e.target.value)}
+                          className={`qte-input ${!estValide ? 'input-invalide' : ''}`}
+                          min="0"
+                          step="1"
+                          disabled={saving}
+                          placeholder="0"
+                        />
+                        <span className="qte-input-suffix">{uniteLabel}</span>
+                      </div>
+                    </td>
+                    <td className="col-ecart">
+                      {ligne.ecart > 0 && (
+                        <span className="ecart-badge warning">
+                          <strong>-{ligne.ecart}</strong> {uniteLabel}
+                        </span>
+                      )}
+                      {ligne.ecart < 0 && (
+                        <span className="ecart-badge info">
+                          <strong>+{Math.abs(ligne.ecart)}</strong> {uniteLabel}
+                        </span>
+                      )}
+                      {ligne.ecart === 0 && (
+                        <span className="ecart-badge success">✓ Conforme</span>
                       )}
                     </td>
-                    <td className={aEcart ? 'ecart-positif' : 'ecart-zero'}>
-                      {aEcart ? `-${ligne.ecart}` : ligne.ecart === 0 ? '✓' : '+' + Math.abs(ligne.ecart)}
+                    <td className="col-prix">
+                      <div className="prix-input-group">
+                        <input
+                          type="number"
+                          value={ligne.prix_achat_unite_vente ?? ''}
+                          onChange={(e) => handlePrixAchatChange(index, e.target.value)}
+                          className="prix-input"
+                          placeholder="0"
+                          min="0"
+                          step="0.01"
+                          disabled={saving}
+                        />
+                        {/* <span className="prix-input-suffix">FCFA</span> */}
+                      </div>
                     </td>
-                    <td>
-                      <input
-                        type="number"
-                        value={ligne.prix_achat_unite_vente ?? ''}
-                        onChange={(e) => handlePrixAchatChange(index, e.target.value)}
-                        className="form-input-small"
-                        placeholder="À définir"
-                        min="0"
-                        step="0.01"
-                        disabled={saving}
-                      />
-                      {prixUV > 0 && qteBase > 1 && (
-                        <small className="prix-base-info">
-                          = {formatMontant(prixBase)} / unité
-                        </small>
-                      )}
-                    </td>
-                    <td>
+                    <td className="col-etat">
                       <select
                         value={ligne.etat_marchandise || 'bon'}
                         onChange={(e) => handleEtatChange(index, e.target.value)}
-                        className="form-select-small"
+                        className={`etat-select etat-${ligne.etat_marchandise || 'bon'}`}
                         disabled={saving}
                       >
                         <option value="bon">Bon</option>
@@ -824,39 +1091,17 @@ const Receptions = () => {
                         <option value="partiel">Partiel</option>
                       </select>
                     </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={ligne.num_lot || ''}
-                        onChange={(e) => handleLotChange(index, e.target.value)}
-                        className="form-input-small"
-                        placeholder="Lot"
-                        disabled={saving}
-                      />
-                    </td>
-                    <td>
+
+                    <td className="col-date">
                       <input
                         type="date"
                         value={ligne.date_peremption || ''}
                         onChange={(e) => handlePeremptionChange(index, e.target.value)}
-                        className="form-input-small"
+                        className="cell-input"
                         disabled={saving}
                       />
                     </td>
-                    <td>
-                      <input
-                        type="text"
-                        value={ligne.notes || ''}
-                        onChange={(e) => {
-                          const nouvellesLignes = [...formData.lignes];
-                          nouvellesLignes[index].notes = e.target.value;
-                          setFormData({ ...formData, lignes: nouvellesLignes });
-                        }}
-                        className="form-input-small"
-                        placeholder="Notes..."
-                        disabled={saving}
-                      />
-                    </td>
+
                   </tr>
                 );
               })}
@@ -896,49 +1141,9 @@ const Receptions = () => {
     );
   };
 
-  const renderCommandeInfo = () => {
-    if (!commandeSelectionnee) return null;
-
-    return (
-      <div className="commande-info-card">
-        <div className="commande-info-grid">
-          <div className="info-item">
-            <span className="info-label">Commande</span>
-            <span className="info-value">
-              <FileText size={14} />
-              {commandeSelectionnee.numero_commande}
-            </span>
-          </div>
-          <div className="info-item">
-            <span className="info-label">Fournisseur</span>
-            <span className="info-value">
-              <Building size={14} />
-              {commandeSelectionnee.fournisseur_nom}
-            </span>
-          </div>
-          <div className="info-item">
-            <span className="info-label">Date commande</span>
-            <span className="info-value">
-              <Calendar size={14} />
-              {new Date(commandeSelectionnee.date_commande).toLocaleDateString('fr-FR')}
-            </span>
-          </div>
-          <div className="info-item">
-            <span className="info-label">Montant</span>
-            <span className="info-value montant-highlight">
-              <Banknote size={14} />
-              {formatMontant(commandeSelectionnee.montant_total)}
-            </span>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   // ============================================================
   // VUES LISTE & GRILLE
   // ============================================================
-
   const renderListView = () => (
     <div className="receptions-table-container">
       <table className="receptions-table">
@@ -983,7 +1188,7 @@ const Receptions = () => {
                   <button
                     className="action-btn btn-view"
                     onClick={() => handleView(reception)}
-                    data-tooltip="Voir les détails"
+                    title="Voir les détails"
                   >
                     <Eye size={16} />
                   </button>
@@ -992,7 +1197,7 @@ const Receptions = () => {
                       className="action-btn btn-success"
                       onClick={() => handleChangeStatut(reception.id_reception, 'complete')}
                       disabled={updatingStatut === reception.id_reception}
-                      data-tooltip="Valider la réception"
+                      title="Valider la réception"
                     >
                       <Check size={16} />
                     </button>
@@ -1001,7 +1206,7 @@ const Receptions = () => {
                     <button
                       className="action-btn btn-delete"
                       onClick={() => confirmDelete(reception)}
-                      data-tooltip="Supprimer"
+                      title="Supprimer"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -1037,7 +1242,7 @@ const Receptions = () => {
                 <button
                   className="action-btn btn-view"
                   onClick={() => handleView(reception)}
-                  data-tooltip="Voir les détails"
+                  title="Voir les détails"
                 >
                   <Eye size={16} />
                 </button>
@@ -1046,7 +1251,7 @@ const Receptions = () => {
                     className="action-btn btn-success"
                     onClick={() => handleChangeStatut(reception.id_reception, 'complete')}
                     disabled={updatingStatut === reception.id_reception}
-                    data-tooltip="Valider la réception"
+                    title="Valider la réception"
                   >
                     <Check size={16} />
                   </button>
@@ -1055,7 +1260,7 @@ const Receptions = () => {
                   <button
                     className="action-btn btn-delete"
                     onClick={() => confirmDelete(reception)}
-                    data-tooltip="Supprimer"
+                    title="Supprimer"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -1094,7 +1299,6 @@ const Receptions = () => {
   // ============================================================
   // RENDU PRINCIPAL
   // ============================================================
-
   return (
     <div className="receptions-container">
       {toastMessage && (
@@ -1121,7 +1325,7 @@ const Receptions = () => {
             <span>Exporter</span>
           </button>
           <button
-            className="btn btn-secondary"
+            className="btn btn-secondary btn-icon-only"
             onClick={() => { loadReceptions(); loadCommandesDisponibles(); }}
             title="Rafraîchir"
             disabled={loading}
@@ -1170,7 +1374,7 @@ const Receptions = () => {
         <div className="stat-card">
           <div className="stat-icon montant"><Banknote size={20} /></div>
           <div className="stat-info">
-            <span className="stat-label">Total réceptions</span>
+            <span className="stat-label">Montant total</span>
             <span className="stat-value">{formatMontant(stats.totalMontant)}</span>
           </div>
         </div>
@@ -1209,12 +1413,14 @@ const Receptions = () => {
           <button
             className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
             onClick={() => setViewMode('grid')}
+            title="Vue grille"
           >
             <Grid size={18} />
           </button>
           <button
             className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
             onClick={() => setViewMode('list')}
+            title="Vue liste"
           >
             <List size={18} />
           </button>
@@ -1270,9 +1476,17 @@ const Receptions = () => {
         <div className="modal-overlay">
           <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Nouvelle Réception</h2>
+              <div className="modal-header-title">
+                <div className="modal-header-icon">
+                  <Plus size={20} />
+                </div>
+                <div>
+                  <h2>Nouvelle Réception</h2>
+                  <p className="modal-header-subtitle">Enregistrez la réception d'une commande fournisseur</p>
+                </div>
+              </div>
               <button className="modal-close" onClick={() => !saving && setShowModal(false)}>
-                <X size={24} />
+                <X size={22} />
               </button>
             </div>
             <div className="modal-body">
@@ -1290,40 +1504,11 @@ const Receptions = () => {
                     1. Sélectionner une commande
                   </h4>
                   <span className="section-badge">
-                    {commandesDisponibles.length} commande(s) en attente
+                    {commandesDisponibles.length} disponible(s)
                   </span>
                 </div>
 
-                <div className="form-group">
-                  <label>Commande d'achat *</label>
-                  <select
-                    name="id_commande_achat"
-                    value={formData.id_commande_achat}
-                    onChange={handleInputChange}
-                    className="form-select"
-                    disabled={saving || loadingCommandes}
-                  >
-                    <option value="">-- Sélectionner une commande --</option>
-                    {commandesDisponibles.map(c => (
-                      <option key={c.id_commande_achat} value={c.id_commande_achat}>
-                        {c.numero_commande} - {c.fournisseur_nom}
-                        ({new Date(c.date_commande).toLocaleDateString('fr-FR')})
-                      </option>
-                    ))}
-                  </select>
-                  {loadingCommandes && (
-                    <div className="commande-loading-indicator">
-                      <span className="spinner-small"></span>
-                      Chargement des commandes...
-                    </div>
-                  )}
-                  {commandesDisponibles.length === 0 && !loadingCommandes && (
-                    <div className="commande-loading-indicator" style={{ color: '#f59e0b' }}>
-                      <AlertCircle size={16} />
-                      Aucune commande en attente de réception
-                    </div>
-                  )}
-                </div>
+                {renderCommandePicker()}
               </div>
 
               {formData.id_commande_achat && commandeSelectionnee && (
@@ -1331,39 +1516,18 @@ const Receptions = () => {
                   <div className="section-header">
                     <h4>
                       <CheckCheck size={18} />
-                      2. Valider les produits reçus
+                      2. Produits à recevoir
                     </h4>
                     <span className="section-badge">
                       {formData.lignes.filter(l => l.valide).length} / {formData.lignes.length} validés
                     </span>
                   </div>
 
-                  {renderCommandeInfo()}
                   {renderLignesReception()}
-
-                  <div className="info-message" style={{ marginTop: '16px' }}>
-                    <Info size={18} />
-                    <div>
-                      <p><strong> Prix d'achat optionnel</strong></p>
-                      <small>
-                        Vous pouvez saisir le prix d'achat réel facturé par le fournisseur.
-                        Il sera automatiquement mis à jour sur l'unité et le produit.
-                        Laissez vide si vous ne le connaissez pas encore.
-                      </small>
-                    </div>
-                  </div>
                 </div>
               )}
 
-              {!formData.id_commande_achat && (
-                <div className="info-message">
-                  <Info size={24} />
-                  <div>
-                    <p><strong>En attente de sélection</strong></p>
-                    <small>Sélectionnez une commande ci-dessus pour afficher la fiche de réception</small>
-                  </div>
-                </div>
-              )}
+             
             </div>
             <div className="modal-footer">
               <button
@@ -1384,7 +1548,7 @@ const Receptions = () => {
               >
                 {saving ? (
                   <>
-                    <span className="spinner-small"></span>
+                    <span className="spinner-small spinner-on-primary"></span>
                     <span>Enregistrement...</span>
                   </>
                 ) : (
@@ -1404,9 +1568,17 @@ const Receptions = () => {
         <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
           <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Détails de la réception</h2>
+              <div className="modal-header-title">
+                <div className="modal-header-icon">
+                  <Truck size={20} />
+                </div>
+                <div>
+                  <h2>Détails de la réception</h2>
+                  <p className="modal-header-subtitle">{selectedReception.numero_reception}</p>
+                </div>
+              </div>
               <button className="modal-close" onClick={() => setShowDetailModal(false)}>
-                <X size={24} />
+                <X size={22} />
               </button>
             </div>
             <div className="modal-body">
@@ -1452,18 +1624,12 @@ const Receptions = () => {
                     <label>Montant total</label>
                     <span className="montant-total">{formatMontant(selectedReception.montant_total)}</span>
                   </div>
-                  {selectedReception.notes && (
-                    <div className="detail-item">
-                      <label>Notes</label>
-                      <span>{selectedReception.notes}</span>
-                    </div>
-                  )}
                 </div>
               </div>
 
               {selectedReception.lignes && selectedReception.lignes.length > 0 && (
                 <div className="detail-lignes">
-                  <h4>📦 Produits reçus</h4>
+                  <h4>Produits reçus</h4>
                   <div className="detail-lignes-wrapper">
                     <table className="detail-lignes-table">
                       <thead>
@@ -1484,6 +1650,9 @@ const Receptions = () => {
                           const qteBase = parseFloat(ligne.quantite_base) || 1;
                           const prixUV = ligne.prix_achat_unite_vente !== null
                             ? parseFloat(ligne.prix_achat_unite_vente) : null;
+                          const ecart = parseFloat(ligne.ecart) || 0;
+                          const uniteLabel = ligne.nom_unite_vente || 'Unité';
+
                           return (
                             <tr key={index}>
                               <td>
@@ -1492,21 +1661,36 @@ const Receptions = () => {
                               <td>
                                 <span className="unite-badge">
                                   <Box size={12} />
-                                  {ligne.nom_unite_vente || 'Unité'}
-                                  {qteBase > 1 && <small> (×{qteBase})</small>}
+                                  {uniteLabel}
+                                  {qteBase > 1 && <small>×{qteBase}</small>}
                                 </span>
                               </td>
-                              <td>{ligne.quantite_commandee || 0}</td>
-                              <td className="quantite-recue">
-                                <strong>{ligne.quantite_recue}</strong>
-                                {qteBase > 1 && (
-                                  <small style={{ display: 'block', fontSize: '11px', color: '#64748b' }}>
-                                    = {ligne.quantite_totale_base} unités
-                                  </small>
-                                )}
+                              <td className="quantite-commandee">
+                                <span className="qte-display">
+                                  <strong>{ligne.quantite_commandee || 0}</strong>
+                                  <span className="qte-unite">{uniteLabel}</span>
+                                </span>
                               </td>
-                              <td className={ligne.ecart > 0 ? 'ecart-positif' : 'ecart-zero'}>
-                                {ligne.ecart > 0 ? `-${ligne.ecart}` : ligne.ecart === 0 ? '✓' : '+' + Math.abs(ligne.ecart)}
+                              <td className="quantite-recue">
+                                <span className="qte-display highlight">
+                                  <strong>{ligne.quantite_recue}</strong>
+                                  <span className="qte-unite">{uniteLabel}</span>
+                                </span>
+                              </td>
+                              <td className="col-ecart">
+                                {ecart > 0 && (
+                                  <span className="ecart-badge warning">
+                                    <strong>-{ecart}</strong> {uniteLabel}
+                                  </span>
+                                )}
+                                {ecart < 0 && (
+                                  <span className="ecart-badge info">
+                                    <strong>+{Math.abs(ecart)}</strong> {uniteLabel}
+                                  </span>
+                                )}
+                                {ecart === 0 && (
+                                  <span className="ecart-badge success">✓ Conforme</span>
+                                )}
                               </td>
                               <td>
                                 {prixUV !== null
@@ -1543,9 +1727,9 @@ const Receptions = () => {
         <div className="modal-overlay" onClick={() => !deleting && setShowDeleteModal(false)}>
           <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>🗑️ Confirmer la suppression</h2>
+              <h2>Confirmer la suppression</h2>
               <button className="modal-close" onClick={() => !deleting && setShowDeleteModal(false)}>
-                <X size={24} />
+                <X size={22} />
               </button>
             </div>
             <div className="modal-body">
@@ -1587,6 +1771,19 @@ const Receptions = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL DE CONFIRMATION GÉNÉRIQUE */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={closeConfirm}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        details={confirmModal.details}
+        type={confirmModal.type}
+        confirmLabel={confirmModal.confirmLabel}
+        loading={saving}
+      />
     </div>
   );
 };

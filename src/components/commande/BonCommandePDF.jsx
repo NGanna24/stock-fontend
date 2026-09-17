@@ -1,4 +1,4 @@
-// components/Facture/FacturePDF.jsx
+// components/CommandeAchat/BonCommandePDF.jsx
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer';
 
@@ -17,34 +17,35 @@ Font.register({
 // ============================================================
 // CONFIG
 // ============================================================
-// Détection automatique : local vs production
 const isLocal =
-  window.location.hostname === "localhost" ||
-  window.location.hostname === "127.0.0.1" ||
-  window.location.hostname.startsWith("192.168.");
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+   window.location.hostname === "127.0.0.1" ||
+   window.location.hostname.startsWith("192.168."));
 
 const API_BASE_URL = isLocal
-  ? "http://192.168.187.1:8080" 
+  ? "http://192.168.187.1:8080"
   : "https://miyo.n-double.com";
 
-// Palette de couleurs 
 const COLORS = {
-    dark: '#2d3748',          // Bandeau entête tableau + bandeau footer
-    darkLight: '#4a5568',     // Gris foncé
-    gray: '#e2e8f0',          // Bordures
-    grayLight: '#f7fafc',     // Fond lignes alternées
-    grayText: '#718096',      // Texte secondaire
-    black: '#1a202c',         // Texte principal 
+    dark: '#2d3748',
+    darkLight: '#4a5568',
+    gray: '#e2e8f0',
+    grayLight: '#f7fafc',
+    grayText: '#718096',
+    black: '#1a202c',
     white: '#ffffff',
-    accent: '#2563eb',        // Bleu accent (total)
+    accent: '#2563eb',
+    warning: '#f59e0b',
 };
 
 // ============================================================
 // HELPERS
 // ============================================================
 const formatMontant = (value) => {
-    const num = Number(value || 0);
-    if (isNaN(num)) return '0 FCFA';
+    if (value === null || value === undefined || value === '') return null;
+    const num = Number(value);
+    if (isNaN(num)) return null;
     const fixed = Math.round(num).toString();
     const formatted = fixed.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
     return `${formatted} FCFA`;
@@ -97,11 +98,11 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         overflow: 'hidden',
     },
-logoImage: {
-    maxWidth: 60,
-    maxHeight: 60,
-    objectFit: 'contain',
-},
+    logoImage: {
+        maxWidth: 60,
+        maxHeight: 60,
+        objectFit: 'contain',
+    },
     logoPlaceholder: {
         fontSize: 20,
         color: COLORS.white,
@@ -132,13 +133,19 @@ logoImage: {
         alignItems: 'flex-end',
     },
     invoiceTitle: {
-        fontSize: 32,
+        fontSize: 26,
         fontWeight: 'bold',
         color: COLORS.black,
         letterSpacing: 2,
     },
+    invoiceTitleSub: {
+        fontSize: 10,
+        color: COLORS.grayText,
+        marginTop: 4,
+        letterSpacing: 1,
+    },
 
-    // ==================== BLOC INFO CLIENT + FACTURE ====================
+    // ==================== BLOC INFO ====================
     infoBlock: {
         flexDirection: 'row',
         paddingHorizontal: 40,
@@ -235,12 +242,18 @@ logoImage: {
         fontSize: 9,
         color: COLORS.grayText,
     },
+    tableCellEmpty: {
+        fontSize: 9,
+        color: COLORS.grayText,
+        fontStyle: 'italic',
+    },
 
     colIndex: { width: '6%', textAlign: 'center' },
-    colDesc: { width: '44%' },
+    colDesc: { width: '40%' },
+    colUnit: { width: '12%', textAlign: 'center' },
+    colQty: { width: '10%', textAlign: 'center' },
     colPrice: { width: '16%', textAlign: 'right' },
-    colQty: { width: '14%', textAlign: 'center' },
-    colAmount: { width: '20%', textAlign: 'right' },
+    colAmount: { width: '16%', textAlign: 'right' },
 
     // ==================== TOTAUX ====================
     totalsWrapper: {
@@ -262,6 +275,12 @@ logoImage: {
         fontSize: 22,
         fontWeight: 'bold',
         color: COLORS.black,
+        marginBottom: 4,
+    },
+    totalDueValueEmpty: {
+        fontSize: 14,
+        fontStyle: 'italic',
+        color: COLORS.grayText,
         marginBottom: 4,
     },
     totalDueNote: {
@@ -296,6 +315,11 @@ logoImage: {
         fontSize: 9,
         color: COLORS.black,
         fontWeight: 'bold',
+    },
+    totalValueEmpty: {
+        fontSize: 9,
+        color: COLORS.grayText,
+        fontStyle: 'italic',
     },
     totalLabelLast: {
         fontSize: 11,
@@ -352,6 +376,7 @@ logoImage: {
     signatureRole: {
         fontSize: 8,
         color: COLORS.grayText,
+        textAlign: 'center',
     },
 
     // ==================== FOOTER ====================
@@ -407,36 +432,25 @@ logoImage: {
 // ============================================================
 // COMPOSANT
 // ============================================================
-const FacturePDF = ({ data }) => {
+const BonCommandePDF = ({ data }) => {
     const {
-        numero_facture,
-        date_facture,
-        date_facture_formatee,
-        date_echeance,
-        date_echeance_formatee,
-        nomclient,
-        telephone,
-        email,
-        adresse,
-        montant_total,
-        statut,
-        mode_paiement,
-        notes,
-        lignes = [],
-        paiements = [],
         numero_commande,
+        date_commande,
+        statut,
+        notes,
+        montant_total,
+        lignes = [],
+        fournisseur_nom,
+        fournisseur_telephone,
+        fournisseur_email,
+        fournisseur_ville,
+        fournisseur_pays,
+        utilisateur_nom,
         magasin,
     } = data || {};
 
-    // ============================================================
-    // RECALCUL DES TOTAUX
-    // ============================================================
     const montantTotalNum = parseFloat(montant_total || 0);
-    const montantPayeCalcule = paiements.reduce(
-        (sum, p) => sum + parseFloat(p.montant || 0),
-        0
-    );
-    const resteAPayerCalcule = Math.max(0, montantTotalNum - montantPayeCalcule);
+    const hasMontant = montantTotalNum > 0;
 
     // ============================================================
     // HELPERS MAGASIN
@@ -454,9 +468,7 @@ const FacturePDF = ({ data }) => {
             .join(', ');
     };
 
-    const getNomMagasin = () => {
-        return magasin?.nom_commercial || 'Mon magasin';
-    };
+    const getNomMagasin = () => magasin?.nom_commercial || 'Mon magasin';
 
     const getInitiales = () => {
         const nom = getNomMagasin();
@@ -468,27 +480,16 @@ const FacturePDF = ({ data }) => {
             .toUpperCase();
     };
 
-    // ============================================================
-    // HELPERS FACTURE
-    // ============================================================
-    const getModePaiementLabel = (mode) =>
-        ({
-            especes: 'Espèces',
-            carte: 'Carte',
-            virement: 'Virement',
-            cheque: 'Chèque',
-            mobile_money: 'Mobile Money',
-            autre: 'Autre',
-        }[mode] || mode || '-');
-
-    const formatDate = (d, formatted) => formatted || formatDateFR(d);
+    const getFournisseurAdresse = () => {
+        return [fournisseur_ville, fournisseur_pays].filter(Boolean).join(', ');
+    };
 
     const getStatutLabel = (s) =>
         ({
             en_attente: 'EN ATTENTE',
-            payee: 'PAYÉE',
-            partiellement_payee: 'PARTIELLE',
-            en_retard: 'EN RETARD',
+            envoyee: 'ENVOYÉE',
+            partiellement_recue: 'PARTIELLE',
+            recue: 'REÇUE',
             annulee: 'ANNULÉE',
         }[s] || s || 'EN ATTENTE');
 
@@ -499,12 +500,9 @@ const FacturePDF = ({ data }) => {
         <Document>
             <Page size="A4" style={styles.page}>
 
-                {/* ============================================================ */}
-                {/* HEADER : LOGO + NOM ENTREPRISE À GAUCHE, "FACTURE" À DROITE  */}
-                {/* ============================================================ */}
+                {/* HEADER */}
                 <View style={styles.header}>
                     <View style={styles.headerLeft}>
-                        {/* Logo ou initiales */}
                         <View style={styles.logoBox}>
                             {getLogoUrl() ? (
                                 <Image src={getLogoUrl()} style={styles.logoImage} />
@@ -515,7 +513,6 @@ const FacturePDF = ({ data }) => {
                             )}
                         </View>
 
-                        {/* Nom + infos entreprise */}
                         <View style={styles.headerCompanyInfo}>
                             <Text style={styles.headerCompanyName}>{getNomMagasin()}</Text>
                             {magasin?.slogan && (
@@ -535,84 +532,63 @@ const FacturePDF = ({ data }) => {
                         </View>
                     </View>
 
-                    {/* Titre FACTURE */}
                     <View style={styles.headerRight}>
-                        <Text style={styles.invoiceTitle}>FACTURE</Text>
+                        <Text style={styles.invoiceTitle}>BON DE COMMANDE</Text>
+                        <Text style={styles.invoiceTitleSub}>PURCHASE ORDER</Text>
                     </View>
                 </View>
 
-                {/* ============================================================ */}
-                {/* BLOC CLIENT + INFOS FACTURE                                  */}
-                {/* ============================================================ */}
+                {/* BLOC FOURNISSEUR + INFOS COMMANDE */}
                 <View style={styles.infoBlock}>
-                    {/* Client */}
                     <View style={styles.infoClient}>
-                        <Text style={styles.infoTitle}>FACTURÉ À</Text>
-                        <Text style={styles.clientName}>{nomclient || '-'}</Text>
-                        {adresse && (
-                            <Text style={styles.clientSub}>{adresse}</Text>
+                        <Text style={styles.infoTitle}>FOURNISSEUR</Text>
+                        <Text style={styles.clientName}>{fournisseur_nom || '-'}</Text>
+                        {getFournisseurAdresse() && (
+                            <Text style={styles.clientSub}>{getFournisseurAdresse()}</Text>
                         )}
 
                         <Text style={styles.clientContactLabel}>Contact</Text>
-                        {telephone && (
-                            <Text style={styles.clientContactText}>Tél : {telephone}</Text>
+                        {fournisseur_telephone && (
+                            <Text style={styles.clientContactText}>Tél : {fournisseur_telephone}</Text>
                         )}
-                        {email && (
-                            <Text style={styles.clientContactText}>Email : {email}</Text>
+                        {fournisseur_email && (
+                            <Text style={styles.clientContactText}>Email : {fournisseur_email}</Text>
                         )}
                     </View>
 
-                    {/* Meta facture */}
                     <View style={styles.infoMeta}>
                         <View style={styles.infoMetaLine}>
-                            <Text style={styles.infoMetaLabel}>N° Facture :</Text>
-                            <Text style={styles.infoMetaValue}>{numero_facture}</Text>
+                            <Text style={styles.infoMetaLabel}>N° Commande :</Text>
+                            <Text style={styles.infoMetaValue}>{numero_commande}</Text>
                         </View>
                         <View style={styles.infoMetaLine}>
                             <Text style={styles.infoMetaLabel}>Date :</Text>
-                            <Text style={styles.infoMetaValue}>
-                                {formatDate(date_facture, date_facture_formatee)}
-                            </Text>
-                        </View>
-                        <View style={styles.infoMetaLine}>
-                            <Text style={styles.infoMetaLabel}>Échéance :</Text>
-                            <Text style={styles.infoMetaValue}>
-                                {formatDate(date_echeance, date_echeance_formatee)}
-                            </Text>
+                            <Text style={styles.infoMetaValue}>{formatDateFR(date_commande)}</Text>
                         </View>
                         <View style={styles.infoMetaLine}>
                             <Text style={styles.infoMetaLabel}>Statut :</Text>
                             <Text style={styles.infoMetaValue}>{getStatutLabel(statut)}</Text>
                         </View>
-                        <View style={styles.infoMetaLine}>
-                            <Text style={styles.infoMetaLabel}>Paiement :</Text>
-                            <Text style={styles.infoMetaValue}>
-                                {getModePaiementLabel(mode_paiement)}
-                            </Text>
-                        </View>
-                        {numero_commande && (
+                        {utilisateur_nom && (
                             <View style={styles.infoMetaLine}>
-                                <Text style={styles.infoMetaLabel}>Commande :</Text>
-                                <Text style={styles.infoMetaValue}>{numero_commande}</Text>
+                                <Text style={styles.infoMetaLabel}>Émis par :</Text>
+                                <Text style={styles.infoMetaValue}>{utilisateur_nom}</Text>
                             </View>
                         )}
                     </View>
                 </View>
 
-                {/* ============================================================ */}
-                {/* TABLEAU PRODUITS                                             */}
-                {/* ============================================================ */}
+                {/* TABLEAU PRODUITS */}
                 <View style={styles.tableWrapper}>
-                    {/* Header */}
                     <View style={styles.tableHeader}>
                         <Text style={[styles.colIndex, styles.tableHeaderText]}>#</Text>
                         <Text style={[styles.colDesc, styles.tableHeaderText]}>Description</Text>
-                        <Text style={[styles.colPrice, styles.tableHeaderText]}>Prix</Text>
+                        <Text style={[styles.colUnit, styles.tableHeaderText]}>Unité</Text>
                         <Text style={[styles.colQty, styles.tableHeaderText]}>Qté</Text>
+                        <Text style={[styles.colPrice, styles.tableHeaderText]}>Prix unit.</Text>
                         <Text style={[styles.colAmount, styles.tableHeaderText]}>Montant</Text>
                     </View>
 
-                    {/* Lignes */}
                     {lignes.length === 0 ? (
                         <View style={styles.tableRow}>
                             <Text style={[styles.colDesc, styles.tableCellGray]}>
@@ -622,10 +598,17 @@ const FacturePDF = ({ data }) => {
                     ) : (
                         lignes.map((ligne, index) => {
                             const qte = parseFloat(ligne.quantite || 0);
-                            const prix = parseFloat(ligne.prix_vente || 0);
+                            const prixBrut = ligne.prix_achat;
+                            const prix = (prixBrut !== null && prixBrut !== undefined && prixBrut !== '')
+                                ? parseFloat(prixBrut)
+                                : null;
                             const remise = parseFloat(ligne.remise || 0);
-                            const totalBrut = qte * prix;
-                            const totalApresRemise = totalBrut * (1 - remise / 100);
+                            const totalLigne = prix !== null
+                                ? qte * prix * (1 - remise / 100)
+                                : null;
+
+                            const nomUnite = ligne.nom_unite_vente || ligne.unite_symbole || 'Unité';
+                            const qteBase = parseFloat(ligne.quantite_base || 1);
                             const numero = String(index + 1).padStart(2, '0');
 
                             return (
@@ -642,16 +625,20 @@ const FacturePDF = ({ data }) => {
                                     <Text style={[styles.colDesc, styles.tableCellText]}>
                                         {ligne.produit_nom || 'Produit'}
                                         {ligne.marque_nom && ` - ${ligne.marque_nom}`}
-                                        {ligne.unite_symbole && ` (${ligne.unite_symbole})`}
+                                        {ligne.modele_nom && ` (${ligne.modele_nom})`}
                                     </Text>
-                                    <Text style={[styles.colPrice, styles.tableCellText]}>
-                                        {formatMontant(prix)}
+                                    <Text style={[styles.colUnit, styles.tableCellText]}>
+                                        {nomUnite}
+                                        {qteBase > 1 && ` (×${qteBase})`}
                                     </Text>
                                     <Text style={[styles.colQty, styles.tableCellText]}>
                                         {qte}
                                     </Text>
-                                    <Text style={[styles.colAmount, styles.tableCellText]}>
-                                        {formatMontant(totalApresRemise)}
+                                    <Text style={[styles.colPrice, prix !== null ? styles.tableCellText : styles.tableCellEmpty]}>
+                                        {prix !== null ? formatMontant(prix) : 'À définir'}
+                                    </Text>
+                                    <Text style={[styles.colAmount, totalLigne !== null ? styles.tableCellText : styles.tableCellEmpty]}>
+                                        {totalLigne !== null ? formatMontant(totalLigne) : '—'}
                                     </Text>
                                 </View>
                             );
@@ -659,78 +646,77 @@ const FacturePDF = ({ data }) => {
                     )}
                 </View>
 
-                {/* ============================================================ */}
-                {/* TOTAUX                                                       */}
-                {/* ============================================================ */}
+                {/* TOTAUX */}
                 <View style={styles.totalsWrapper}>
-                    {/* Gauche : Total à payer en grand */}
                     <View style={styles.totalsLeft}>
-                        <Text style={styles.totalDueLabel}>Total à payer</Text>
-                        <Text style={styles.totalDueValue}>
-                            {formatMontant(montantTotalNum)}
+                        <Text style={styles.totalDueLabel}>
+                            {hasMontant ? 'Total de la commande' : 'Total'}
                         </Text>
-                        {resteAPayerCalcule > 0 && (
-                            <Text style={styles.totalDueNote}>
-                                Reste à payer : {formatMontant(resteAPayerCalcule)}
+                        {hasMontant ? (
+                            <Text style={styles.totalDueValue}>
+                                {formatMontant(montantTotalNum)}
+                            </Text>
+                        ) : (
+                            <Text style={styles.totalDueValueEmpty}>
+                                À définir à la réception
                             </Text>
                         )}
-                        {resteAPayerCalcule <= 0 && montantTotalNum > 0 && (
-                            <Text style={[styles.totalDueNote, { color: '#10b981' }]}>
-                                Facture entièrement payée
+                        {!hasMontant && (
+                            <Text style={styles.totalDueNote}>
+                                Les prix seront renseignés lors de la réception de la marchandise.
                             </Text>
                         )}
                     </View>
 
-                    {/* Droite : détail des totaux */}
                     <View style={styles.totalsRight}>
                         <View style={styles.totalLine}>
-                            <Text style={styles.totalLabel}>Sous-total</Text>
-                            <Text style={styles.totalValue}>
-                                {formatMontant(montantTotalNum)}
-                            </Text>
+                            <Text style={styles.totalLabel}>Nombre de lignes</Text>
+                            <Text style={styles.totalValue}>{lignes.length}</Text>
                         </View>
                         <View style={styles.totalLine}>
-                            <Text style={styles.totalLabel}>Montant payé</Text>
-                            <Text style={styles.totalValue}>
-                                {formatMontant(montantPayeCalcule)}
-                            </Text>
+                            <Text style={styles.totalLabel}>Sous-total</Text>
+                            {hasMontant ? (
+                                <Text style={styles.totalValue}>
+                                    {formatMontant(montantTotalNum)}
+                                </Text>
+                            ) : (
+                                <Text style={styles.totalValueEmpty}>À définir</Text>
+                            )}
                         </View>
 
-                        {/* Ligne noire : Total final */}
                         <View style={styles.totalLineLast}>
                             <Text style={styles.totalLabelLast}>TOTAL</Text>
-                            <Text style={styles.totalValueLast}>
-                                {formatMontant(resteAPayerCalcule > 0 ? resteAPayerCalcule : montantTotalNum)}
-                            </Text>
+                            {hasMontant ? (
+                                <Text style={styles.totalValueLast}>
+                                    {formatMontant(montantTotalNum)}
+                                </Text>
+                            ) : (
+                                <Text style={styles.totalValueLast}>—</Text>
+                            )}
                         </View>
                     </View>
                 </View>
 
-                {/* ============================================================ */}
-                {/* CONDITIONS + SIGNATURE                                       */}
-                {/* ============================================================ */}
+                {/* CONDITIONS + SIGNATURE */}
                 <View style={styles.termsWrapper}>
-                    {/* Conditions */}
                     <View style={styles.termsBlock}>
-                        <Text style={styles.termsTitle}>Conditions & Informations</Text>
+                        <Text style={styles.termsTitle}>Conditions & Mentions</Text>
                         <Text style={styles.termsText}>
-                            {notes || 'Merci pour votre confiance. Tout retard de paiement peut entraîner des pénalités conformément à nos conditions générales de vente.'}
+                            {notes || 'Ce bon de commande est valable 30 jours à compter de sa date d\'émission. Merci de nous confirmer la disponibilité des produits et les délais de livraison.'}
                         </Text>
                     </View>
 
-                    {/* Signature */}
                     <View style={styles.signatureBlock}>
                         <View style={styles.signatureLine} />
                         <Text style={styles.signatureName}>{getNomMagasin()}</Text>
-                        <Text style={styles.signatureRole}>Signature autorisée</Text>
+                        <Text style={styles.signatureRole}>
+                            Cachet & signature du magasin
+                        </Text>
                     </View>
                 </View>
 
-                {/* ============================================================ */}
-                {/* FOOTER NOIR : CONTACT EN 3 COLONNES                          */}
-                {/* ============================================================ */}
+                {/* FOOTER */}
                 <View style={styles.footer} fixed>
-                    {/* Colonne 1 : Téléphone */}
                     <View style={styles.footerCol}>
                         <View style={styles.footerIcon}>
                             <Text style={styles.footerIconText}>📞</Text>
@@ -745,7 +731,6 @@ const FacturePDF = ({ data }) => {
                         </View>
                     </View>
 
-                    {/* Colonne 2 : Adresse */}
                     <View style={styles.footerColCenter}>
                         <View style={styles.footerIcon}>
                             <Text style={styles.footerIconText}>🏢</Text>
@@ -757,7 +742,6 @@ const FacturePDF = ({ data }) => {
                         </View>
                     </View>
 
-                    {/* Colonne 3 : Email */}
                     <View style={styles.footerColRight}>
                         <View style={styles.footerIcon}>
                             <Text style={styles.footerIconText}>✉️</Text>
@@ -773,9 +757,7 @@ const FacturePDF = ({ data }) => {
                     </View>
                 </View>
 
-                {/* ============================================================ */}
-                {/* MENTIONS LÉGALES (AU-DESSUS DU FOOTER NOIR)                  */}
-                {/* ============================================================ */}
+                {/* MENTIONS LÉGALES */}
                 <View style={{
                     position: 'absolute',
                     bottom: 65,
@@ -806,4 +788,4 @@ const FacturePDF = ({ data }) => {
     );
 };
 
-export default FacturePDF;
+export default BonCommandePDF;

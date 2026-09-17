@@ -253,6 +253,9 @@ const Produits = () => {
   const [saving, setSaving] = useState(false);
   const [unitesVente, setUnitesVente] = useState([]);
 
+  // ✅ AJOUT : état pour le warning doublon
+  const [duplicateWarning, setDuplicateWarning] = useState(null);
+
   // ========== MODAL SUPPRESSION ==========
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [produitToDelete, setProduitToDelete] = useState(null);
@@ -487,6 +490,10 @@ const Produits = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    // ✅ AJOUT : effacer le warning dès que l'utilisateur modifie le nom ou le modèle
+    if (name === "nom" || name === "id_modele") {
+      setDuplicateWarning(null);
+    }
   };
 
   // ========== UNITÉS DE VENTE ==========
@@ -537,11 +544,13 @@ const Produits = () => {
     setEditingProduit(null);
     setFormData(INITIAL_FORM_DATA);
     setUnitesVente([]);
+    setDuplicateWarning(null); // ✅ AJOUT
     setShowModal(true);
   };
 
   const handleEdit = async (produit) => {
     setEditingProduit(produit);
+    setDuplicateWarning(null); // ✅ AJOUT
     setFormData({
       nom: produit.nom || "",
       description: produit.description || "",
@@ -613,105 +622,111 @@ const Produits = () => {
     setOpenDropdown(null);
   };
 
-const handleSave = async () => {
-  // ============================================================
-  // VALIDATIONS DE BASE
-  // ============================================================
-  if (!formData.nom.trim()) {
-    showToast("warning", "Veuillez saisir un nom de produit");
-    return;
-  }
-  if (!formData.id_fournisseur) {
-    showToast("warning", "Veuillez sélectionner un fournisseur");
-    return;
-  }
+  const handleSave = async () => {
+    // ============================================================
+    // VALIDATIONS DE BASE
+    // ============================================================
+    if (!formData.nom.trim()) {
+      showToast("warning", "Veuillez saisir un nom de produit");
+      return;
+    }
+    if (!formData.id_fournisseur) {
+      showToast("warning", "Veuillez sélectionner un fournisseur");
+      return;
+    }
 
-  // ============================================================
-  // UNITÉS DE VENTE — OPTIONNELLES
-  // ============================================================
-  // Si aucune unité de vente n'est définie, l'unité de base
-  // du produit servira d'unité de vente par défaut.
-  // C'est le cas pour les produits vendus uniquement à l'unité
-  // (ex : un moteur vendu à la pièce).
-  const unitesActives = unitesVente.filter((u) => !u.isDeleted);
+    // ============================================================
+    // UNITÉS DE VENTE — OPTIONNELLES
+    // ============================================================
+    const unitesActives = unitesVente.filter((u) => !u.isDeleted);
 
-  // Si des unités de vente sont ajoutées, les valider
-  if (unitesActives.length > 0) {
-    for (const unite of unitesActives) {
-      if (!unite.nom || !unite.nom.trim()) {
-        showToast("warning", "Toutes les unités de vente doivent avoir un nom");
-        return;
-      }
-      if (!unite.quantite_base || parseFloat(unite.quantite_base) <= 0) {
-        showToast("warning", `La quantité de base de "${unite.nom}" doit être > 0`);
-        return;
-      }
-      if (!unite.prix_vente || parseFloat(unite.prix_vente) <= 0) {
-        showToast("warning", `Le prix de vente de "${unite.nom}" doit être > 0`);
-        return;
+    if (unitesActives.length > 0) {
+      for (const unite of unitesActives) {
+        if (!unite.nom || !unite.nom.trim()) {
+          showToast("warning", "Toutes les unités de vente doivent avoir un nom");
+          return;
+        }
+        if (!unite.quantite_base || parseFloat(unite.quantite_base) <= 0) {
+          showToast("warning", `La quantité de base de "${unite.nom}" doit être > 0`);
+          return;
+        }
+        if (!unite.prix_vente || parseFloat(unite.prix_vente) <= 0) {
+          showToast("warning", `Le prix de vente de "${unite.nom}" doit être > 0`);
+          return;
+        }
       }
     }
-  }
 
-  // ============================================================
-  // SAUVEGARDE
-  // ============================================================
-  setSaving(true);
-  try {
-    const data = {
-      ...formData,
-      nom: formData.nom.trim(),
-      description: formData.description?.trim() || "",
-      prix_achat: parseFloat(formData.prix_achat) || 0,
-      prix_vente: parseFloat(formData.prix_vente) || 0,
-      quantite_stock: parseFloat(formData.quantite_stock) || 0,
-      quantite_minimale: parseFloat(formData.quantite_minimale) || 0,
-      quantite_maximale: parseFloat(formData.quantite_maximale) || 0,
-      id_fournisseur: formData.id_fournisseur || null,
-      id_categorie: formData.id_categorie || null,
-      id_marque: formData.id_marque || null,
-      id_modele: formData.id_modele || null,
-      id_unite: formData.id_unite || null,
+    // ============================================================
+    // SAUVEGARDE
+    // ============================================================
+    setSaving(true);
+    // ✅ AJOUT : reset le warning avant la tentative
+    setDuplicateWarning(null);
 
-      // ✅ Tableau vide si aucune unité de vente
-      unites_vente: unitesActives.map((u) => ({
-        id_unite_vente: u.id_unite_vente,
-        nom: u.nom.trim(),
-        quantite_base: parseFloat(u.quantite_base) || 1,
-        prix_vente: parseFloat(u.prix_vente) || 0,
-        prix_achat: parseFloat(u.prix_achat) || 0,
-        est_principal: u.est_principal,
-      })),
+    try {
+      const data = {
+        ...formData,
+        nom: formData.nom.trim(),
+        description: formData.description?.trim() || "",
+        prix_achat: parseFloat(formData.prix_achat) || 0,
+        prix_vente: parseFloat(formData.prix_vente) || 0,
+        quantite_stock: parseFloat(formData.quantite_stock) || 0,
+        quantite_minimale: parseFloat(formData.quantite_minimale) || 0,
+        quantite_maximale: parseFloat(formData.quantite_maximale) || 0,
+        id_fournisseur: formData.id_fournisseur || null,
+        id_categorie: formData.id_categorie || null,
+        id_marque: formData.id_marque || null,
+        id_modele: formData.id_modele || null,
+        id_unite: formData.id_unite || null,
 
-      unites_vente_deleted: unitesVente
-        .filter((u) => u.isDeleted && u.id_unite_vente)
-        .map((u) => u.id_unite_vente),
-    };
+        unites_vente: unitesActives.map((u) => ({
+          id_unite_vente: u.id_unite_vente,
+          nom: u.nom.trim(),
+          quantite_base: parseFloat(u.quantite_base) || 1,
+          prix_vente: parseFloat(u.prix_vente) || 0,
+          prix_achat: parseFloat(u.prix_achat) || 0,
+          est_principal: u.est_principal,
+        })),
 
-    const response = editingProduit
-      ? await ProduitService.updateProduit(token, editingProduit.id_produit, data)
-      : await ProduitService.createProduit(token, data);
+        unites_vente_deleted: unitesVente
+          .filter((u) => u.isDeleted && u.id_unite_vente)
+          .map((u) => u.id_unite_vente),
+      };
 
-    if (response.success) {
-      showToast(
-        "success",
-        editingProduit ? "Produit modifié avec succès" : "Produit créé avec succès"
-      );
-      await loadProduits();
-      setShowModal(false);
-      setEditingProduit(null);
-      setFormData(INITIAL_FORM_DATA);
-      setUnitesVente([]);
-    } else {
-      showToast("error", response.message || "Erreur de sauvegarde");
+      const response = editingProduit
+        ? await ProduitService.updateProduit(token, editingProduit.id_produit, data)
+        : await ProduitService.createProduit(token, data);
+
+      if (response.success) {
+        // ✅ Succès : reset tout
+        showToast(
+          "success",
+          editingProduit ? "Produit modifié avec succès" : "Produit créé avec succès"
+        );
+        await loadProduits();
+        setShowModal(false);
+        setEditingProduit(null);
+        setFormData(INITIAL_FORM_DATA);
+        setUnitesVente([]);
+        setDuplicateWarning(null);
+      } else if (response.isDuplicate) {
+        // ✅ Doublon : on affiche un warning mais on garde le modal ouvert
+        setDuplicateWarning({
+          message: response.message,
+          existingId: response.existingId,
+        });
+        // ⚠️ On NE ferme PAS le modal — l'utilisateur corrige et re-soumet
+      } else {
+        showToast("error", response.message || "Erreur de sauvegarde");
+      }
+    } catch (err) {
+      console.error("❌ Save error:", err);
+      showToast("error", err.message || "Erreur de sauvegarde");
+    } finally {
+      setSaving(false);
     }
-  } catch (err) {
-    console.error("❌ Save error:", err);
-    showToast("error", err.message || "Erreur de sauvegarde");
-  } finally {
-    setSaving(false);
-  }
-};
+  };
 
   const confirmDelete = (produit) => {
     setProduitToDelete(produit);
@@ -1318,9 +1333,7 @@ const handleSave = async () => {
           MODAL AJOUT / ÉDITION
           ============================================================ */}
       {showModal && (
-        <div
-          className="modal-overlay"
-        >
+        <div className="modal-overlay">
           <div
             className="modal-content modal-lg"
             onClick={(e) => e.stopPropagation()}
@@ -1351,6 +1364,48 @@ const handleSave = async () => {
             </div>
 
             <div className="modal-body">
+              {/* ✅ AJOUT : Bandeau warning doublon */}
+              {duplicateWarning && (
+                <div className="alert alert-warning">
+                  <AlertTriangle size={18} />
+                  <div className="alert-content">
+                    <strong>Produit déjà existant</strong>
+                    <p>{duplicateWarning.message}</p>
+                    {duplicateWarning.existingId && (
+                      <button
+                        type="button"
+                        className="alert-link"
+                        onClick={() => {
+                          const existing = produits.find(
+                            (p) => p.id_produit === duplicateWarning.existingId
+                          );
+                          if (existing) {
+                            setShowModal(false);
+                            setDuplicateWarning(null);
+                            handleView(existing);
+                          } else {
+                            showToast(
+                              "info",
+                              "Produit existant introuvable dans la liste actuelle."
+                            );
+                          }
+                        }}
+                      >
+                        Voir le produit existant →
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    className="alert-close"
+                    onClick={() => setDuplicateWarning(null)}
+                    aria-label="Fermer l'avertissement"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              )}
+
               {/* Section : Informations générales */}
               <div className="form-section">
                 <div className="form-section-title">
@@ -1739,7 +1794,7 @@ const handleSave = async () => {
                 disabled={
                   saving ||
                   !formData.id_fournisseur ||
-                  !formData.nom.trim() 
+                  !formData.nom.trim()
                 }
               >
                 {saving ? (

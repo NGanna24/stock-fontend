@@ -11,7 +11,7 @@ class ReceptionService {
             const response = await axios.get(API_URL.RECEPTION.GET_ALL, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json' 
                 },
                 params
             });

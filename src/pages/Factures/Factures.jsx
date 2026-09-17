@@ -17,7 +17,7 @@ import {
   AlertCircle,
   CheckCircle,
   Ban,
-} from "lucide-react";
+} from "lucide-react"; 
 import FactureService from "../../services/factureService";
 import MagasinService from "../../services/magasinService";
 import { useUser } from "../../context/AuthContext";
@@ -96,7 +96,7 @@ const Factures = () => {
     if (isAuthenticated && token) {
       loadFactures();
       loadStats();
-      loadMagasin();   // ✅ NOUVEAU
+      loadMagasin();   
     }
   }, [isAuthenticated, token]);
 

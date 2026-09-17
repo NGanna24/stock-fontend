@@ -76,7 +76,7 @@ class ProduitService {
     }
 
     /**
-     * Récupérer les produits par fournisseur ✅ NOUVEAU
+     * Récupérer les produits par fournisseur
      */
     static async getProduitsByFournisseur(token, idFournisseur) {
         try {
@@ -166,25 +166,63 @@ class ProduitService {
     }
 
     /**
-     * Créer un nouveau produit (Manager/Admin)
+     * ============================================================
+     * ✅ Créer un nouveau produit (Manager/Admin)
+     *
+     * Règle anti-doublon : nom + modèle + marque
+     *
+     * En cas de doublon (HTTP 409 + code DUPLICATE_PRODUIT),
+     * la méthode retourne un objet enrichi :
+     *   {
+     *     success: false,
+     *     isDuplicate: true,
+     *     message: '...',
+     *     existingId: 42,
+     *     existing: { id, nom, marque_nom, modele_nom }
+     *   }
+     * ============================================================
      */
     static async createProduit(token, data) {
         try {
             const response = await axios.post(API_URL.PRODUIT.CREATE, data, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
-                    'Content-Type': 'application/json' 
+                    'Content-Type': 'application/json'
                 }
             });
             return response.data;
         } catch (error) {
             console.error('❌ CreateProduit error:', error);
+
+            // ✅ Détection spécifique du doublon (409)
+            if (
+                error.response &&
+                error.response.status === 409 &&
+                error.response.data?.code === 'DUPLICATE_PRODUIT'
+            ) {
+                const data = error.response.data;
+                return {
+                    success: false,
+                    isDuplicate: true,
+                    message: data.message,
+                    // Support des 2 formats (ancien / nouveau)
+                    existingId: data.existing?.id || data.existing_id || null,
+                    existing: data.existing || null,
+                };
+            }
+
+            // Autres erreurs → comportement normal
             throw this.handleError(error);
         }
     }
 
     /**
-     * Mettre à jour un produit (Manager/Admin)
+     * ============================================================
+     * ✅ Mettre à jour un produit (Manager/Admin)
+     *
+     * Règle anti-doublon : nom + modèle + marque
+     * (en excluant le produit en cours d'édition)
+     * ============================================================
      */
     static async updateProduit(token, id, data) {
         try {
@@ -197,6 +235,24 @@ class ProduitService {
             return response.data;
         } catch (error) {
             console.error('❌ UpdateProduit error:', error);
+
+            // ✅ Détection spécifique du doublon (409)
+            if (
+                error.response &&
+                error.response.status === 409 &&
+                error.response.data?.code === 'DUPLICATE_PRODUIT'
+            ) {
+                const data = error.response.data;
+                return {
+                    success: false,
+                    isDuplicate: true,
+                    message: data.message,
+                    existingId: data.existing?.id || data.existing_id || null,
+                    existing: data.existing || null,
+                };
+            }
+
+            // Autres erreurs → comportement normal
             throw this.handleError(error);
         }
     }

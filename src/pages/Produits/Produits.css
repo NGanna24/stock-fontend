@@ -1817,12 +1817,7 @@
     width: 100%;
   }
 
-  .toast {
-    top: 16px;
-    right: 16px;
-    left: 16px;
-    min-width: unset;
-  }
+
 
   .details-grid {
     grid-template-columns: 1fr 1fr;
@@ -1848,4 +1843,100 @@
     padding-left: 18px;
     padding-right: 18px;
   }
+}
+
+/* ================================================================
+   ALERT — Bandeau d'avertissement (doublon produit)
+   ================================================================ */
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid;
+  font-size: 13px;
+  margin-bottom: 20px;
+  animation: alertSlideDown 0.2s ease-out;
+  position: relative;
+}
+
+@keyframes alertSlideDown {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.alert-warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+.alert > svg:first-child {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: #f59e0b;
+}
+
+.alert-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.alert-content strong {
+  font-weight: 700;
+  font-size: 13px;
+  color: #92400e;
+  display: block;
+}
+
+.alert-content p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #92400e;
+  opacity: 0.9;
+  word-break: break-word;
+}
+
+.alert-link {
+  background: transparent;
+  border: none;
+  color: #92400e;
+  font-weight: 700;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 2px 0;
+  margin-top: 2px;
+  align-self: flex-start;
+  font-family: inherit;
+  transition: opacity 0.15s;
+}
+
+.alert-link:hover {
+  opacity: 0.75;
+}
+
+.alert-close {
+  background: transparent;
+  border: none;
+  color: #92400e;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.6;
+  transition: opacity 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.alert-close:hover {
+  opacity: 1;
+  background: rgba(146, 64, 14, 0.1);
 }

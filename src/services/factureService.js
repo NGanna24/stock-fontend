@@ -38,7 +38,7 @@ class FactureService {
             console.error('❌ GetFactureById error:', error);
             throw this.handleError(error);
         }
-    }
+    } 
 
     /**
      * Récupérer les factures par statut

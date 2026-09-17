@@ -19,11 +19,21 @@ const formatMontant = (value) => {
     return Math.round(num).toLocaleString('fr-FR') + ' FCFA';
 };
 
-const formatMontantCourt = (value) => {
-    const num = parseFloat(value) || 0;
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(0) + 'k';
-    return num.toFixed(0);
+// ✅ NOUVEAU : formate une quantité avec son unité de BASE
+const formatQuantite = (valeur, alerte) => {
+    const num = parseFloat(valeur) || 0;
+    const unite = alerte?.unite_nom || alerte?.unite_symbole || 'u';
+    return `${num} ${unite}`;
+};
+
+// ✅ NOUVEAU : formate une quantité en unité de VENTE (ex: carton)
+const formatQuantiteVente = (valeur, alerte) => {
+    if (!alerte?.unite_vente_nom || !alerte?.unite_vente_quantite_base) return null;
+    const qteBase = parseFloat(alerte.unite_vente_quantite_base);
+    if (!qteBase || qteBase <= 1) return null;
+    const num = parseFloat(valeur) || 0;
+    const qteVente = Math.ceil(num / qteBase);
+    return `${qteVente} ${alerte.unite_vente_nom}${qteVente > 1 ? 's' : ''}`;
 };
 
 // ========== CONFIG TYPES D'ALERTES ==========
@@ -130,7 +140,6 @@ const Alertes = () => {
     const alertesFiltrees = useMemo(() => {
         let result = alertes;
 
-        // Filtre par onglet
         if (activeTab === 'rupture') {
             result = result.filter(a => a.type_alerte === 'rupture');
         } else if (activeTab === 'stock_bas') {
@@ -139,7 +148,6 @@ const Alertes = () => {
             result = result.filter(a => a.type_alerte === 'surstock');
         }
 
-        // Filtre par recherche
         if (searchTerm) {
             const term = searchTerm.toLowerCase();
             result = result.filter(a =>
@@ -317,7 +325,6 @@ const Alertes = () => {
                         {/* Graphique résumé */}
                         {activeTab === 'toutes' && (parCategorie.length > 0 || pieData.length > 0) && (
                             <div className="charts-grid">
-                                {/* Répartition par type */}
                                 <div className="chart-card">
                                     <div className="chart-header">
                                         <h3>Répartition par type</h3>
@@ -353,7 +360,6 @@ const Alertes = () => {
                                     </div>
                                 </div>
 
-                                {/* Top catégories */}
                                 <div className="chart-card">
                                     <div className="chart-header">
                                         <h3>Alertes par catégorie</h3>
@@ -414,6 +420,12 @@ const Alertes = () => {
                                     const config = TYPES_ALERTES[alerte.type_alerte] || TYPES_ALERTES.stock_bas;
                                     const Icon = config.icon;
 
+                                    // ✅ Conversion en unité de vente
+                                    const qteVente = formatQuantiteVente(
+                                        alerte.quantite_a_commander,
+                                        alerte
+                                    );
+
                                     return (
                                         <div
                                             key={alerte.id_produit}
@@ -438,32 +450,44 @@ const Alertes = () => {
                                                 </div>
 
                                                 <div className="alerte-stock-info">
+                                                    {/* ✅ Stock actuel AVEC unité */}
                                                     <div className="stock-info-item">
                                                         <span className="stock-info-label">Stock actuel</span>
                                                         <span className="stock-info-value" style={{ color: config.color }}>
-                                                            {alerte.quantite_stock} {alerte.unite_symbole || ''}
+                                                            {formatQuantite(alerte.quantite_stock, alerte)}
                                                         </span>
                                                     </div>
+
+                                                    {/* ✅ Stock min AVEC unité */}
                                                     <div className="stock-info-item">
                                                         <span className="stock-info-label">Stock min</span>
                                                         <span className="stock-info-value">
-                                                            {alerte.quantite_minimale}
+                                                            {formatQuantite(alerte.quantite_minimale, alerte)}
                                                         </span>
                                                     </div>
+
+                                                    {/* ✅ Stock max AVEC unité */}
                                                     {alerte.quantite_maximale > 0 && (
                                                         <div className="stock-info-item">
                                                             <span className="stock-info-label">Stock max</span>
                                                             <span className="stock-info-value">
-                                                                {alerte.quantite_maximale}
+                                                                {formatQuantite(alerte.quantite_maximale, alerte)}
                                                             </span>
                                                         </div>
                                                     )}
+
+                                                    {/* ✅ À commander AVEC unité + conversion */}
                                                     {(alerte.type_alerte === 'rupture' || alerte.type_alerte === 'stock_bas') && (
                                                         <>
                                                             <div className="stock-info-item highlight">
                                                                 <span className="stock-info-label">À commander</span>
                                                                 <span className="stock-info-value">
-                                                                    {alerte.quantite_a_commander} {alerte.unite_symbole || ''}
+                                                                    {formatQuantite(alerte.quantite_a_commander, alerte)}
+                                                                    {qteVente && (
+                                                                        <small className="conversion-unite">
+                                                                            ≈ {qteVente}
+                                                                        </small>
+                                                                    )}
                                                                 </span>
                                                             </div>
                                                             <div className="stock-info-item highlight">

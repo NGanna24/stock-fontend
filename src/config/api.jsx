@@ -1,7 +1,13 @@
 // config/api.js
 // const BASE_URL = "http://192.168.187.1:8080";
-const BASE_URL = "https://miyo.n-double.com";
-
+// const BASE_URL = "https://miyo.n-double.com";
+// ✅ Détection auto : si on est sur localhost → local, sinon → prod
+const BASE_URL = 
+  window.location.hostname === "localhost" || 
+  window.location.hostname === "127.0.0.1" ||
+  window.location.hostname.startsWith("192.168.")
+    ? "http://192.168.187.1:8080"
+    : "https://miyo.n-double.com";
 export const API_URL = {
 
         // ==================== URLS DASHBOARD ====================
