@@ -1940,3 +1940,34 @@
   opacity: 1;
   background: rgba(146, 64, 14, 0.1);
 }
+
+/* ============================================================
+   NOM + MODÈLE (Vue LISTE)
+   ============================================================ */
+.produit-name-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex: 1;
+}
+
+.produit-name-main {
+    font-weight: 600;
+    color: #1e293b;
+    font-size: 13.5px;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.produit-name-modele {
+    font-size: 11.5px;
+    color: #64748b;
+    font-style: italic;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}

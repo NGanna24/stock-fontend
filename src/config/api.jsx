@@ -27,6 +27,11 @@ ASSISTANT_ACHAT: {
         `${BASE_URL}/api/assistant-achat/proposition?niveau=${niveau}`,
     CREER: `${BASE_URL}/api/assistant-achat/creer`,
 },
+// ==================== URLS SEARCH ====================
+SEARCH: {
+    GLOBAL: (q, limit = 5) =>
+        `${BASE_URL}/api/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+},
     // ==================== URLS AUTH ====================
     AUTH: {
         REGISTER: `${BASE_URL}/api/utilisateur/register`,   

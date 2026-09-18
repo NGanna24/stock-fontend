@@ -385,7 +385,6 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: COLORS.dark,
         paddingVertical: 15,
         paddingHorizontal: 40,
         flexDirection: 'row',
@@ -534,7 +533,6 @@ const BonCommandePDF = ({ data }) => {
 
                     <View style={styles.headerRight}>
                         <Text style={styles.invoiceTitle}>BON DE COMMANDE</Text>
-                        <Text style={styles.invoiceTitleSub}>PURCHASE ORDER</Text>
                     </View>
                 </View>
 
@@ -732,9 +730,7 @@ const BonCommandePDF = ({ data }) => {
                     </View>
 
                     <View style={styles.footerColCenter}>
-                        <View style={styles.footerIcon}>
-                            <Text style={styles.footerIconText}>🏢</Text>
-                        </View>
+                        
                         <View>
                             <Text style={styles.footerText}>
                                 {getAdresseComplete() || 'Adresse non renseignée'}
@@ -743,9 +739,7 @@ const BonCommandePDF = ({ data }) => {
                     </View>
 
                     <View style={styles.footerColRight}>
-                        <View style={styles.footerIcon}>
-                            <Text style={styles.footerIconText}>✉️</Text>
-                        </View>
+                       
                         <View>
                             {magasin?.email && (
                                 <Text style={styles.footerText}>{magasin.email}</Text>
@@ -760,7 +754,7 @@ const BonCommandePDF = ({ data }) => {
                 {/* MENTIONS LÉGALES */}
                 <View style={{
                     position: 'absolute',
-                    bottom: 65,
+                    bottom: 15,
                     left: 40,
                     right: 40,
                     flexDirection: 'row',

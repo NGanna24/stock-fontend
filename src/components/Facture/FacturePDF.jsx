@@ -360,7 +360,6 @@ logoImage: {
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: COLORS.dark,
         paddingVertical: 15,
         paddingHorizontal: 40,
         flexDirection: 'row',
@@ -368,7 +367,7 @@ logoImage: {
         alignItems: 'center',
     },
     footerCol: {
-        flex: 1,
+        flex: 1, 
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
@@ -732,9 +731,7 @@ const FacturePDF = ({ data }) => {
                 <View style={styles.footer} fixed>
                     {/* Colonne 1 : Téléphone */}
                     <View style={styles.footerCol}>
-                        <View style={styles.footerIcon}>
-                            <Text style={styles.footerIconText}>📞</Text>
-                        </View>
+                       
                         <View>
                             {magasin?.telephone && (
                                 <Text style={styles.footerText}>{magasin.telephone}</Text>
@@ -747,9 +744,7 @@ const FacturePDF = ({ data }) => {
 
                     {/* Colonne 2 : Adresse */}
                     <View style={styles.footerColCenter}>
-                        <View style={styles.footerIcon}>
-                            <Text style={styles.footerIconText}>🏢</Text>
-                        </View>
+                        
                         <View>
                             <Text style={styles.footerText}>
                                 {getAdresseComplete() || 'Adresse non renseignée'}
@@ -759,9 +754,7 @@ const FacturePDF = ({ data }) => {
 
                     {/* Colonne 3 : Email */}
                     <View style={styles.footerColRight}>
-                        <View style={styles.footerIcon}>
-                            <Text style={styles.footerIconText}>✉️</Text>
-                        </View>
+                        
                         <View>
                             {magasin?.email && (
                                 <Text style={styles.footerText}>{magasin.email}</Text>
@@ -778,7 +771,7 @@ const FacturePDF = ({ data }) => {
                 {/* ============================================================ */}
                 <View style={{
                     position: 'absolute',
-                    bottom: 65,
+                    bottom: 15,
                     left: 40,
                     right: 40,
                     flexDirection: 'row',

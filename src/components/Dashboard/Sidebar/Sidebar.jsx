@@ -10,6 +10,7 @@ import {
   ClipboardList, Layers, AlertTriangle, TrendingDown, CreditCard,
   BarChart3, TrendingUp, Banknote, Shield, Settings,
   PanelLeftClose, PanelLeftOpen, LogOut, Store, Ruler,
+  Bot,
 } from "lucide-react";
 import "./Sidebar.css";
 
@@ -21,7 +22,7 @@ const MENU_CONFIG = [
     section: "Principal",
     items: [
       { id: "dashboard", title: "Tableau de bord", icon: LayoutDashboard, path: "/dashboard" },
-      { id: "assistantachat", title: "Assistant Achat", icon: LayoutDashboard, path: "/assistant-achat" },
+      { id: "assistantachat", title: "Assistant Achat", icon: Bot, path: "/assistant-achat" },
       { id: "alertes", title: "Alertes", icon: AlertTriangle, path: "/alertes", badge: "dynamic", color: "#ef4444" },
     ],
   },

@@ -1028,6 +1028,12 @@ const handleSave = async () => {
 
               <div className="produit-card-body">
                 <h3 className="produit-name" title={produit.nom}>{produit.nom}</h3>
+                {produit.modele_nom && (
+                    <div className="produit-modele-inline" title={produit.modele_nom}>
+                        <Box size={12} />
+                        <span>{produit.modele_nom}</span>
+                    </div>
+                )}
                 <p className="produit-description">
                   {produit.description || "Aucune description"}
                 </p>
@@ -1130,12 +1136,21 @@ const handleSave = async () => {
                 return (
                   <tr key={produit.id_produit}>
                     <td className="name-cell">
-                      <div className="produit-name-with-icon">
-                        <div className="produit-icon-tiny">
-                          <Package size={14} />
+                        <div className="produit-name-with-icon">
+                            <div className="produit-icon-tiny">
+                                <Package size={14} />
+                            </div>
+                            <div className="produit-name-content">
+                                <span className="produit-name-main" title={produit.nom}>
+                                    {produit.nom}
+                                </span>
+                                 {produit.modele_nom && (
+                                    <span className="produit-name-modele" title={produit.modele_nom}>
+                                        {produit.modele_nom}
+                                    </span>
+                                )}
+                            </div>
                         </div>
-                        <span title={produit.nom}>{produit.nom}</span>
-                      </div>
                     </td>
                     <td>
                       <div className="fournisseur-cell">
