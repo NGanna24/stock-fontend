@@ -1392,8 +1392,7 @@ const CommandesAchat = () => {
 
       {/* Filtres */}
       <div className="commandes-filters">
-        <div className="search-box">
-          <Search size={20} className="search-icon" />
+        {/* <div className="search-box"> */}
           <input
             type="text"
             placeholder="Rechercher une commande..."
@@ -1409,7 +1408,7 @@ const CommandesAchat = () => {
               <X size={16} />
             </button>
           )}
-        </div>
+        {/* </div> */}
         <div className="filter-group">
           <select
             className="filter-select"

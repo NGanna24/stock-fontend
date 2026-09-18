@@ -28,7 +28,7 @@
     width: 40px;
     height: 40px;
     border: 3px solid #e2e8f0;
-    border-top-color: #2563eb; 
+    border-top-color: #2563eb;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
 }
@@ -62,6 +62,60 @@
     font-size: 14px;
     color: #64748b;
     margin: 6px 0 0;
+}
+
+/* ✅ Actions dans le header (boutons son + refresh) */
+.dashboard-header-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* ==================== BANDEAU COÛTS MANQUANTS ==================== */
+.cost-warning-banner {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+    border-radius: 12px;
+    color: #92400e;
+    animation: slideIn 0.3s ease-out;
+}
+
+.cost-warning-banner > svg {
+    color: #f59e0b;
+    flex-shrink: 0;
+}
+
+.cost-warning-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.cost-warning-content strong {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.cost-warning-content span {
+    font-size: 12px;
+    opacity: 0.85;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 /* ==================== ALERTES ==================== */
@@ -134,6 +188,7 @@
     gap: 2px;
     padding: 0;
     font-size: 12px;
+    font-family: inherit;
 }
 
 .alert-link:hover {
@@ -183,6 +238,8 @@
 .kpi-clients    { background: #e9d5ff; color: #6b21a8; }
 .kpi-impaye     { background: #fee2e2; color: #991b1b; }
 .kpi-benefices  { background: #a7f3d0; color: #065f46; }
+/* ✅ NOUVEAU : icône pour la marge moyenne */
+.kpi-marge      { background: #d1fae5; color: #065f46; }
 
 .kpi-content {
     display: flex;
@@ -223,7 +280,6 @@
     margin-bottom: 0;
 }
 
-
 /* ✅ Bouton son - état actif */
 .btn.sound-on {
     background: #eff6ff;
@@ -247,6 +303,7 @@
     background: #fee2e2;
     border-color: #fca5a5;
 }
+
 /* ==================== DASHBOARD ROW ==================== */
 .dashboard-row {
     display: grid;
@@ -320,6 +377,12 @@
     font-size: 11px;
     font-weight: 700;
     white-space: nowrap;
+}
+
+/* ✅ NOUVEAU : badge vert pour le bénéfice 30j */
+.chart-card .card-header .card-badge {
+    background: #d1fae5;
+    color: #065f46;
 }
 
 /* ==================== GRAPHIQUES ==================== */
@@ -632,6 +695,25 @@
     border-color: #cbd5e1;
 }
 
+/* ✅ NOUVEAU : bouton warning (bandeau coûts manquants) */
+.btn-warning {
+    background: #f59e0b;
+    color: #fff;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+    white-space: nowrap;
+}
+
+.btn-warning:hover {
+    background: #d97706;
+}
+
 .btn:disabled {
     opacity: 0.5;
     cursor: not-allowed;
@@ -655,6 +737,15 @@
     border: 1px solid #e2e8f0 !important;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
     font-size: 12px !important;
+}
+
+/* ✅ Légende Recharts */
+.recharts-legend-wrapper {
+    font-size: 12px !important;
+}
+
+.recharts-legend-item {
+    margin-right: 16px !important;
 }
 
 /* ==================== RESPONSIVE ==================== */
@@ -699,6 +790,7 @@
         gap: 12px;
     }
 
+    /* ✅ 8 KPIs → 2 colonnes sur mobile */
     .kpi-grid {
         grid-template-columns: 1fr 1fr;
         gap: 10px;
@@ -723,6 +815,29 @@
         font-size: 20px;
     }
 
+    .dashboard-header-actions {
+        width: 100%;
+    }
+
+    .dashboard-header-actions .btn {
+        flex: 1;
+        justify-content: center;
+    }
+
+    /* ✅ Bandeau coûts manquants → empilé */
+    .cost-warning-banner {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+
+    .cost-warning-banner .btn-warning {
+        width: 100%;
+        text-align: center;
+        justify-content: center;
+        display: flex;
+    }
+
     .card-header {
         padding: 12px 16px;
     }
@@ -733,5 +848,15 @@
 
     .card-body {
         padding: 12px 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .kpi-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .alert-item {
+        min-width: 100%;
     }
 }

@@ -3,7 +3,8 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
     TrendingUp, TrendingDown, Download, RefreshCw,
     Banknote, Percent, ShoppingCart, Package, Award,
-    Users, BarChart3, Receipt, Target, ArrowUp, ArrowDown
+    Users, BarChart3, Receipt, Target, ArrowUp, ArrowDown,
+    AlertTriangle, Info
 } from "lucide-react";
 import {
     ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -16,7 +17,9 @@ import "./BeneficesMarges.css";
 
 // ========== FORMATAGE ==========
 const formatMontant = (value) => {
-    const num = parseFloat(value) || 0;
+    if (value === null || value === undefined) return 'N/D';
+    const num = parseFloat(value);
+    if (isNaN(num)) return 'N/D';
     return Math.round(num).toLocaleString('fr-FR') + ' FCFA';
 };
 
@@ -28,7 +31,9 @@ const formatMontantCourt = (value) => {
 };
 
 const formatPct = (value) => {
-    const num = parseFloat(value) || 0;
+    if (value === null || value === undefined) return 'N/D';
+    const num = parseFloat(value);
+    if (isNaN(num)) return 'N/D';
     return num.toFixed(2) + '%';
 };
 
@@ -37,6 +42,41 @@ const formatDate = (dateStr) => {
     return new Date(dateStr).toLocaleDateString('fr-FR', {
         day: '2-digit', month: '2-digit', year: 'numeric'
     });
+};
+
+/**
+ * ✅ NOUVEAU : formate un bénéfice en gérant le cas "non disponible"
+ * @param {object} row - objet avec benefice / benefice_disponible / benefice_estime
+ * @returns {JSX.Element}
+ */
+const renderBenefice = (row, opts = {}) => {
+    const { className = '', showBadge = true } = opts;
+    const dispo = row?.benefice_disponible !== false;
+    const benefice = row?.benefice;
+    const estime = row?.benefice_estime ?? benefice;
+
+    if (dispo && benefice !== null && benefice !== undefined) {
+        return (
+            <span className={`benefice-value text-green ${className}`}>
+                {formatMontant(benefice)}
+            </span>
+        );
+    }
+
+    // Cas incomplet
+    return (
+        <div className={`benefice-incomplet ${className}`}>
+            <span className="benefice-estime">
+                ≈ {formatMontant(estime)}
+            </span>
+            {showBadge && (
+                <span className="badge-incomplet" title={`${row?.nb_lignes_sans_prix || 0} ligne(s) sans prix d'achat`}>
+                    <AlertTriangle size={11} />
+                    Incomplet
+                </span>
+            )}
+        </div>
+    );
 };
 
 // ========== COULEURS ============
@@ -147,10 +187,15 @@ const BeneficesMarges = () => {
         nombre_commandes: 0,
         chiffre_affaires: 0,
         cout_achat: 0,
-        benefice_brut: 0,
+        benefice_brut: null,
+        benefice_estime: 0,
+        benefice_disponible: true,
         quantite_vendue: 0,
-        marge_brute_pct: 0,
-        taux_marge: 0
+        marge_brute_pct: null,
+        taux_marge: null,
+        nb_lignes_sans_prix: 0,
+        nb_lignes_total: 0,
+        taux_couverture: 100
     };
 
     const commandes = data?.commandes || [];
@@ -160,6 +205,9 @@ const BeneficesMarges = () => {
     const topProduits = data?.top_produits || [];
     const topClients = data?.top_clients || [];
     const produitsRentables = data?.produits_rentables || [];
+
+    // ✅ Compteur global : y a-t-il au moins un bénéfice incomplet ?
+    const aDesBeneficesIncomplets = !totaux.benefice_disponible;
 
     // ========== FILTRAGE ==========
     const produitsFiltres = searchProduit
@@ -250,6 +298,25 @@ const BeneficesMarges = () => {
                 </div>
             </div>
 
+            {/* ==================== BANDEAU BÉNÉFICE INCOMPLET ==================== */}
+            {aDesBeneficesIncomplets && (
+                <div className="benefice-warning-banner">
+                    <AlertTriangle size={22} />
+                    <div className="banner-content">
+                        <strong>Bénéfice incomplet</strong>
+                        <span>
+                            {totaux.nb_lignes_sans_prix} ligne(s) sans prix d'achat sur{' '}
+                            {totaux.nb_lignes_total} — le bénéfice affiché est une <strong>estimation</strong>.
+                            Complétez les prix d'achat pour plus de précision.
+                        </span>
+                    </div>
+                    <div className="banner-couverture">
+                        <span className="couverture-label">Couverture</span>
+                        <span className="couverture-value">{totaux.taux_couverture}%</span>
+                    </div>
+                </div>
+            )}
+
             {/* ==================== KPIs ==================== */}
             <div className="kpi-grid">
                 <div className="kpi-card">
@@ -270,21 +337,38 @@ const BeneficesMarges = () => {
                     <div className="kpi-content">
                         <span className="kpi-label">Coût d'achat</span>
                         <span className="kpi-value">{formatMontant(totaux.cout_achat)}</span>
-                        <span className="kpi-sub">{totaux.quantite_vendue} unités</span>
+                        <span className="kpi-sub">
+                            {totaux.quantite_vendue} unités
+                            {!totaux.benefice_disponible && ' (partiel)'}
+                        </span>
                     </div>
                 </div>
 
-                <div className="kpi-card highlight">
+                <div className={`kpi-card highlight ${!totaux.benefice_disponible ? 'kpi-incomplete' : ''}`}>
                     <div className="kpi-icon kpi-green">
                         <TrendingUp size={24} />
                     </div>
                     <div className="kpi-content">
-                        <span className="kpi-label">Bénéfice brut</span>
+                        <span className="kpi-label">
+                            Bénéfice brut
+                            {!totaux.benefice_disponible && (
+                                <span className="badge-inline-warning">
+                                    <AlertTriangle size={11} /> Estimation
+                                </span>
+                            )}
+                        </span>
                         <span className="kpi-value text-green">
-                            {formatMontant(totaux.benefice_brut)}
+                            {formatMontant(
+                                totaux.benefice_disponible
+                                    ? totaux.benefice_brut
+                                    : totaux.benefice_estime
+                            )}
                         </span>
                         <span className="kpi-sub">
-                            {totaux.benefice_brut >= 0 ? 'Rentable' : 'Perte'}
+                            {totaux.benefice_disponible
+                                ? (totaux.benefice_brut >= 0 ? 'Rentable' : 'Perte')
+                                : `${totaux.nb_lignes_sans_prix} ligne(s) sans prix`
+                            }
                         </span>
                     </div>
                 </div>
@@ -295,9 +379,17 @@ const BeneficesMarges = () => {
                     </div>
                     <div className="kpi-content">
                         <span className="kpi-label">Marge brute</span>
-                        <span className="kpi-value">{formatPct(totaux.marge_brute_pct)}</span>
+                        <span className="kpi-value">
+                            {totaux.benefice_disponible
+                                ? formatPct(totaux.marge_brute_pct)
+                                : 'N/D'
+                            }
+                        </span>
                         <span className="kpi-sub">
-                            Taux de marge : {formatPct(totaux.taux_marge)}
+                            {totaux.benefice_disponible
+                                ? `Taux de marge : ${formatPct(totaux.taux_marge)}`
+                                : 'Marge non calculable'
+                            }
                         </span>
                     </div>
                 </div>
@@ -347,6 +439,11 @@ const BeneficesMarges = () => {
                         <div className="chart-card">
                             <div className="chart-header">
                                 <h3>Évolution du chiffre d'affaires et des bénéfices</h3>
+                                {aDesBeneficesIncomplets && (
+                                    <span className="chart-header-badge">
+                                        <AlertTriangle size={12} /> Données partielles
+                                    </span>
+                                )}
                             </div>
                             <div className="chart-body">
                                 {parJour.length > 0 ? (
@@ -391,11 +488,12 @@ const BeneficesMarges = () => {
                                             />
                                             <Area
                                                 type="monotone"
-                                                dataKey="benefice"
-                                                name="Bénéfice"
+                                                dataKey={aDesBeneficesIncomplets ? 'benefice_estime' : 'benefice'}
+                                                name={aDesBeneficesIncomplets ? 'Bénéfice (estimé)' : 'Bénéfice'}
                                                 stroke="#10b981"
                                                 fill="url(#colorBenef)"
                                                 strokeWidth={2}
+                                                strokeDasharray={aDesBeneficesIncomplets ? '5 3' : '0'}
                                             />
                                         </ComposedChart>
                                     </ResponsiveContainer>
@@ -420,7 +518,7 @@ const BeneficesMarges = () => {
                                             <PieChart>
                                                 <Pie
                                                     data={parCategorie.slice(0, 8)}
-                                                    dataKey="benefice"
+                                                    dataKey={parCategorie[0]?.benefice_disponible === false ? 'benefice_estime' : 'benefice'}
                                                     nameKey="categorie_nom"
                                                     cx="50%"
                                                     cy="50%"
@@ -470,7 +568,7 @@ const BeneficesMarges = () => {
                                                 />
                                                 <Tooltip formatter={(v) => [formatMontant(v), 'Bénéfice']} />
                                                 <Bar
-                                                    dataKey="benefice"
+                                                    dataKey={topProduits[0]?.benefice_disponible === false ? 'benefice_estime' : 'benefice'}
                                                     fill="#10b981"
                                                     radius={[0, 6, 6, 0]}
                                                     maxBarSize={30}
@@ -532,17 +630,19 @@ const BeneficesMarges = () => {
                                                         {formatMontant(p.marge_unitaire)}
                                                     </td>
                                                     <td>
-                                                        <span className={`marge-badge ${
-                                                            p.marge_unitaire_pct >= 30 ? 'marge-high' :
-                                                            p.marge_unitaire_pct >= 15 ? 'marge-medium' : 'marge-low'
-                                                        }`}>
-                                                            {formatPct(p.marge_unitaire_pct)}
-                                                        </span>
+                                                        {p.marge_unitaire_pct !== null ? (
+                                                            <span className={`marge-badge ${
+                                                                p.marge_unitaire_pct >= 30 ? 'marge-high' :
+                                                                p.marge_unitaire_pct >= 15 ? 'marge-medium' : 'marge-low'
+                                                            }`}>
+                                                                {formatPct(p.marge_unitaire_pct)}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="badge-incomplet">N/D</span>
+                                                        )}
                                                     </td>
                                                     <td>{formatMontant(p.chiffre_affaires)}</td>
-                                                    <td className="font-bold text-green">
-                                                        {formatMontant(p.benefice)}
-                                                    </td>
+                                                    <td>{renderBenefice(p)}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -582,7 +682,7 @@ const BeneficesMarges = () => {
                                                 />
                                                 <Tooltip formatter={(v) => [formatMontant(v), 'Bénéfice']} />
                                                 <Bar
-                                                    dataKey="benefice"
+                                                    dataKey={parCategorie[0]?.benefice_disponible === false ? 'benefice_estime' : 'benefice'}
                                                     fill="#8b5cf6"
                                                     radius={[6, 6, 0, 0]}
                                                     maxBarSize={50}
@@ -618,16 +718,18 @@ const BeneficesMarges = () => {
                                                             <td className="text-center">{c.quantite_vendue}</td>
                                                             <td>{formatMontant(c.chiffre_affaires)}</td>
                                                             <td>{formatMontant(c.cout_achat)}</td>
-                                                            <td className="font-bold text-green">
-                                                                {formatMontant(c.benefice)}
-                                                            </td>
+                                                            <td>{renderBenefice(c)}</td>
                                                             <td>
-                                                                <span className={`marge-badge ${
-                                                                    c.marge_pct >= 30 ? 'marge-high' :
-                                                                    c.marge_pct >= 15 ? 'marge-medium' : 'marge-low'
-                                                                }`}>
-                                                                    {formatPct(c.marge_pct)}
-                                                                </span>
+                                                                {c.marge_pct !== null ? (
+                                                                    <span className={`marge-badge ${
+                                                                        c.marge_pct >= 30 ? 'marge-high' :
+                                                                        c.marge_pct >= 15 ? 'marge-medium' : 'marge-low'
+                                                                    }`}>
+                                                                        {formatPct(c.marge_pct)}
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="badge-incomplet">N/D</span>
+                                                                )}
                                                             </td>
                                                         </tr>
                                                     ))}
@@ -692,12 +794,16 @@ const BeneficesMarges = () => {
                                                         {formatMontant(p.marge_unitaire)}
                                                     </td>
                                                     <td>
-                                                        <span className={`marge-badge ${
-                                                            p.marge_pct >= 30 ? 'marge-high' :
-                                                            p.marge_pct >= 15 ? 'marge-medium' : 'marge-low'
-                                                        }`}>
-                                                            {formatPct(p.marge_pct)}
-                                                        </span>
+                                                        {p.marge_pct !== null ? (
+                                                            <span className={`marge-badge ${
+                                                                p.marge_pct >= 30 ? 'marge-high' :
+                                                                p.marge_pct >= 15 ? 'marge-medium' : 'marge-low'
+                                                            }`}>
+                                                                {formatPct(p.marge_pct)}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="badge-incomplet">N/D</span>
+                                                        )}
                                                     </td>
                                                     <td className="text-center">{p.quantite_vendue}</td>
                                                     <td className="font-bold text-green">
@@ -754,9 +860,7 @@ const BeneficesMarges = () => {
                                                     <td className="text-muted">{c.telephone || '-'}</td>
                                                     <td className="text-center">{c.nombre_commandes}</td>
                                                     <td>{formatMontant(c.chiffre_affaires)}</td>
-                                                    <td className="font-bold text-green">
-                                                        {formatMontant(c.benefice)}
-                                                    </td>
+                                                    <td>{renderBenefice(c)}</td>
                                                 </tr>
                                             ))}
                                         </tbody>

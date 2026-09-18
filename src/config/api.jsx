@@ -1,26 +1,32 @@
 // config/api.js
-// const BASE_URL = "http://192.168.187.1:8080";
-// const BASE_URL = "https://miyo.n-double.com";
-// ✅ Détection auto : si on est sur localhost → local, sinon → prod
+
 const BASE_URL = 
   window.location.hostname === "localhost" || 
   window.location.hostname === "127.0.0.1" ||
   window.location.hostname.startsWith("192.168.")
     ? "http://192.168.187.1:8080"
-    : "https://miyo.n-double.com";
+    : "https://miyo.n-double.com"; 
 export const API_URL = {
 
         // ==================== URLS DASHBOARD ====================
-    DASHBOARD: {
-        GET_STATS: `${BASE_URL}/api/dashboard/stats`,
-        GET_KPIS: `${BASE_URL}/api/dashboard/kpis`,
-        GET_VENTES_CHART: (jours = 30) => `${BASE_URL}/api/dashboard/ventes-chart?jours=${jours}`,
-        GET_TOP_PRODUITS: (limit = 5, jours = 30) => `${BASE_URL}/api/dashboard/top-produits?limit=${limit}&jours=${jours}`,
-        GET_ALERTES: `${BASE_URL}/api/dashboard/alertes`,
-        GET_DERNIERS_MOUVEMENTS: (limit = 5) => `${BASE_URL}/api/dashboard/derniers-mouvements?limit=${limit}`,
-        GET_DERNIERES_FACTURES: (limit = 5) => `${BASE_URL}/api/dashboard/dernieres-factures?limit=${limit}`,
-        GET_DERNIERES_COMMANDES: (limit = 5) => `${BASE_URL}/api/dashboard/dernieres-commandes?limit=${limit}`,
-    },
+DASHBOARD: {
+    GET_STATS: `${BASE_URL}/api/dashboard/stats`,
+    GET_KPIS: `${BASE_URL}/api/dashboard/kpis`,
+    GET_VENTES_CHART: (jours = 30) => `${BASE_URL}/api/dashboard/ventes-chart?jours=${jours}`,
+    GET_BENEFICES_JOUR: (jours = 30) => `${BASE_URL}/api/dashboard/benefices-jour?jours=${jours}`, // ✅ NOUVEAU
+    GET_TOP_PRODUITS: (limit = 5, jours = 30) => `${BASE_URL}/api/dashboard/top-produits?limit=${limit}&jours=${jours}`,
+    GET_ALERTES: `${BASE_URL}/api/dashboard/alertes`,
+    GET_DERNIERS_MOUVEMENTS: (limit = 5) => `${BASE_URL}/api/dashboard/derniers-mouvements?limit=${limit}`,
+    GET_DERNIERES_FACTURES: (limit = 5) => `${BASE_URL}/api/dashboard/dernieres-factures?limit=${limit}`,
+    GET_DERNIERES_COMMANDES: (limit = 5) => `${BASE_URL}/api/dashboard/dernieres-commandes?limit=${limit}`,
+},
+
+// ==================== URLS ASSISTANT D'ACHAT ====================
+ASSISTANT_ACHAT: {
+    GET_PROPOSITION: (niveau = 'normal') =>
+        `${BASE_URL}/api/assistant-achat/proposition?niveau=${niveau}`,
+    CREER: `${BASE_URL}/api/assistant-achat/creer`,
+},
     // ==================== URLS AUTH ====================
     AUTH: {
         REGISTER: `${BASE_URL}/api/utilisateur/register`,   

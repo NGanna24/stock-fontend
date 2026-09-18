@@ -48,10 +48,7 @@ function LoginPage() {
             {/* Partie gauche - Formulaire */}
             <div className="auth-form-section">
                 <div className="auth-form-container">
-                    {/* Logo */}
-                    <div className="auth-brand">
-                        <span className="brand-name">StockPro</span>
-                    </div>
+                   
 
                     {/* En-tête */}
                     <div className="auth-header-split">

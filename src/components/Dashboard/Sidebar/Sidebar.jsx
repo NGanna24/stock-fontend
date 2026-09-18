@@ -21,6 +21,7 @@ const MENU_CONFIG = [
     section: "Principal",
     items: [
       { id: "dashboard", title: "Tableau de bord", icon: LayoutDashboard, path: "/dashboard" },
+      { id: "assistantachat", title: "Assistant Achat", icon: LayoutDashboard, path: "/assistant-achat" },
       { id: "alertes", title: "Alertes", icon: AlertTriangle, path: "/alertes", badge: "dynamic", color: "#ef4444" },
     ],
   },
@@ -77,7 +78,6 @@ const MENU_CONFIG = [
     items: [
       { id: "mon-magasin",  title: "Mon magasin",         icon: Store,    path: "/mon-magasin" },
       { id: "employes",     title: "Employés",            icon: Users,    path: "/employes" },
-      { id: "roles",        title: "Rôles & Permissions", icon: Shield,   path: "/roles" },
       { id: "paiements",    title: "Paiements",           icon: CreditCard, path: "/paiements" },
       // { id: "parametres",   title: "Paramètres",          icon: Settings, path: "/parametres" },
     ],

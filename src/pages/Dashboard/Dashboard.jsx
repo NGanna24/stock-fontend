@@ -7,11 +7,12 @@ import {
     Package, Users, ShoppingCart, Banknote, TrendingUp,
     AlertCircle, RefreshCw, ArrowDownCircle, ArrowUpCircle,
     SlidersHorizontal, Repeat, FileText, ChevronRight, TrendingDown,
-    Clock, Volume2, VolumeX
+    Clock, Volume2, VolumeX, Coins
 } from "lucide-react";
 import {
     ResponsiveContainer, AreaChart, Area, XAxis, YAxis,
-    Tooltip, CartesianGrid, BarChart, Bar
+    Tooltip, CartesianGrid, BarChart, Bar,
+    ComposedChart, Line, Legend
 } from 'recharts';
 import DashboardService from "../../services/DashboardService";
 import { useUser } from "../../context/AuthContext";
@@ -27,9 +28,14 @@ const INITIAL_DATA = {
         ventes_jour: 0,
         factures_impayees: 0,
         montant_impaye: 0,
-        benefices_mois: 0
+        benefices_mois: 0,
+        // ✅ NOUVEAUX
+        benefices_jour: 0,
+        marge_moyenne_pct: 0,
+        produits_sans_cout: 0
     },
     ventes_chart: [],
+    benefices_chart: [],        // ✅ NOUVEAU
     ventes_jour_chart: [],
     ventes_semaine: [],
     top_produits: [],
@@ -53,12 +59,10 @@ const Dashboard = () => {
     // ✅ Hook sonore
     const { playWarning, playCritical, startAlertLoop, stopAlertLoop } = useAlertSound();
 
-
     // ✅ Verrou : ne pas rejouer le son à chaque render
     const soundPlayedRef = useRef(false);
     // ✅ État : activer/désactiver le son
     const [soundEnabled, setSoundEnabled] = useState(true);
-    
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
@@ -78,6 +82,7 @@ const Dashboard = () => {
             setData({
                 kpis: d.kpis || INITIAL_DATA.kpis,
                 ventes_chart: Array.isArray(d.ventes_chart) ? d.ventes_chart : [],
+                benefices_chart: Array.isArray(d.benefices_chart) ? d.benefices_chart : [],  // ✅ NOUVEAU
                 ventes_jour_chart: Array.isArray(d.ventes_jour_chart) ? d.ventes_jour_chart : [],
                 ventes_semaine: Array.isArray(d.ventes_semaine) ? d.ventes_semaine : [],
                 top_produits: Array.isArray(d.top_produits) ? d.top_produits : [],
@@ -100,37 +105,27 @@ const Dashboard = () => {
         }
     }, [isAuthenticated, token, loadDashboard]);
 
-// ========== EFFET SONORE : BOUCLE TANT QU'IL Y A DES ALERTES ==========
-useEffect(() => {
-    // Récupérer les compteurs d'alertes
-    const totalRupture = data.alertes?.total_rupture || 0;
-    const totalStockBas = data.alertes?.total_stock_bas || 0;
+    // ========== EFFET SONORE : BOUCLE TANT QU'IL Y A DES ALERTES ==========
+    useEffect(() => {
+        const totalRupture = data.alertes?.total_rupture || 0;
+        const totalStockBas = data.alertes?.total_stock_bas || 0;
+        const hasAlerts = totalRupture > 0 || totalStockBas > 0;
 
-    // Conditions : son activé ET au moins une alerte
-    const hasAlerts = totalRupture > 0 || totalStockBas > 0;
+        if (soundEnabled && hasAlerts) {
+            const type = totalRupture > 0 ? 'critical' : 'warning';
+            startAlertLoop(type, 5000);
+        } else {
+            stopAlertLoop();
+        }
 
-    if (soundEnabled && hasAlerts) {
-        // Rupture → son critique (prioritaire)
-        // Stock bas → son d'avertissement
-        const type = totalRupture > 0 ? 'critical' : 'warning';
+        return () => {
+            stopAlertLoop();
+        };
+    }, [data.alertes, soundEnabled, startAlertLoop, stopAlertLoop]);
 
-        // ✅ Démarrer la boucle (répète toutes les 5 secondes)
-        startAlertLoop(type, 5000);
-    } else {
-        // ✅ Stopper la boucle si :
-        //    - Son désactivé
-        //    - OU plus d'alertes
-        stopAlertLoop();
-    }
-
-    // ✅ Cleanup : stopper la boucle au démontage ou changement
-    return () => {
-        stopAlertLoop();
-    };
-}, [data.alertes, soundEnabled, startAlertLoop, stopAlertLoop]);
     // ========== REFRESH AVEC RESET DU SON ==========
     const handleRefresh = useCallback(() => {
-        soundPlayedRef.current = false;   
+        soundPlayedRef.current = false;
         loadDashboard();
     }, [loadDashboard]);
 
@@ -138,7 +133,6 @@ useEffect(() => {
     const toggleSound = useCallback(() => {
         setSoundEnabled(prev => {
             const newValue = !prev;
-            // Si on réactive, on réinitialise le verrou pour rejouer
             if (newValue) soundPlayedRef.current = false;
             return newValue;
         });
@@ -240,6 +234,7 @@ useEffect(() => {
     const {
         kpis,
         ventes_chart,
+        benefices_chart = [],       // ✅ NOUVEAU
         ventes_jour_chart = [],
         ventes_semaine = [],
         top_produits,
@@ -248,6 +243,9 @@ useEffect(() => {
         dernieres_factures,
         dernieres_commandes
     } = data;
+
+    // ✅ Total du bénéfice sur 30 jours (pour le badge du graphique)
+    const totalBenefices30j = benefices_chart.reduce((s, d) => s + (d.benefice || 0), 0);
 
     // ========== RENDU ==========
     return (
@@ -287,6 +285,27 @@ useEffect(() => {
                 </div>
             </div>
 
+            {/* ==================== BANDEAU COÛTS MANQUANTS ==================== */}
+            {kpis.produits_sans_cout > 0 && (
+                <div className="cost-warning-banner">
+                    <AlertCircle size={20} />
+                    <div className="cost-warning-content">
+                        <strong>
+                            {kpis.produits_sans_cout} produit(s) sans coût d'achat
+                        </strong>
+                        <span>
+                            Complétez-les pour un bénéfice 100 % fiable
+                        </span>
+                    </div>
+                    <button
+                        className="btn btn-warning"
+                        onClick={() => navigate(`/${slug}/produits?filtre=sans_cout`)}
+                    >
+                        Compléter maintenant
+                    </button>
+                </div>
+            )}
+
             {/* ==================== ALERTES ==================== */}
             {(alertes.total_rupture > 0 || alertes.total_stock_bas > 0) && (
                 <div className="alerts-banner">
@@ -301,7 +320,7 @@ useEffect(() => {
                                 <span>produit(s) en rupture</span>
                                 <button
                                     className="alert-link"
-                                    onClick={() => navigate(`/${slug}/produits`)}
+                                    onClick={() => navigate(`/${slug}/alertes`)}
                                 >
                                     Voir <ChevronRight size={14} />
                                 </button>
@@ -313,7 +332,7 @@ useEffect(() => {
                                 <span>produit(s) en stock bas</span>
                                 <button
                                     className="alert-link"
-                                    onClick={() => navigate(`/${slug}/produits`)}
+                                    onClick={() => navigate(`/${slug}/alertes`)}
                                 >
                                     Voir <ChevronRight size={14} />
                                 </button>
@@ -383,13 +402,30 @@ useEffect(() => {
                     </div>
                 </div>
 
+                {/* ✅ NOUVEAU : Bénéfice du jour */}
                 <div className="kpi-card">
                     <div className="kpi-icon kpi-benefices">
+                        <Coins size={24} />
+                    </div>
+                    <div className="kpi-content">
+                        <span className="kpi-label">Bénéfice du jour</span>
+                        <span className="kpi-value">{formatMontant(kpis.benefices_jour)}</span>
+                    </div>
+                </div>
+
+                {/* ✅ NOUVEAU : Marge moyenne + Bénéfice du mois */}
+                <div className="kpi-card">
+                    <div className="kpi-icon kpi-marge">
                         <TrendingUp size={24} />
                     </div>
                     <div className="kpi-content">
-                        <span className="kpi-label">Bénéfices (mois)</span>
-                        <span className="kpi-value">{formatMontant(kpis.benefices_mois)}</span>
+                        <span className="kpi-label">Marge moyenne</span>
+                        <span className="kpi-value">
+                            {(kpis.marge_moyenne_pct || 0).toFixed(1)} %
+                        </span>
+                        <span className="kpi-sub">
+                            Bénéfice mois : {formatMontant(kpis.benefices_mois)}
+                        </span>
                     </div>
                 </div>
             </div>
@@ -505,7 +541,6 @@ useEffect(() => {
                     <div className="dashboard-card chart-card">
                         <div className="card-header">
                             <h3>Ventes du jour</h3>
-                           
                         </div>
                         <div className="card-body">
                             {ventes_jour_chart.some(h => h.montant > 0) ? (
@@ -548,6 +583,80 @@ useEffect(() => {
                                     <Clock size={36} />
                                     <p>Aucune vente aujourd'hui</p>
                                     <span>Les ventes apparaîtront au fur et à mesure</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            {/* ==================== SECTION 1.5 : BÉNÉFICES 30 JOURS ==================== */}
+            <section className="dashboard-section">
+                <div className="dashboard-row">
+                    <div className="dashboard-card chart-card" style={{ gridColumn: '1 / -1' }}>
+                        <div className="card-header">
+                            <h3>Bénéfices - 30 derniers jours</h3>
+                            <span className="card-badge">
+                                {formatMontant(totalBenefices30j)}
+                            </span>
+                        </div>
+                        <div className="card-body">
+                            {benefices_chart.some(d => d.ca > 0 || d.benefice > 0) ? (
+                                <ResponsiveContainer width="100%" height={260}>
+                                    <ComposedChart data={benefices_chart}>
+                                        <defs>
+                                            <linearGradient id="colorCA" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.35} />
+                                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                                        <XAxis
+                                            dataKey="date"
+                                            tickFormatter={(d) => {
+                                                const date = new Date(d);
+                                                return `${date.getDate()}/${date.getMonth() + 1}`;
+                                            }}
+                                            tick={{ fontSize: 10, fill: '#64748b' }}
+                                            interval={Math.floor(benefices_chart.length / 8)}
+                                        />
+                                        <YAxis
+                                            tickFormatter={formatMontantCourt}
+                                            tick={{ fontSize: 10, fill: '#64748b' }}
+                                            width={45}
+                                        />
+                                        <Tooltip
+                                            formatter={(v, name) => [formatMontant(v), name]}
+                                            labelFormatter={(d) => new Date(d).toLocaleDateString('fr-FR')}
+                                        />
+                                        <Legend
+                                            wrapperStyle={{ fontSize: '12px', paddingTop: '6px' }}
+                                        />
+                                        {/* Zone CA (bleu) */}
+                                        <Area
+                                            type="monotone"
+                                            dataKey="ca"
+                                            name="CA"
+                                            stroke="#3b82f6"
+                                            strokeWidth={2}
+                                            fill="url(#colorCA)"
+                                        />
+                                        {/* Ligne Bénéfice (vert) */}
+                                        <Line
+                                            type="monotone"
+                                            dataKey="benefice"
+                                            name="Bénéfice"
+                                            stroke="#10b981"
+                                            strokeWidth={2.5}
+                                            dot={{ r: 2, fill: '#10b981' }}
+                                            activeDot={{ r: 5 }}
+                                        />
+                                    </ComposedChart>
+                                </ResponsiveContainer>
+                            ) : (
+                                <div className="empty-chart">
+                                    <TrendingDown size={36} />
+                                    <p>Aucune vente sur les 30 derniers jours</p>
                                 </div>
                             )}
                         </div>
@@ -720,7 +829,7 @@ useEffect(() => {
                             )}
                         </div>
                     </div>
-                </div>
+                </div> 
             </section>
         </div>
     );

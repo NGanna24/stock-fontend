@@ -1,4 +1,4 @@
-/* pages/CommandesAchat/CommandesAchat.css - UI/UX Moderne */
+/* pages/CommandesAchat/CommandesAchats.css - UI/UX Moderne */
 
 /* ============================================================
    VARIABLES & THEME
@@ -473,16 +473,28 @@
 }
 
 /* ============================================================
-   VUE LISTE
+   VUE LISTE — TABLEAU
+   ✅ Le scroll horizontal est géré par .commandes-table-scroll
+   ✅ Le menu 3 points passe par un PORTAL (voir .dropdown-portal-menu)
    ============================================================ */
+.commandes-table-scroll {
+  /* ✅ Wrapper scrollable qui NE COUPE PAS les menus en portal */
+  overflow-x: auto;
+  overflow-y: visible;
+  margin-bottom: 20px;
+  /* ✅ Important : le portal sort de ce contexte, donc pas de clipping */
+}
+
 .commandes-table-container {
   background: var(--surface);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  overflow: visible;
-  margin-bottom: 20px;
-  overflow-x: auto;
+  /* ❌ PLUS d'overflow-x: auto ici (c'était le bug) */
+  /* ❌ PLUS de overflow: visible non plus */
+  position: relative;
+  /* ✅ On laisse le contenu respirer */
 }
+
 .commandes-table {
   width: 100%;
   border-collapse: collapse;
@@ -552,6 +564,7 @@
   padding: 8px 12px;
   white-space: nowrap;
   width: 80px;
+  /* ✅ z-index géré par le portal — pas besoin ici */
 }
 
 .actions-menu-wrapper {
@@ -599,27 +612,34 @@
   color: var(--text-primary);
 }
 
-.actions-dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  right: 0;
+/* ============================================================
+   DROPDOWN PORTAL (nouveau menu 3 points - jamais coupé)
+   ============================================================ */
+.dropdown-trigger-wrapper {
+  display: inline-block;
+}
+
+.dropdown-portal-menu {
   min-width: 220px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
   padding: 6px;
-  z-index: 100;
   animation: dropdownFadeIn 0.15s ease;
   text-align: left;
 }
 
-@keyframes dropdownFadeIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
+.dropdown-portal-menu.placement-top {
+  /* menu ouvert au-dessus du bouton */
+  transform-origin: bottom right;
+}
+.dropdown-portal-menu.placement-bottom {
+  /* menu ouvert en dessous du bouton */
+  transform-origin: top right;
 }
 
-.dropdown-action {
+.dropdown-portal-menu .dropdown-action {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -635,20 +655,88 @@
   text-align: left;
   font-family: inherit;
 }
-.dropdown-action:hover:not(:disabled) {
+.dropdown-portal-menu .dropdown-action:hover:not(:disabled) {
   background: var(--bg);
 }
-.dropdown-action:disabled {
+.dropdown-portal-menu .dropdown-action:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.dropdown-action.warning { color: var(--warning); }
-.dropdown-action.warning:hover:not(:disabled) { background: #fef3c7; }
-.dropdown-action.danger { color: var(--danger); }
-.dropdown-action.danger:hover:not(:disabled) { background: #fce4ec; }
-.dropdown-action svg { flex-shrink: 0; }
+.dropdown-portal-menu .dropdown-action.warning {
+  color: var(--warning);
+}
+.dropdown-portal-menu .dropdown-action.warning:hover:not(:disabled) {
+  background: #fef3c7;
+}
+.dropdown-portal-menu .dropdown-action.danger {
+  color: var(--danger);
+}
+.dropdown-portal-menu .dropdown-action.danger:hover:not(:disabled) {
+  background: #fce4ec;
+}
+.dropdown-portal-menu .dropdown-action svg {
+  flex-shrink: 0;
+}
+.dropdown-portal-menu .dropdown-separator {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 8px;
+}
 
-.dropdown-separator {
+/* ============================================================
+   ANCIEN DROPDOWN (conservé pour compatibilité / fallback)
+   ✅ z-index élevé pour éviter les coupures si jamais utilisé
+   ============================================================ */
+.actions-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 220px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  padding: 6px;
+  z-index: 9999;
+  animation: dropdownFadeIn 0.15s ease;
+  text-align: left;
+}
+
+@keyframes dropdownFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.actions-dropdown .dropdown-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: left;
+  font-family: inherit;
+}
+.actions-dropdown .dropdown-action:hover:not(:disabled) {
+  background: var(--bg);
+}
+.actions-dropdown .dropdown-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.actions-dropdown .dropdown-action.warning { color: var(--warning); }
+.actions-dropdown .dropdown-action.warning:hover:not(:disabled) { background: #fef3c7; }
+.actions-dropdown .dropdown-action.danger { color: var(--danger); }
+.actions-dropdown .dropdown-action.danger:hover:not(:disabled) { background: #fce4ec; }
+.actions-dropdown .dropdown-action svg { flex-shrink: 0; }
+
+.actions-dropdown .dropdown-separator {
   height: 1px;
   background: var(--border);
   margin: 4px 8px;
@@ -1201,178 +1289,6 @@
 }
 
 /* ============================================================
-   LIGNES TABLEAU (ancien — conservé au cas où)
-   ============================================================ */
-.lignes-table-container {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  margin-bottom: 14px;
-  overflow-x: auto;
-}
-.lignes-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 14px;
-  background: var(--bg);
-  border-bottom: 1px solid var(--border);
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-.lignes-count {
-  font-weight: 500;
-}
-.lignes-total strong {
-  color: var(--text-primary);
-}
-
-.lignes-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  min-width: 600px;
-}
-.lignes-table thead {
-  background: var(--bg);
-}
-.lignes-table th {
-  padding: 8px 12px;
-  text-align: left;
-  font-weight: 600;
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--border);
-  font-size: 11px;
-  text-transform: uppercase;
-}
-.lignes-table td {
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: middle;
-}
-.lignes-table tbody tr:hover {
-  background: var(--bg);
-}
-.lignes-table .editing-row td {
-  background: #fef3c7 !important;
-  padding: 4px 8px !important;
-}
-.lignes-table .total-row {
-  font-weight: 600;
-  background: var(--bg);
-}
-.lignes-table .total-row td {
-  padding: 10px 12px;
-}
-
-.ligne-produit {
-  display: flex;
-  flex-direction: column;
-}
-.ligne-nom {
-  font-weight: 500;
-  color: var(--text-primary);
-}
-.ligne-modele {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-.ligne-quantite {
-  font-weight: 500;
-}
-.ref-cell {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.ligne-actions {
-  display: flex;
-  gap: 4px;
-}
-.btn-edit-ligne {
-  background: none;
-  border: none;
-  color: var(--warning);
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-  transition: var(--transition);
-}
-.btn-edit-ligne:hover {
-  background: #fef3c7;
-}
-.btn-remove-ligne {
-  background: none;
-  border: none;
-  color: var(--danger);
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-  transition: var(--transition);
-}
-.btn-remove-ligne:hover {
-  background: #fce4ec;
-}
-.btn-save-edit {
-  background: none;
-  border: none;
-  color: var(--success);
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-  transition: var(--transition);
-}
-.btn-save-edit:hover {
-  background: #d1fae5;
-}
-.btn-cancel-edit {
-  background: none;
-  border: none;
-  color: var(--danger);
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 4px;
-  transition: var(--transition);
-}
-.btn-cancel-edit:hover {
-  background: #fce4ec;
-}
-
-.empty-lignes {
-  text-align: center;
-  padding: 28px 20px;
-  color: var(--text-muted);
-}
-.empty-lignes p {
-  margin: 6px 0;
-  font-size: 14px;
-}
-.empty-lignes small {
-  font-size: 12px;
-}
-
-.add-ligne-section {
-  padding-top: 14px;
-  border-top: 1px solid var(--border);
-}
-.add-ligne-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-}
-.add-ligne-title {
-  font-weight: 600;
-  margin: 0;
-  color: var(--text-primary);
-  font-size: 13px;
-}
-.add-ligne-hint {
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-/* ============================================================
    DÉTAILS
    ============================================================ */
 .detail-header {
@@ -1722,27 +1638,27 @@
    SCROLLBARS
    ============================================================ */
 .modal-content::-webkit-scrollbar,
-.commandes-table-container::-webkit-scrollbar,
+.commandes-table-scroll::-webkit-scrollbar,
 .detail-lignes-wrapper::-webkit-scrollbar,
 .lignes-table-container::-webkit-scrollbar {
   width: 5px;
   height: 5px;
 }
 .modal-content::-webkit-scrollbar-track,
-.commandes-table-container::-webkit-scrollbar-track,
+.commandes-table-scroll::-webkit-scrollbar-track,
 .detail-lignes-wrapper::-webkit-scrollbar-track,
 .lignes-table-container::-webkit-scrollbar-track {
   background: var(--bg);
 }
 .modal-content::-webkit-scrollbar-thumb,
-.commandes-table-container::-webkit-scrollbar-thumb,
+.commandes-table-scroll::-webkit-scrollbar-thumb,
 .detail-lignes-wrapper::-webkit-scrollbar-thumb,
 .lignes-table-container::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 3px;
 }
 .modal-content::-webkit-scrollbar-thumb:hover,
-.commandes-table-container::-webkit-scrollbar-thumb:hover,
+.commandes-table-scroll::-webkit-scrollbar-thumb:hover,
 .detail-lignes-wrapper::-webkit-scrollbar-thumb:hover,
 .lignes-table-container::-webkit-scrollbar-thumb:hover {
   background: var(--text-muted);
@@ -2010,9 +1926,7 @@
 }
 
 /* ══════════════════════════════════════════════════════════════
-   ══════════════════════════════════════════════════════════════
    NOUVEAU MODAL COMMANDE — UI/UX REPENSÉE (SPLIT-VIEW)
-   ══════════════════════════════════════════════════════════════
    ══════════════════════════════════════════════════════════════ */
 
 /* ==================== MODAL WRAPPER ==================== */

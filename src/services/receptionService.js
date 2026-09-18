@@ -194,7 +194,7 @@ class ReceptionService {
             const message = error.response.data?.message || error.response.statusText || 'Erreur serveur';
             return new Error(message);
         } else if (error.request) {
-            return new Error('Impossible de contacter le serveur. Vérifiez votre connexion.');
+            return new Error(' Vérifiez votre connexion.');
         } else {
             return new Error(error.message || 'Erreur inattendue');
         }

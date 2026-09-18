@@ -36,6 +36,7 @@ import MonMagasin from "./pages/Magasin/MonMagasin";
 import Employes from "./pages/Employes/Employes";
 
 import ProtectedRouteByRole from "./components/ProtectedRouteByRole";
+import AssistantAchat from "./pages/AssistantAchat/AssistantAchat";
 
 // ==================== COMPOSANTS UTILITAIRES ====================
 
@@ -106,6 +107,15 @@ function AppContent() {
                         </ProtectedRoute>
                     }
                 >
+
+                    <Route
+                        path="assistant-achat"
+                        element={
+                            <ProtectedRouteByRole itemId="commandes-achat">
+                                <AssistantAchat />
+                            </ProtectedRouteByRole>
+                        }
+                    />
                     <Route index element={<Dashboard />} />
 
                     {/* ---------- Toujours accessible (connecté) ---------- */}
@@ -179,6 +189,7 @@ function AppContent() {
                             </ProtectedRouteByRole>
                         }
                     />
+
 
                     {/* ---------- CATALOGUE & STOCK ---------- */}
                     <Route
