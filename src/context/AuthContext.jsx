@@ -24,7 +24,6 @@ export function AuthContextProvider({ children }) {
                     try {
                         const parsedUser = JSON.parse(userData);
                         setUser(parsedUser);
-                        console.log('✅ Utilisateur chargé depuis localStorage:', parsedUser);
                     } catch (error) {
                         console.error('❌ Erreur de chargement des données:', error);
                         localStorage.removeItem('token');

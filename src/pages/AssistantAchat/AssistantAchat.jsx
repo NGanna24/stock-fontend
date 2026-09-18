@@ -5,7 +5,7 @@ import {
     Bot, Package, Truck, Check, X, RefreshCw, AlertCircle,
     ChevronRight, Loader, Sparkles, TrendingUp, Phone, Mail,
     MapPin, Plus, Minus, Trash2, ShoppingCart, ChevronDown,
-    ChevronUp, Info
+    ChevronUp, Info, AlertTriangle
 } from 'lucide-react';
 import AssistantAchatService from '../../services/assistantAchatService';
 import { useUser } from '../../context/AuthContext';
@@ -41,10 +41,7 @@ const AssistantAchat = () => {
     const [data, setData] = useState(null);
     const [niveau, setNiveau] = useState('normal');
 
-    // Sélection utilisateur : { id_produit: { selected: bool, quantite_uv, id_unite_vente } }
     const [selection, setSelection] = useState({});
-
-    // Accordéon fournisseurs ouverts
     const [ouverts, setOuverts] = useState({});
 
     // ============ CHARGEMENT ============
@@ -55,6 +52,7 @@ const AssistantAchat = () => {
 
         try {
             const res = await AssistantAchatService.getProposition(token, niveau);
+
             if (res.success) {
                 setData(res.data);
 
@@ -62,12 +60,18 @@ const AssistantAchat = () => {
                 const sel = {};
                 (res.data.fournisseurs || []).forEach(f => {
                     f.produits.forEach(p => {
+                        // ✅ FIX 3 : garantir au moins 1
+                        const qteProposee = Math.max(
+                            1,
+                            parseInt(p.quantite_proposee_uv, 10) || 1
+                        );
+
                         sel[p.id_produit] = {
                             selected: true,
-                            quantite_uv: p.quantite_proposee_uv,
+                            quantite_uv: qteProposee,
                             id_unite_vente: p.unite_proposee?.id_unite_vente || null,
                             nom_unite_vente: p.unite_proposee?.nom || p.unite_base_nom,
-                            quantite_base: p.unite_proposee?.quantite_base || 1,
+                            quantite_base: parseFloat(p.unite_proposee?.quantite_base) || 1,
                         };
                     });
                 });
@@ -127,14 +131,14 @@ const AssistantAchat = () => {
     };
 
     const setQuantiteExacte = (idProduit, valeur) => {
-        const qte = Math.max(1, parseInt(valeur) || 1);
+        // ✅ FIX : garantir au moins 1
+        const qte = Math.max(1, parseInt(valeur, 10) || 1);
         setSelection(prev => ({
             ...prev,
             [idProduit]: { ...prev[idProduit], quantite_uv: qte },
         }));
     };
 
-    // ============ ACCORDÉON ============
     const toggleAccordion = (key) => {
         setOuverts(prev => ({ ...prev, [key]: !prev[key] }));
     };
@@ -154,14 +158,8 @@ const AssistantAchat = () => {
                 if (s?.selected) {
                     produits += 1;
                     hasSelected = true;
-                    // Calcul du montant
                     const prixUnitaire = p.prix_unitaire;
-                    const qteTotaleBase = s.quantite_uv * (s.quantite_base || 1);
-
                     if (prixUnitaire) {
-                        // Si prix est en UV, on multiplie par la quantité UV
-                        // Sinon on multiplie par la quantité base
-                        // Note : on suppose ici que le prix_unitaire correspond à l'unité de vente
                         montant += s.quantite_uv * prixUnitaire;
                     } else {
                         montantInconnu += 1;
@@ -181,6 +179,8 @@ const AssistantAchat = () => {
 
     // ============ CRÉATION ============
     const handleCreer = async () => {
+       
+
         if (totalSelectionne.produits === 0) {
             alert('Veuillez sélectionner au moins un produit');
             return;
@@ -192,43 +192,72 @@ const AssistantAchat = () => {
 
         setSaving(true);
         try {
-            // Construire les groupes
             const groupes = [];
             (data.fournisseurs || []).forEach(f => {
-                if (!f.id_fournisseur) return; // on saute "sans fournisseur"
+
+                if (!f.id_fournisseur) {
+                    return;
+                }
+
                 const lignes = [];
                 f.produits.forEach(p => {
                     const s = selection[p.id_produit];
-                    if (!s?.selected) return;
-                    const qteBase = s.quantite_uv * (s.quantite_base || 1);
-                    lignes.push({
+
+                    if (!s?.selected) {
+                        return;
+                    }
+
+                    // ✅ FIX 3 : garantir au moins 1
+                    const qteUV = Math.max(1, parseInt(s.quantite_uv, 10) || 1);
+                    const qteBase = parseFloat(s.quantite_base) || 1;
+                    const qteTotaleBase = qteUV * qteBase;
+
+                    const ligne = {
                         id_produit: p.id_produit,
-                        id_unite_vente: s.id_unite_vente,
-                        nom_unite_vente: s.nom_unite_vente,
-                        quantite_base: s.quantite_base,
-                        quantite: s.quantite_uv,
-                        quantite_totale_base: qteBase,
+                        id_unite_vente: s.id_unite_vente || null,
+                        nom_unite_vente: s.nom_unite_vente || 'Unité',
+                        quantite_base: qteBase,
+                        quantite: qteUV,
+                        quantite_totale_base: qteTotaleBase,
                         prix_achat: p.prix_unitaire || null,
-                    });
+                    };
+
+                    lignes.push(ligne);
                 });
+
                 if (lignes.length > 0) {
                     groupes.push({ id_fournisseur: f.id_fournisseur, lignes });
                 }
             });
 
+
             if (groupes.length === 0) {
-                alert('Aucun groupe valide à créer (fournisseurs manquants ?)');
+                alert('Aucun groupe valide à créer');
                 return;
             }
 
-            const res = await AssistantAchatService.creerBons(token, {
+            const payload = {
                 date_commande: new Date().toISOString().split('T')[0],
                 notes: 'Commande générée par l\'assistant',
                 groupes,
-            });
+            };
+
+
+            const res = await AssistantAchatService.creerBons(token, payload);
+
 
             if (res.success) {
-                alert(res.message);
+                const nbCrees = res.data?.total_crees || 0;
+                const nbErreurs = res.data?.total_erreurs || 0;
+
+                if (nbErreurs > 0) {
+                    const detail = (res.data?.erreurs || [])
+                        .map(e => `• Fournisseur #${e.id_fournisseur}: ${e.message}`)
+                        .join('\n');
+                    alert(`${nbCrees} bon(s) créé(s).\n${nbErreurs} erreur(s) :\n${detail}`);
+                } else {
+                    alert(res.message || `${nbCrees} bon(s) créé(s) avec succès`);
+                }
                 navigate(`/${slug}/commandes-achat`);
             } else {
                 alert(res.message || 'Erreur lors de la création');
@@ -263,7 +292,6 @@ const AssistantAchat = () => {
         );
     }
 
-    // ============ VIDE ============
     if (!data || data.total_produits === 0) {
         return (
             <div className="assistant-container">
@@ -297,7 +325,6 @@ const AssistantAchat = () => {
 
     return (
         <div className="assistant-container">
-
             {/* ==================== HEADER ==================== */}
             <div className="assistant-header">
                 <div>
@@ -369,7 +396,6 @@ const AssistantAchat = () => {
 
                     return (
                         <div key={key} className={`fournisseur-bloc ${isOpen ? 'open' : ''}`}>
-                            {/* Header fournisseur */}
                             <div className="fournisseur-header">
                                 <button
                                     className="fournisseur-toggle"
@@ -422,7 +448,6 @@ const AssistantAchat = () => {
                                 </div>
                             </div>
 
-                            {/* Produits */}
                             {isOpen && (
                                 <div className="fournisseur-produits">
                                     {f.produits.map(p => {
@@ -449,6 +474,11 @@ const AssistantAchat = () => {
                                                             {p.type_alerte === 'rupture' ? 'Rupture' : 'Stock bas'}
                                                         </span>
                                                         <span>Stock : <strong>{p.quantite_stock}</strong> / min {p.quantite_minimale}</span>
+                                                        {p.quantite_en_commande > 0 && (
+                                                            <span className="en-commande">
+                                                                ⏳ {p.quantite_en_commande} en commande
+                                                            </span>
+                                                        )}
                                                         {p.ventes_30j_base > 0 && (
                                                             <span className="vitesse">
                                                                 <TrendingUp size={12} />
@@ -471,8 +501,14 @@ const AssistantAchat = () => {
                                                         className="qte-input"
                                                         value={s?.quantite_uv || 1}
                                                         onChange={(e) => setQuantiteExacte(p.id_produit, e.target.value)}
+                                                        onBlur={(e) => {
+                                                            if (!e.target.value || parseInt(e.target.value, 10) < 1) {
+                                                                setQuantiteExacte(p.id_produit, 1);
+                                                            }
+                                                        }}
                                                         disabled={!isSel}
                                                         min="1"
+                                                        step="1"
                                                     />
                                                     <button
                                                         className="qte-btn"

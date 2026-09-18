@@ -1433,7 +1433,6 @@ input[type="number"] {
 .qte-input-group:has(.input-invalide) .qte-input-suffix {
   background: #fee2e2;
   color: #991b1b;
-  border-left-color: #fca5a5;
 }
 
 /* Écart */
