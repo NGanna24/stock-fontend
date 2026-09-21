@@ -32,13 +32,13 @@ SEARCH: {
     GLOBAL: (q, limit = 5) =>
         `${BASE_URL}/api/search?q=${encodeURIComponent(q)}&limit=${limit}`,
 },
-    // ==================== URLS AUTH ====================
+    // ==================== URLS AUTH ==================== 
     AUTH: {
         REGISTER: `${BASE_URL}/api/utilisateur/register`,   
         LOGIN: `${BASE_URL}/api/utilisateur/login`,         
         PROFILE: `${BASE_URL}/api/utilisateur/profile`,     
         PROFILE_BY_SLUG: (slug) => `${BASE_URL}/api/utilisateur/profile/${slug}`,
-        LOGOUT: `${BASE_URL}/api/utilisateur/logout`,      
+        LOGOUT: `${BASE_URL}/api/utilisateur/logout`,       
         CHANGE_PASSWORD: `${BASE_URL}/api/utilisateur/change-password`, 
     },
     // ==================== URLS MAGASIN ====================

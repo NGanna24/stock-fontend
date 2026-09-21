@@ -233,53 +233,82 @@ const Receptions = () => {
     }
   }, [formData.id_commande_achat, commandesDisponibles]);
 
-  const chargerDetailsCommande = async (idCommande) => {
+const chargerDetailsCommande = async (idCommande) => {
     setLoading(true);
     try {
-      const response = await CommandeAchatService.getCommandeById(token, idCommande);
-      if (response.success && response.data) {
-        const commande = response.data;
+        const response = await CommandeAchatService.getCommandeById(token, idCommande);
+        if (response.success && response.data) {
+            const commande = response.data;
 
-        const lignesReception = (commande.lignes || []).map(l => {
-          const qteBase = parseFloat(l.quantite_base) || 1;
-          const quantiteCommandee = parseFloat(l.quantite) || 0;
-          const prixAchatUV = l.prix_achat !== null && l.prix_achat !== undefined
-            ? parseFloat(l.prix_achat)
-            : null;
+            const lignesReception = (commande.lignes || []).map(l => {
+                const qteBase = parseFloat(l.quantite_base) || 1;
 
-          return {
-            id_produit: l.id_produit,
-            id_ligne_achat: l.id_ligne_achat || null,
-            produit_nom: l.produit_nom || 'Produit inconnu',
-            produit_reference: l.reference || '',
-            id_unite_vente: l.id_unite_vente || null,
-            nom_unite_vente: l.nom_unite_vente || l.unite_vente_nom || 'Unité',
-            quantite_base: qteBase,
-            quantite_commandee: quantiteCommandee,
-            quantite_totale_base_commandee: quantiteCommandee * qteBase,
-            quantite_recue: quantiteCommandee,
-            quantite_totale_base: quantiteCommandee * qteBase,
-            ecart: 0,
-            prix_achat_unite_vente: prixAchatUV,
-            unite: l.nom_unite_vente || l.unite_symbole || '',
-            valide: true,
-            etat_marchandise: 'bon',
-            num_lot: '',
-            date_peremption: '',
-            notes: ''
-          };
-        });
+                // ✅ On utilise le reste à recevoir renvoyé par le back
+                const resteUV = l.reste_a_recevoir !== undefined
+                    ? parseFloat(l.reste_a_recevoir) || 0
+                    : parseFloat(l.quantite) || 0;
 
-        setFormData(prev => ({ ...prev, lignes: lignesReception }));
-        setToutValide(lignesReception.every(l => l.valide === true));
-      }
+                const dejaRecueUV = l.quantite_deja_recue !== undefined
+                    ? parseFloat(l.quantite_deja_recue) || 0
+                    : 0;
+
+                const totalCommandeUV = parseFloat(l.quantite) || 0;
+
+                const prixAchatUV = l.prix_achat !== null && l.prix_achat !== undefined
+                    ? parseFloat(l.prix_achat)
+                    : null;
+
+                return {
+                    id_produit: l.id_produit,
+                    id_ligne_achat: l.id_ligne_achat || null,
+                    produit_nom: l.produit_nom || 'Produit inconnu',
+                    produit_reference: l.reference || '',
+                    id_unite_vente: l.id_unite_vente || null,
+                    nom_unite_vente: l.nom_unite_vente || l.unite_vente_nom || 'Unité',
+                    quantite_base: qteBase,
+
+                    // ✅ reste à recevoir (utilisé dans l'UI)
+                    quantite_commandee: resteUV,
+
+                    // ℹ️ infos affichées en bonus
+                    quantite_totale_commandee: totalCommandeUV,
+                    quantite_deja_recue: dejaRecueUV,
+
+                    quantite_totale_base_commandee: totalCommandeUV * qteBase,
+                    quantite_recue: resteUV,
+                    quantite_totale_base: resteUV * qteBase,
+                    ecart: 0,
+                    prix_achat_unite_vente: prixAchatUV,
+                    unite: l.nom_unite_vente || l.unite_symbole || '',
+                    valide: true,
+                    etat_marchandise: 'bon',
+                    num_lot: '',
+                    date_peremption: '',
+                    notes: ''
+                };
+            });
+
+            // ✅ Cas : commande déjà totalement reçue
+            const rienARecevoir = lignesReception.length === 0
+                || lignesReception.every(l => l.quantite_commandee <= 0);
+
+            if (rienARecevoir) {
+                setError('Cette commande a déjà été entièrement reçue.');
+                setFormData(prev => ({ ...prev, lignes: [] }));
+                setToutValide(false);
+                return;
+            }
+
+            setFormData(prev => ({ ...prev, lignes: lignesReception }));
+            setToutValide(lignesReception.every(l => l.valide === true));
+        }
     } catch (error) {
-      console.error('❌ Erreur lors du chargement des détails:', error);
-      setError('Impossible de charger les détails de la commande');
+        console.error('❌ Erreur lors du chargement des détails:', error);
+        setError('Impossible de charger les détails de la commande');
     } finally {
-      setLoading(false);
+        setLoading(false);
     }
-  };
+};
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -308,20 +337,23 @@ const Receptions = () => {
     setToutValide(nouvellesLignes.every(l => l.valide === true));
   };
 
-  const validerTout = () => {
+const validerTout = () => {
     const nouvellesLignes = formData.lignes.map(l => {
-      const qteBase = l.quantite_base || 1;
-      return {
-        ...l,
-        valide: true,
-        quantite_recue: l.quantite_commandee,
-        quantite_totale_base: l.quantite_commandee * qteBase,
-        ecart: 0
-      };
+        // ✅ Ne pas écraser les lignes déjà validées
+        if (l.valide === true) return l;
+
+        const qteBase = l.quantite_base || 1;
+        return {
+            ...l,
+            valide: true,
+            quantite_recue: l.quantite_commandee,
+            quantite_totale_base: l.quantite_commandee * qteBase,
+            ecart: 0
+        };
     });
     setFormData({ ...formData, lignes: nouvellesLignes });
     setToutValide(true);
-  };
+};
 
   const deselectionnerTout = () => {
     const nouvellesLignes = formData.lignes.map(l => ({
@@ -403,11 +435,14 @@ const Receptions = () => {
     setTimeout(() => pickerInputRef.current?.focus(), 50);
   };
 
-  const handlePickerSelect = (commande) => {
-    setFormData(prev => ({ ...prev, id_commande_achat: commande.id_commande_achat }));
+const handlePickerSelect = (commande) => {
+    setFormData(prev => ({
+        ...prev,
+        id_commande_achat: commande.id_commande_achat  // number
+    }));
     setPickerOpen(false);
     setPickerSearch("");
-  };
+};
 
   const handlePickerClear = () => {
     setFormData(prev => ({ ...prev, id_commande_achat: "", lignes: [] }));

@@ -48,7 +48,7 @@ export function AuthContextProvider({ children }) {
         try {
             const response = await axios.post(API_URL.AUTH.LOGIN, credentials);
             
-            console.log('✅ Connexion réussie:', response.data);
+            console.log('Connexion réussie:', response.data);
             
             if (response.data.token) {
                 localStorage.setItem('token', response.data.token);

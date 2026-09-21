@@ -1422,7 +1422,7 @@ const CommandesAchat = () => {
             <option value="recue">Reçue</option>
             <option value="annulee">Annulée</option>
           </select>
-          <select
+          <select 
             className="filter-select"
             value={filterPeriode}
             onChange={(e) => setFilterPeriode(e.target.value)}
@@ -1557,7 +1557,7 @@ const CommandesAchat = () => {
           MODAL - NOUVELLE COMMANDE / ÉDITION (SPLIT-VIEW)
           ============================================================ */}
       {showModal && (
-        <div className="modal-overlay" onClick={() => !saving && setShowModal(false)}>
+        <div className="modal-overlay">
           <div className="commande-modal" onClick={(e) => e.stopPropagation()}>
 
             {/* ================= HEADER ================= */}
