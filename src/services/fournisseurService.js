@@ -264,6 +264,28 @@ class FournisseurService {
     }
 
     /**
+ * Récupérer les produits reçus d'un fournisseur
+ * (avec quantité max retournable)
+ */
+static async getProduitsRecus(token, idFournisseur) {
+    try {
+        const response = await axios.get(
+            API_URL.FOURNISSEUR.GET_PRODUITS_RECUS(idFournisseur),
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            }
+        );
+        return response.data;
+    } catch (error) {
+        console.error('❌ GetProduitsRecus error:', error);
+        throw this.handleError(error);
+    }
+}
+
+    /**
      * Exporter les fournisseurs
      */
     static async exportFournisseurs(token) {

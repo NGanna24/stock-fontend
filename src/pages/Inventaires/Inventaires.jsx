@@ -1,10 +1,10 @@
 // pages/Inventaires/Inventaires.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import {
     Search, Eye, Plus, X, RefreshCw, ClipboardList,
-    Calendar, CheckCircle, Clock, Ban, AlertCircle,
-    PlayCircle, ChevronLeft, ChevronRight, Trash2
+    Calendar, CheckCircle, Clock, Ban, PlayCircle,
+    ChevronLeft, ChevronRight, Trash2, MoreVertical
 } from "lucide-react";
 import InventaireService from "../../services/inventaireService";
 import { useUser } from "../../context/AuthContext";
@@ -27,12 +27,13 @@ const Inventaires = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(10);
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [openMenuId, setOpenMenuId] = useState(null);
+    const menuRef = useRef(null);
 
     const [stats, setStats] = useState({
         total: 0, planifie: 0, en_cours: 0, termine: 0, annule: 0, aujourdhui: 0
     });
 
-    // Formulaire de création
     const [formData, setFormData] = useState({
         libelle: "",
         date_debut: new Date().toISOString().split('T')[0],
@@ -49,7 +50,17 @@ const Inventaires = () => {
         }
     }, [isAuthenticated, token]);
 
-    // ✅ Charge la LISTE (getAll) — pas getById
+    // Fermer le menu au clic extérieur
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (menuRef.current && !menuRef.current.contains(e.target)) {
+                setOpenMenuId(null);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
     const loadInventaires = async () => {
         setLoading(true);
         setError(null);
@@ -97,7 +108,6 @@ const Inventaires = () => {
                 });
                 loadInventaires();
                 loadStats();
-                // ✅ Naviguer vers le détail avec le bon id
                 navigate(`/${slug}/inventaires/${res.data.id_inventaire}`);
             }
         } catch (e) {
@@ -141,12 +151,16 @@ const Inventaires = () => {
         }
     };
 
-    // ✅ Navigation vers le détail (vérifie id_inventaire)
     const handleView = (inv) => {
+
+        
+
         const invId = inv.id_inventaire || inv.id;
-        console.log("L'id est : ",invId);
+    console.log('🎯 handleView appelé avec:', inv);
+    console.log('🎯 invId:', invId);
+    console.log('🎯 slug:', slug);
+    console.log('🎯 URL cible:', `/${slug}/inventaires/${invId}`);
         if (!invId) {
-            console.error('❌ id_inventaire manquant dans:', inv);
             alert('Erreur : identifiant d\'inventaire manquant');
             return;
         }
@@ -156,9 +170,9 @@ const Inventaires = () => {
     const getStatutBadge = (statut) => {
         const configs = {
             'planifie': { label: 'Planifié', className: 'status-planifie', icon: Clock },
-            'en_cours': { label: 'En cours',  className: 'status-en-cours', icon: PlayCircle },
-            'termine':  { label: 'Terminé',   className: 'status-termine',  icon: CheckCircle },
-            'annule':   { label: 'Annulé',    className: 'status-annule',   icon: Ban }
+            'en_cours': { label: 'En cours', className: 'status-en-cours', icon: PlayCircle },
+            'termine': { label: 'Terminé', className: 'status-termine', icon: CheckCircle },
+            'annule': { label: 'Annulé', className: 'status-annule', icon: Ban }
         };
         const c = configs[statut] || configs['planifie'];
         const Icon = c.icon;
@@ -173,6 +187,102 @@ const Inventaires = () => {
     const getTypeLabel = (type) => {
         const labels = { complet: 'Complet', partiel: 'Partiel', tournant: 'Tournant' };
         return labels[type] || type;
+    };
+
+    // ============================================================
+    // MENU 3 POINTS
+    // ============================================================
+    const renderActionsMenu = (inv) => {
+        const isOpen = openMenuId === inv.id_inventaire;
+        const isPlanifie = inv.statut === 'planifie';
+        const isEnCours = inv.statut === 'en_cours';
+        const isTermine = inv.statut === 'termine';
+        const isAnnule = inv.statut === 'annule';
+
+        return (
+            <div className="actions-menu-wrapper" ref={isOpen ? menuRef : null}>
+                <button
+                    className="action-btn btn-more"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuId(isOpen ? null : inv.id_inventaire);
+                    }}
+                    title="Plus d'actions"
+                >
+                    <MoreVertical size={16} />
+                </button>
+
+                {isOpen && (
+                    <div className="actions-dropdown" onClick={(e) => e.stopPropagation()}>
+                        <button
+                            className="dropdown-action"
+                            onClick={() => {
+                                handleView(inv);
+                                setOpenMenuId(null);
+                            }}
+                        >
+                            <Eye size={15} />
+                            <span>Voir les détails</span>
+                        </button>
+
+                        {canManage && isPlanifie && (
+                            <button
+                                className="dropdown-action primary"
+                                onClick={() => {
+                                    handleDemarrer(inv.id_inventaire);
+                                    setOpenMenuId(null);
+                                }}
+                            >
+                                <PlayCircle size={15} />
+                                <span>Démarrer l'inventaire</span>
+                            </button>
+                        )}
+
+                        {canManage && isEnCours && (
+                            <button
+                                className="dropdown-action primary"
+                                onClick={() => {
+                                    handleView(inv);
+                                    setOpenMenuId(null);
+                                }}
+                            >
+                                <ClipboardList size={15} />
+                                <span>Continuer la saisie</span>
+                            </button>
+                        )}
+
+                        {canManage && (isPlanifie || isEnCours) && (
+                            <>
+                                <div className="dropdown-separator" />
+                                <button
+                                    className="dropdown-action warning"
+                                    onClick={() => {
+                                        handleAnnuler(inv.id_inventaire);
+                                        setOpenMenuId(null);
+                                    }}
+                                >
+                                    <Ban size={15} />
+                                    <span>Annuler</span>
+                                </button>
+                            </>
+                        )}
+
+                        {canManage && (isPlanifie || isAnnule) && (
+                            <button
+                                className="dropdown-action danger"
+                                onClick={() => {
+                                    handleDelete(inv.id_inventaire);
+                                    setOpenMenuId(null);
+                                }}
+                            >
+                                <Trash2 size={15} />
+                                <span>Supprimer</span>
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
     };
 
     const filtered = inventaires;
@@ -292,7 +402,7 @@ const Inventaires = () => {
                                 <th>Lignes</th>
                                 <th>Écarts</th>
                                 <th>Statut</th>
-                                <th>Actions</th>
+                                <th style={{ width: '80px', textAlign: 'right' }}>Actions</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -312,40 +422,7 @@ const Inventaires = () => {
                                     </td>
                                     <td>{getStatutBadge(inv.statut)}</td>
                                     <td className="actions-cell">
-                                        <button
-                                            className="action-btn btn-view"
-                                            onClick={() => handleView(inv)}
-                                            title="Voir"
-                                        >
-                                            <Eye size={16} />
-                                        </button>
-                                        {inv.statut === 'planifie' && canManage && (
-                                            <button
-                                                className="action-btn btn-play"
-                                                onClick={() => handleDemarrer(inv.id_inventaire)}
-                                                title="Démarrer"
-                                            >
-                                                <PlayCircle size={16} />
-                                            </button>
-                                        )}
-                                        {(inv.statut === 'planifie' || inv.statut === 'en_cours') && canManage && (
-                                            <button
-                                                className="action-btn btn-cancel"
-                                                onClick={() => handleAnnuler(inv.id_inventaire)}
-                                                title="Annuler"
-                                            >
-                                                <Ban size={16} />
-                                            </button>
-                                        )}
-                                        {(inv.statut === 'planifie' || inv.statut === 'annule') && canManage && (
-                                            <button
-                                                className="action-btn btn-delete"
-                                                onClick={() => handleDelete(inv.id_inventaire)}
-                                                title="Supprimer"
-                                            >
-                                                <Trash2 size={16} />
-                                            </button>
-                                        )}
+                                        {renderActionsMenu(inv)}
                                     </td>
                                 </tr>
                             ))}
@@ -365,10 +442,10 @@ const Inventaires = () => {
 
             {/* Modal création */}
             {showCreateModal && (
-                <div className="modal-overlay" >
+                <div className="modal-overlay">
                     <div className="modal-content" onClick={e => e.stopPropagation()}>
                         <div className="modal-header">
-                            <h2> Nouvel inventaire</h2>
+                            <h2>Nouvel inventaire</h2>
                             <button className="modal-close" onClick={() => setShowCreateModal(false)}><X size={24} /></button>
                         </div>
                         <div className="modal-body">

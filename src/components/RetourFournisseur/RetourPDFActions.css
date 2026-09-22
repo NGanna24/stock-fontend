@@ -1,9 +1,107 @@
 /* components/RetourFournisseur/RetourPDFActions.css */
 
 /* ============================================================
-   CONTENEUR DES BOUTONS
+   MENU 3 POINTS (par défaut)
    ============================================================ */
-.pdf-actions-container {
+.retour-pdf-actions-menu {
+    position: relative;
+    display: inline-block;
+}
+
+.pdf-action-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #64748b;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+}
+
+.pdf-action-trigger:hover:not(:disabled) {
+    background: #e2e8f0;
+    color: #0f172a;
+    transform: scale(1.05);
+}
+
+.pdf-action-trigger:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pdf-action-dropdown {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    min-width: 220px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.15);
+    padding: 6px;
+    z-index: 1000;
+    animation: dropdownFadeIn 0.15s ease;
+    text-align: left;
+}
+
+@keyframes dropdownFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.pdf-action-dropdown .dropdown-action {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #0f172a;
+    cursor: pointer;
+    transition: background 0.15s;
+    text-align: left;
+    font-family: inherit;
+    font-weight: 500;
+}
+
+.pdf-action-dropdown .dropdown-action:hover:not(:disabled) {
+    background: #f1f5f9;
+}
+
+.pdf-action-dropdown .dropdown-action:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.pdf-action-dropdown .dropdown-action.primary {
+    color: #2563eb;
+}
+.pdf-action-dropdown .dropdown-action.primary:hover {
+    background: #eff6ff;
+}
+
+.pdf-action-dropdown .dropdown-action svg {
+    flex-shrink: 0;
+}
+
+.pdf-action-dropdown .dropdown-separator {
+    height: 1px;
+    background: #e2e8f0;
+    margin: 4px 8px;
+}
+
+/* ============================================================
+   MODE INLINE (boutons directs)
+   ============================================================ */
+.retour-pdf-actions-inline {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
@@ -12,11 +110,9 @@
     border-top: 1px solid #e2e8f0;
     border-radius: 0 0 12px 12px;
     justify-content: center;
+    width: 100%;
 }
 
-/* ============================================================
-   BOUTONS PDF
-   ============================================================ */
 .pdf-btn {
     display: inline-flex;
     align-items: center;
@@ -32,6 +128,7 @@
     background: white;
     color: #1a202c;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+    font-family: inherit;
 }
 
 .pdf-btn:hover:not(:disabled) {
@@ -86,10 +183,7 @@
    ============================================================ */
 .email-modal-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(0, 0, 0, 0.5);
     backdrop-filter: blur(4px);
     display: flex;
@@ -106,14 +200,8 @@
 }
 
 @keyframes slideUp {
-    from {
-        transform: translateY(30px) scale(0.98);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0) scale(1);
-        opacity: 1;
-    }
+    from { transform: translateY(30px) scale(0.98); opacity: 0; }
+    to { transform: translateY(0) scale(1); opacity: 1; }
 }
 
 .email-modal {
@@ -158,19 +246,14 @@
     border-radius: 8px;
     transition: all 0.2s ease;
 }
-
 .email-modal-close:hover {
     background: #f1f5f9;
     color: #0f172a;
 }
 
-.email-modal-body {
-    padding: 24px;
-}
+.email-modal-body { padding: 24px; }
 
-.email-modal-body .form-group {
-    margin-bottom: 16px;
-}
+.email-modal-body .form-group { margin-bottom: 16px; }
 
 .email-modal-body .form-group label {
     display: block;
@@ -191,6 +274,7 @@
     background: #f8fafc;
     color: #0f172a;
     font-family: inherit;
+    box-sizing: border-box;
 }
 
 .email-modal-body .form-input:focus,
@@ -239,6 +323,7 @@
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s ease;
+    font-family: inherit;
 }
 
 .email-modal-footer .btn-secondary {
@@ -266,10 +351,7 @@
    ============================================================ */
 .pdf-loading-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    top: 0; left: 0; right: 0; bottom: 0;
     background: rgba(255, 255, 255, 0.8);
     backdrop-filter: blur(4px);
     display: flex;
@@ -316,34 +398,22 @@
    RESPONSIVE
    ============================================================ */
 @media (max-width: 640px) {
-    .pdf-actions-container {
+    .retour-pdf-actions-inline {
         flex-direction: column;
         padding: 12px 16px;
     }
-    
     .pdf-btn {
         width: 100%;
         justify-content: center;
         padding: 12px;
     }
-    
     .email-modal {
         margin: 10px;
         max-height: 95vh;
     }
-    
-    .email-modal-header {
-        padding: 16px 18px;
-    }
-    
-    .email-modal-body {
-        padding: 16px 18px;
-    }
-    
-    .email-modal-footer {
-        flex-direction: column;
-    }
-    
+    .email-modal-header { padding: 16px 18px; }
+    .email-modal-body { padding: 16px 18px; }
+    .email-modal-footer { flex-direction: column; }
     .email-modal-footer .btn {
         width: 100%;
         justify-content: center;

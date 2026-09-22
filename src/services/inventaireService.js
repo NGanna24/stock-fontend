@@ -162,16 +162,17 @@ class InventaireService {
         }
     }
 
-    static handleError(error) {
-        if (error.response) {
-            const message = error.response.data?.message || error.response.statusText || 'Erreur serveur';
-            return new Error(message);
-        } else if (error.request) {
-            return new Error('Impossible de contacter le serveur. Vérifiez votre connexion.');
-        } else {
-            return new Error(error.message || 'Erreur inattendue');
-        }
+static handleError(error) {
+    if (error.response) {
+        console.error('📛 Réponse erreur:', error.response.data);  // ✅ Ajoute ce log
+        const message = error.response.data?.message || error.response.statusText || 'Erreur serveur';
+        return new Error(message);
+    } else if (error.request) {
+        return new Error('Impossible de contacter le serveur. Vérifiez votre connexion.');
+    } else {
+        return new Error(error.message || 'Erreur inattendue');
     }
+}
 }
 
 export default InventaireService;

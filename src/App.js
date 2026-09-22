@@ -22,8 +22,7 @@ import Paiements from "./pages/Paiements/Paiements";
 import Factures from "./pages/Factures/Factures";
 import RetoursClients from "./pages/RetoursClients/RetoursClients";
 import Mouvements from "./pages/Mouvements/Mouvements";
-import InventaireDetail from "./pages/Inventaires/Inventaires";
-import Inventaires from "./pages/Inventaires/Inventaires";
+
 import Clients from "./pages/Clients/Clients";
 import ClientDetail from "./pages/Clients/ClientDetail";
 import RapportVentes from "./pages/Rapports/RapportVentes/RapportVentes";
@@ -37,6 +36,8 @@ import Employes from "./pages/Employes/Employes";
 
 import ProtectedRouteByRole from "./components/ProtectedRouteByRole";
 import AssistantAchat from "./pages/AssistantAchat/AssistantAchat";
+import Inventaires from "./pages/Inventaires/Inventaires";
+import InventaireDetail from "./pages/Inventaires/InventaireDetail";
 
 // ==================== COMPOSANTS UTILITAIRES ====================
 

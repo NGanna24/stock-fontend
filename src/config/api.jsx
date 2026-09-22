@@ -246,6 +246,10 @@ RETOUR_CLIENT: {
         DELETE: (id) => `${BASE_URL}/api/fournisseurs/${id}`,
         ACTIVATE: (id) => `${BASE_URL}/api/fournisseurs/${id}/activate`,
         DEACTIVATE: (id) => `${BASE_URL}/api/fournisseurs/${id}/deactivate`,
+
+
+        GET_PRODUITS_RECUS: (id) => `${BASE_URL}/api/fournisseurs/${id}/produits-recu`,
+
     },
 
     // ==================== URLS COMMANDES D'ACHAT ====================

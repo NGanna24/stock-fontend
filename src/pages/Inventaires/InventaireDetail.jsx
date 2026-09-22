@@ -1,14 +1,41 @@
 // pages/Inventaires/InventaireDetail.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
     ArrowLeft, PlayCircle, CheckCircle, Ban, Save,
-    Search, AlertCircle, Package, X
+    Search, AlertCircle, Package, X, AlertTriangle,
+    Info, CheckCheck, TrendingDown, TrendingUp
 } from "lucide-react";
 import InventaireService from "../../services/inventaireService";
 import { useUser } from "../../context/AuthContext";
 import "./Inventaires.css";
 
+// ============================================================
+// HELPERS
+// ============================================================
+
+// Formatage montant (prix) — reste en décimal
+const formatMontant = (v) => {
+    const n = parseFloat(v) || 0;
+    return Math.round(n).toLocaleString('fr-FR') + ' FCFA';
+};
+
+// ✅ Parse une quantité en ENTIER (pièces détachées)
+const parseQuantite = (v) => {
+    if (v === null || v === undefined || v === '') return 0;
+    const n = parseInt(String(v).replace(/[^0-9]/g, ''), 10);
+    return isNaN(n) ? 0 : n;
+};
+
+// Formatage quantité (entier)
+const formatQuantite = (v) => {
+    const n = parseQuantite(v);
+    return n.toLocaleString('fr-FR');
+};
+
+// ============================================================
+// COMPOSANT
+// ============================================================
 const InventaireDetail = () => {
     const { id, slug } = useParams();
     const navigate = useNavigate();
@@ -20,17 +47,19 @@ const InventaireDetail = () => {
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
     const [onlyEcarts, setOnlyEcarts] = useState(false);
+    const [onlyNonSaisis, setOnlyNonSaisis] = useState(false);
 
-    // Saisies en cours (local state, avant sauvegarde)
     const [saisies, setSaisies] = useState({});
     const [saving, setSaving] = useState(false);
+    const [showValidModal, setShowValidModal] = useState(false);
+    const [validating, setValidating] = useState(false);
+
+    const inputRefs = useRef({});
 
     const canManage = user && ['admin', 'manager', 'gestionnaire'].includes(user.role);
 
-    // ✅ Garde-fou : ne pas appeler l'API si l'id est invalide
     useEffect(() => {
         if (!id || id === 'undefined' || id === 'null') {
-            console.error('❌ ID d\'inventaire invalide:', id);
             setError('Identifiant d\'inventaire manquant');
             setLoading(false);
             return;
@@ -39,7 +68,6 @@ const InventaireDetail = () => {
     }, [id]);
 
     const loadInventaire = async () => {
-        // ✅ Double protection
         if (!id || id === 'undefined' || id === 'null') return;
 
         setLoading(true);
@@ -48,10 +76,10 @@ const InventaireDetail = () => {
             const res = await InventaireService.getById(token, id);
             if (res.success) {
                 setInventaire(res.data);
-                // Initialiser les saisies avec les valeurs existantes
                 const initial = {};
                 (res.data.lignes || []).forEach(l => {
-                    initial[l.id_ligne] = l.quantite_reelle;
+                    // ✅ On force en entier
+                    initial[l.id_ligne] = parseQuantite(l.quantite_reelle);
                 });
                 setSaisies(initial);
             } else {
@@ -64,27 +92,69 @@ const InventaireDetail = () => {
         }
     };
 
+    // ============================================================
+    // SAISIE — Force les entiers
+    // ============================================================
     const handleSaisieChange = (idLigne, value) => {
-        setSaisies(prev => ({ ...prev, [idLigne]: value }));
+        // ✅ Retire tout sauf les chiffres
+        const cleaned = String(value).replace(/[^0-9]/g, '');
+        setSaisies(prev => ({ ...prev, [idLigne]: cleaned }));
     };
 
-    const handleSaveAll = async () => {
+    // ✅ Bloque les touches non numériques
+    const handleKeyDown = (e, index, filteredLignes) => {
+        // Bloquer . , - e + (notation scientifique)
+        if (['.', ',', '-', '+', 'e', 'E'].includes(e.key)) {
+            e.preventDefault();
+            return;
+        }
+
+        // Enter → ligne suivante
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            if (index < filteredLignes.length - 1) {
+                const nextId = filteredLignes[index + 1].id_ligne;
+                const nextInput = inputRefs.current[nextId];
+                if (nextInput) {
+                    nextInput.focus();
+                    nextInput.select();
+                }
+            }
+        }
+    };
+
+    // ============================================================
+    // SAUVEGARDE
+    // ============================================================
+    const handleSaveAll = async (showAlert = true) => {
         setSaving(true);
         try {
-            const lignes = Object.entries(saisies).map(([idLigne, qte]) => ({
-                id_ligne: parseInt(idLigne),
-                quantite_reelle: parseFloat(qte) || 0
-            }));
+            const lignes = Object.entries(saisies)
+                .filter(([_, qte]) => qte !== "" && qte !== null && qte !== undefined)
+                .map(([idLigne, qte]) => ({
+                    id_ligne: parseInt(idLigne, 10),
+                    quantite_reelle: parseQuantite(qte)   // ✅ entier
+                }));
 
             const res = await InventaireService.saisirLignesEnMasse(token, id, lignes);
             if (res.success) {
-                loadInventaire();
+                await loadInventaire();
+                if (showAlert) alert(`✅ ${res.data?.count || lignes.length} ligne(s) sauvegardée(s)`);
             }
         } catch (e) {
             alert('Erreur : ' + e.message);
         } finally {
             setSaving(false);
         }
+    };
+
+    const handleToutConforme = () => {
+        if (!window.confirm('Marquer tous les produits comme conformes (quantité réelle = quantité théorique) ?')) return;
+        const nouvelles = { ...saisies };
+        (inventaire.lignes || []).forEach(l => {
+            nouvelles[l.id_ligne] = parseQuantite(l.quantite_theorique);
+        });
+        setSaisies(nouvelles);
     };
 
     const handleDemarrer = async () => {
@@ -98,19 +168,20 @@ const InventaireDetail = () => {
     };
 
     const handleValider = async () => {
-        if (!window.confirm(
-            'Valider cet inventaire ?\n\n' +
-            'Les écarts seront automatiquement ajustés dans le stock.\n' +
-            'Cette action est irréversible.'
-        )) return;
+        setValidating(true);
         try {
+            await handleSaveAll(false);
+
             const res = await InventaireService.valider(token, id);
             if (res.success) {
-                alert('✅ Inventaire validé, ajustements créés');
+                setShowValidModal(false);
+                alert(`✅ Inventaire validé !\n${res.data?.nb_ajustements || 0} ajustement(s) créé(s).`);
                 loadInventaire();
             }
         } catch (e) {
             alert('Erreur : ' + e.message);
+        } finally {
+            setValidating(false);
         }
     };
 
@@ -124,32 +195,83 @@ const InventaireDetail = () => {
         }
     };
 
-    if (loading) return <div className="loading-container"><div className="spinner"></div><p>Chargement...</p></div>;
-    if (error) return (
-        <div className="error-container">
-            <p>{error}</p>
-            <button className="btn btn-secondary" onClick={() => navigate(`/${slug}/inventaires`)}>
-                Retour à la liste
-            </button>
+    // ============================================================
+    // FILTRAGE & STATS
+    // ============================================================
+    const lignes = inventaire?.lignes || [];
+
+    const filtered = useMemo(() => {
+        return lignes.filter(l => {
+            const theorique = parseQuantite(l.quantite_theorique);
+            const reelle = parseQuantite(saisies[l.id_ligne] ?? l.quantite_reelle);
+            const ecart = theorique - reelle;
+
+            if (onlyEcarts && ecart === 0) return false;
+            if (onlyNonSaisis && l.date_scannage) return false;
+
+            if (searchTerm) {
+                const s = searchTerm.toLowerCase();
+                return (l.produit_nom || '').toLowerCase().includes(s) ||
+                       (l.marque_nom || '').toLowerCase().includes(s);
+            }
+            return true;
+        });
+    }, [lignes, saisies, onlyEcarts, onlyNonSaisis, searchTerm]);
+
+    const stats = useMemo(() => {
+        let nbSaisis = 0, nbEcarts = 0, valeurManquant = 0, valeurSurplus = 0;
+        lignes.forEach(l => {
+            const theorique = parseQuantite(l.quantite_theorique);
+            const reelle = parseQuantite(saisies[l.id_ligne] ?? l.quantite_reelle);
+            const ecart = theorique - reelle;
+            const prix = parseFloat(l.prix_achat) || 0;  // prix reste décimal
+
+            if (l.date_scannage) nbSaisis++;
+            if (ecart !== 0) {
+                nbEcarts++;
+                if (ecart > 0) valeurManquant += ecart * prix;
+                else valeurSurplus += Math.abs(ecart) * prix;
+            }
+        });
+        return {
+            nbLignes: lignes.length,
+            nbSaisis,
+            nbEcarts,
+            pourcentage: lignes.length > 0 ? Math.round((nbSaisis / lignes.length) * 100) : 0,
+            valeurManquant,
+            valeurSurplus
+        };
+    }, [lignes, saisies]);
+
+    // ============================================================
+    // RENDUS CONDITIONNELS
+    // ============================================================
+    if (loading) return (
+        <div className="inventaire-detail-container">
+            <div className="loading-container"><div className="spinner"></div><p>Chargement...</p></div>
         </div>
     );
+
+    if (error) return (
+        <div className="inventaire-detail-container">
+            <div className="error-container">
+                <p>{error}</p>
+                <button className="btn btn-secondary" onClick={() => navigate(`/${slug}/inventaires`)}>
+                    Retour à la liste
+                </button>
+            </div>
+        </div>
+    );
+
     if (!inventaire) return null;
 
-    const lignes = inventaire.lignes || [];
+    const isEnCours = inventaire.statut === 'en_cours';
+    const isTermine = inventaire.statut === 'termine';
+    const isPlanifie = inventaire.statut === 'planifie';
 
-    const filtered = lignes.filter(l => {
-        if (onlyEcarts && !parseFloat(l.ecart)) return false;
-        if (searchTerm) {
-            const s = searchTerm.toLowerCase();
-            return (l.produit_nom || '').toLowerCase().includes(s) ||
-                   (l.marque_nom || '').toLowerCase().includes(s);
-        }
-        return true;
-    });
-
-    const nbEcarts = lignes.filter(l => parseFloat(l.ecart) !== 0).length;
-    const nbSaisis = lignes.filter(l => parseFloat(l.quantite_reelle) > 0 || l.date_scannage).length;
-
+    // ============================================================
+    // RENDER PRINCIPAL
+    // ============================================================
     return (
         <div className="inventaire-detail-container">
             {/* En-tête */}
@@ -162,19 +284,36 @@ const InventaireDetail = () => {
                     <p>{inventaire.libelle}</p>
                 </div>
                 <div className="detail-header-actions">
-                    {inventaire.statut === 'planifie' && canManage && (
+                    {isPlanifie && canManage && (
                         <button className="btn btn-primary" onClick={handleDemarrer}>
                             <PlayCircle size={18} />
                             <span>Démarrer</span>
                         </button>
                     )}
-                    {inventaire.statut === 'en_cours' && canManage && (
+                    {isEnCours && canManage && (
                         <>
-                            <button className="btn btn-secondary" onClick={handleSaveAll} disabled={saving}>
+                            <button
+                                className="btn btn-secondary"
+                                onClick={() => handleSaveAll(true)}
+                                disabled={saving}
+                            >
                                 <Save size={18} />
                                 <span>{saving ? 'Sauvegarde...' : 'Sauvegarder'}</span>
                             </button>
-                            <button className="btn btn-primary" onClick={handleValider}>
+                            <button
+                                className="btn btn-secondary"
+                                onClick={handleToutConforme}
+                                disabled={saving}
+                                title="Tout marquer comme conforme"
+                            >
+                                <CheckCheck size={18} />
+                                <span>Tout conforme</span>
+                            </button>
+                            <button
+                                className="btn btn-primary"
+                                onClick={() => setShowValidModal(true)}
+                                disabled={saving}
+                            >
                                 <CheckCircle size={18} />
                                 <span>Valider</span>
                             </button>
@@ -192,10 +331,40 @@ const InventaireDetail = () => {
                 <div className="info-item"><label>Statut</label><span>{inventaire.statut}</span></div>
                 <div className="info-item"><label>Type</label><span>{inventaire.type_inventaire}</span></div>
                 <div className="info-item"><label>Date début</label><span>{new Date(inventaire.date_debut).toLocaleDateString('fr-FR')}</span></div>
-                <div className="info-item"><label>Lignes</label><span>{lignes.length}</span></div>
-                <div className="info-item"><label>Saisies</label><span>{nbSaisis} / {lignes.length}</span></div>
-                <div className="info-item"><label>Écarts détectés</label><span className={nbEcarts > 0 ? 'text-warn' : 'text-ok'}>{nbEcarts}</span></div>
+                <div className="info-item"><label>Lignes</label><span>{stats.nbLignes}</span></div>
+                <div className="info-item">
+                    <label>Saisies</label>
+                    <span>{stats.nbSaisis} / {stats.nbLignes} ({stats.pourcentage}%)</span>
+                </div>
+                <div className="info-item">
+                    <label>Écarts détectés</label>
+                    <span className={stats.nbEcarts > 0 ? 'text-warn' : 'text-ok'}>
+                        {stats.nbEcarts}
+                    </span>
+                </div>
             </div>
+
+            {/* Barre de progression + valeur écarts */}
+            {isEnCours && (
+                <div className="progress-bar-container">
+                    <div className="progress-bar">
+                        <div className="progress-fill" style={{ width: `${stats.pourcentage}%` }}></div>
+                    </div>
+                    <div className="progress-values">
+                        <span>{stats.pourcentage}% complété</span>
+                        {stats.valeurManquant > 0 && (
+                            <span className="text-warn">
+                                <TrendingDown size={14} /> Manquant : {formatMontant(stats.valeurManquant)}
+                            </span>
+                        )}
+                        {stats.valeurSurplus > 0 && (
+                            <span className="text-info">
+                                <TrendingUp size={14} /> Surplus : {formatMontant(stats.valeurSurplus)}
+                            </span>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* Filtres */}
             <div className="detail-filters">
@@ -216,8 +385,18 @@ const InventaireDetail = () => {
                         checked={onlyEcarts}
                         onChange={e => setOnlyEcarts(e.target.checked)}
                     />
-                    <span>Afficher uniquement les écarts</span>
+                    <span>Écarts uniquement</span>
                 </label>
+                {isEnCours && (
+                    <label className="checkbox-label">
+                        <input
+                            type="checkbox"
+                            checked={onlyNonSaisis}
+                            onChange={e => setOnlyNonSaisis(e.target.checked)}
+                        />
+                        <span>Non saisis uniquement</span>
+                    </label>
+                )}
             </div>
 
             {/* Tableau */}
@@ -230,38 +409,56 @@ const InventaireDetail = () => {
                             <th>Théorique</th>
                             <th>Réelle</th>
                             <th>Écart</th>
+                            <th>Valeur</th>
                             <th>Statut</th>
                         </tr>
                     </thead>
                     <tbody>
                         {filtered.length === 0 ? (
-                            <tr><td colSpan="6" className="empty-state"><Package size={32} /><p>Aucune ligne</p></td></tr>
-                        ) : filtered.map(l => {
-                            const theorique = parseFloat(l.quantite_theorique) || 0;
-                            const reelle = parseFloat(saisies[l.id_ligne] ?? l.quantite_reelle) || 0;
+                            <tr><td colSpan="7" className="empty-state"><Package size={32} /><p>Aucune ligne</p></td></tr>
+                        ) : filtered.map((l, index) => {
+                            const theorique = parseQuantite(l.quantite_theorique);
+                            const reelle = parseQuantite(saisies[l.id_ligne] ?? l.quantite_reelle);
                             const ecart = theorique - reelle;
+                            const prix = parseFloat(l.prix_achat) || 0;
+                            const valeur = Math.abs(ecart) * prix;
                             const ecartCls = ecart === 0 ? 'ecart-ok' : (ecart > 0 ? 'ecart-neg' : 'ecart-pos');
 
                             return (
                                 <tr key={l.id_ligne}>
                                     <td><strong>{l.produit_nom}</strong></td>
                                     <td>{l.marque_nom || '-'}</td>
-                                    <td>{theorique.toLocaleString('fr-FR')} {l.unite_symbole || ''}</td>
                                     <td>
+                                        {formatQuantite(theorique)} {l.unite_symbole || ''}
+                                    </td>
+                                    <td>
+                                        {/* ✅ INPUT ENTIER */}
                                         <input
-                                            type="number"
-                                            step="0.01"
-                                            min="0"
+                                            ref={el => inputRefs.current[l.id_ligne] = el}
+                                            type="text"
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
                                             className="qte-input"
-                                            value={saisies[l.id_ligne] ?? l.quantite_reelle}
+                                            value={saisies[l.id_ligne] ?? ''}
                                             onChange={e => handleSaisieChange(l.id_ligne, e.target.value)}
-                                            disabled={inventaire.statut !== 'en_cours'}
+                                            onKeyDown={e => handleKeyDown(e, index, filtered)}
+                                            disabled={!isEnCours}
+                                            placeholder="0"
                                         />
                                     </td>
                                     <td>
                                         <span className={`ecart-badge ${ecartCls}`}>
-                                            {ecart > 0 ? '+' : ''}{ecart.toLocaleString('fr-FR')}
+                                            {ecart > 0 ? '+' : ''}{formatQuantite(ecart)}
                                         </span>
+                                    </td>
+                                    <td>
+                                        {ecart !== 0 && prix > 0 ? (
+                                            <span className={ecart > 0 ? 'text-warn' : 'text-info'}>
+                                                {formatMontant(valeur)}
+                                            </span>
+                                        ) : (
+                                            <span className="text-muted">—</span>
+                                        )}
                                     </td>
                                     <td>
                                         {l.date_scannage ? (
@@ -282,6 +479,75 @@ const InventaireDetail = () => {
                     </tbody>
                 </table>
             </div>
+
+            {/* Modal validation */}
+            {showValidModal && (
+                <div className="modal-overlay" onClick={() => !validating && setShowValidModal(false)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h2>Valider l'inventaire ?</h2>
+                            <button className="modal-close" onClick={() => !validating && setShowValidModal(false)}>
+                                <X size={24} />
+                            </button>
+                        </div>
+                        <div className="modal-body">
+                            <div className="valid-recap">
+                                <div className="recap-line">
+                                    <span>Lignes totales</span>
+                                    <strong>{stats.nbLignes}</strong>
+                                </div>
+                                <div className="recap-line">
+                                    <span>Lignes saisies</span>
+                                    <strong>{stats.nbSaisis} ({stats.pourcentage}%)</strong>
+                                </div>
+                                <div className="recap-line">
+                                    <span>Écarts détectés</span>
+                                    <strong className={stats.nbEcarts > 0 ? 'text-warn' : 'text-ok'}>
+                                        {stats.nbEcarts}
+                                    </strong>
+                                </div>
+                                {stats.valeurManquant > 0 && (
+                                    <div className="recap-line">
+                                        <span>Valeur manquants</span>
+                                        <strong className="text-warn">-{formatMontant(stats.valeurManquant)}</strong>
+                                    </div>
+                                )}
+                                {stats.valeurSurplus > 0 && (
+                                    <div className="recap-line">
+                                        <span>Valeur surplus</span>
+                                        <strong className="text-info">+{formatMontant(stats.valeurSurplus)}</strong>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="valid-warning">
+                                <AlertTriangle size={20} />
+                                <div>
+                                    <strong>⚠️ Action irréversible</strong>
+                                    <p>Le stock réel sera appliqué aux produits et des ajustements seront créés.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="modal-footer">
+                            <button className="btn btn-secondary" onClick={() => setShowValidModal(false)} disabled={validating}>
+                                Annuler
+                            </button>
+                            <button className="btn btn-primary" onClick={handleValider} disabled={validating}>
+                                {validating ? (
+                                    <>
+                                        <span className="spinner-small"></span>
+                                        <span>Validation...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <CheckCircle size={18} />
+                                        <span>Valider et ajuster le stock</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
