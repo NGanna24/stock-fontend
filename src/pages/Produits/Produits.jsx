@@ -43,6 +43,8 @@ import UniteService from "../../services/uniteService";
 import FournisseurService from "../../services/fournisseurService";
 import { useUser } from "../../context/AuthContext";
 import SelectSearch from "../../components/SelectSearch/SelectSearch";
+import StockSelector from "../../components/StockSelector/StockSelector";
+import StockInputWithSelector from "../../components/StockSelector/StockInputWithSelector";
 import "./Produits.css";
 
 // ============================================================
@@ -212,6 +214,56 @@ const DropdownMenu = ({ trigger, children, isOpen, onClose }) => {
 };
 
 // ============================================================
+// COMPOSANT : APERÇU DU STOCK (dans le formulaire)
+// ============================================================
+const StockPreview = ({ stockBase, unitesVente = [], uniteBase = null }) => {
+  const stock = parseFloat(stockBase) || 0;
+
+  if (stock <= 0 || !uniteBase?.nom) return null;
+
+  // Construction : base + perso (triées par quantite_base DESC)
+  const toutes = [
+    {
+      id: null,
+      nom: uniteBase.nom,
+      quantite_base: 1,
+      is_base: true,
+    },
+    ...unitesVente
+      .filter((u) => u && u.nom)
+      .map((u) => ({
+        id: u.id_unite_vente,
+        nom: u.nom,
+        quantite_base: parseFloat(u.quantite_base) || 1,
+        is_base: false,
+      }))
+      .sort((a, b) => b.quantite_base - a.quantite_base),
+  ];
+
+  // Décomposition
+  let reste = stock;
+  const parts = [];
+
+  for (const u of toutes) {
+    const qb = u.quantite_base || 1;
+    const qte = Math.floor(reste / qb);
+    if (qte > 0) {
+      parts.push({ nom: u.nom, qte });
+      reste -= qte * qb;
+    }
+  }
+
+  if (parts.length === 0) return null;
+
+  return (
+    <small className="stock-preview">
+      <Info size={11} />
+      <span>= {parts.map((p) => `${p.qte} ${p.nom}`).join(" + ")}</span>
+    </small>
+  );
+};
+
+// ============================================================
 // COMPOSANT PRINCIPAL
 // ============================================================
 const Produits = () => {
@@ -272,6 +324,18 @@ const Produits = () => {
 
   // ========== PERMISSIONS ==========
   const canManage = user && ["admin", "manager"].includes(user.role);
+
+  // ========== UNITÉ DE BASE SÉLECTIONNÉE (pour le formulaire) ==========
+  const uniteSelectionneeForm = useMemo(() => {
+    if (!formData.id_unite) {
+      const first = unitesVente.find((u) => !u.isDeleted && u.nom);
+      return first
+        ? { nom: first.nom, symbole: "" }
+        : { nom: "Unité", symbole: "" };
+    }
+    const u = unites.find((x) => x.id_unite === parseInt(formData.id_unite));
+    return u ? { nom: u.nom, symbole: u.symbole || "" } : null;
+  }, [formData.id_unite, unites, unitesVente]);
 
   // ========== DEBOUNCE RECHERCHE ==========
   useEffect(() => {
@@ -490,7 +554,6 @@ const Produits = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-    // ✅ AJOUT : effacer le warning dès que l'utilisateur modifie le nom ou le modèle
     if (name === "nom" || name === "id_modele") {
       setDuplicateWarning(null);
     }
@@ -544,13 +607,13 @@ const Produits = () => {
     setEditingProduit(null);
     setFormData(INITIAL_FORM_DATA);
     setUnitesVente([]);
-    setDuplicateWarning(null); // ✅ AJOUT
+    setDuplicateWarning(null);
     setShowModal(true);
   };
 
   const handleEdit = async (produit) => {
     setEditingProduit(produit);
-    setDuplicateWarning(null); // ✅ AJOUT
+    setDuplicateWarning(null);
     setFormData({
       nom: produit.nom || "",
       description: produit.description || "",
@@ -622,139 +685,97 @@ const Produits = () => {
     setOpenDropdown(null);
   };
 
-const handleSave = async () => {
-    console.log('═══════════════════════════════════════');
-    console.log('🚀 [LOG 2] handleSave() DÉMARRÉ');
-
-    // === VALIDATIONS DE BASE ===
-    console.log('📋 Validation 1 : nom');
-    console.log('   formData.nom =', JSON.stringify(formData.nom));
-    console.log('   formData.nom?.trim() =', JSON.stringify(formData.nom?.trim()));
-    console.log('   !formData.nom.trim() =', !formData.nom.trim());
-
+  const handleSave = async () => {
     if (!formData.nom.trim()) {
-        console.log('❌ [LOG 2] Bloqué : nom vide');
-        showToast("warning", "Veuillez saisir un nom de produit");
-        return;
+      showToast("warning", "Veuillez saisir un nom de produit");
+      return;
     }
-
-    console.log('📋 Validation 2 : fournisseur');
-    console.log('   formData.id_fournisseur =', JSON.stringify(formData.id_fournisseur));
-    console.log('   typeof =', typeof formData.id_fournisseur);
-    console.log('   !formData.id_fournisseur =', !formData.id_fournisseur);
 
     if (!formData.id_fournisseur) {
-        console.log('❌ [LOG 2] Bloqué : fournisseur non sélectionné');
-        showToast("warning", "Veuillez sélectionner un fournisseur");
-        return;
+      showToast("warning", "Veuillez sélectionner un fournisseur");
+      return;
     }
 
-    console.log('✅ [LOG 2] Validations de base OK');
-
-    // ============================================================
-    // UNITÉS DE VENTE — OPTIONNELLES
-    // ============================================================
     const unitesActives = unitesVente.filter((u) => !u.isDeleted);
-    console.log('📦 [LOG 2] Unités de vente actives :', unitesActives.length);
 
     if (unitesActives.length > 0) {
-        for (const unite of unitesActives) {
-            console.log('   🔍 Vérification unité :', unite.nom);
-            console.log('      nom:', unite.nom);
-            console.log('      quantite_base:', unite.quantite_base);
-            console.log('      prix_vente:', unite.prix_vente);
-
-            if (!unite.nom || !unite.nom.trim()) {
-                console.log('   ❌ [LOG 2] Bloqué : unité sans nom');
-                showToast("warning", "Toutes les unités de vente doivent avoir un nom");
-                return;
-            }
-            if (!unite.quantite_base || parseFloat(unite.quantite_base) <= 0) {
-                console.log('   ❌ [LOG 2] Bloqué : quantité base invalide');
-                showToast("warning", `La quantité de base de "${unite.nom}" doit être > 0`);
-                return;
-            }
-            if (!unite.prix_vente || parseFloat(unite.prix_vente) <= 0) {
-                console.log('   ❌ [LOG 2] Bloqué : prix vente invalide');
-                showToast("warning", `Le prix de vente de "${unite.nom}" doit être > 0`);
-                return;
-            }
+      for (const unite of unitesActives) {
+        if (!unite.nom || !unite.nom.trim()) {
+          showToast("warning", "Toutes les unités de vente doivent avoir un nom");
+          return;
         }
+        if (!unite.quantite_base || parseFloat(unite.quantite_base) <= 0) {
+          showToast("warning", `La quantité de base de "${unite.nom}" doit être > 0`);
+          return;
+        }
+        if (!unite.prix_vente || parseFloat(unite.prix_vente) <= 0) {
+          showToast("warning", `Le prix de vente de "${unite.nom}" doit être > 0`);
+          return;
+        }
+      }
     }
 
-    console.log('✅ [LOG 2] Toutes validations OK → on passe au save');
-
-    // ============================================================
-    // SAUVEGARDE
-    // ============================================================
     setSaving(true);
     setDuplicateWarning(null);
 
     try {
-        const data = {
-            ...formData,
-            nom: formData.nom.trim(),
-            description: formData.description?.trim() || "",
-            prix_achat: parseFloat(formData.prix_achat) || 0,
-            prix_vente: parseFloat(formData.prix_vente) || 0,
-            quantite_stock: parseFloat(formData.quantite_stock) || 0,
-            quantite_minimale: parseFloat(formData.quantite_minimale) || 0,
-            quantite_maximale: parseFloat(formData.quantite_maximale) || 0,
-            id_fournisseur: formData.id_fournisseur || null,
-            id_categorie: formData.id_categorie || null,
-            id_marque: formData.id_marque || null,
-            id_modele: formData.id_modele || null,
-            id_unite: formData.id_unite || null,
-            unites_vente: unitesActives.map((u) => ({
-                id_unite_vente: u.id_unite_vente,
-                nom: u.nom.trim(),
-                quantite_base: parseFloat(u.quantite_base) || 1,
-                prix_vente: parseFloat(u.prix_vente) || 0,
-                prix_achat: parseFloat(u.prix_achat) || 0,
-                est_principal: u.est_principal,
-            })),
-            unites_vente_deleted: unitesVente
-                .filter((u) => u.isDeleted && u.id_unite_vente)
-                .map((u) => u.id_unite_vente),
-        };
+      const data = {
+        ...formData,
+        nom: formData.nom.trim(),
+        description: formData.description?.trim() || "",
+        prix_achat: parseFloat(formData.prix_achat) || 0,
+        prix_vente: parseFloat(formData.prix_vente) || 0,
+        quantite_stock: parseFloat(formData.quantite_stock) || 0,
+        quantite_minimale: parseFloat(formData.quantite_minimale) || 0,
+        quantite_maximale: parseFloat(formData.quantite_maximale) || 0,
+        id_fournisseur: formData.id_fournisseur || null,
+        id_categorie: formData.id_categorie || null,
+        id_marque: formData.id_marque || null,
+        id_modele: formData.id_modele || null,
+        id_unite: formData.id_unite || null,
+        unites_vente: unitesActives.map((u) => ({
+          id_unite_vente: u.id_unite_vente,
+          nom: u.nom.trim(),
+          quantite_base: parseFloat(u.quantite_base) || 1,
+          prix_vente: parseFloat(u.prix_vente) || 0,
+          prix_achat: parseFloat(u.prix_achat) || 0,
+          est_principal: u.est_principal,
+        })),
+        unites_vente_deleted: unitesVente
+          .filter((u) => u.isDeleted && u.id_unite_vente)
+          .map((u) => u.id_unite_vente),
+      };
 
-        console.log('📤 [LOG 2] Données envoyées au service :');
-        console.log(JSON.stringify(data, null, 2));
+      const response = editingProduit
+        ? await ProduitService.updateProduit(token, editingProduit.id_produit, data)
+        : await ProduitService.createProduit(token, data);
 
-        const response = editingProduit
-            ? await ProduitService.updateProduit(token, editingProduit.id_produit, data)
-            : await ProduitService.createProduit(token, data);
-
-        console.log('📥 [LOG 2] Réponse du service :', response);
-
-        if (response.success) {
-            console.log('✅ [LOG 2] SUCCÈS');
-            showToast("success", editingProduit ? "Produit modifié avec succès" : "Produit créé avec succès");
-            await loadProduits();
-            setShowModal(false);
-            setEditingProduit(null);
-            setFormData(INITIAL_FORM_DATA);
-            setUnitesVente([]);
-            setDuplicateWarning(null);
-        } else if (response.isDuplicate) {
-            console.log('⚠️ [LOG 2] DOUBLON détecté');
-            setDuplicateWarning({
-                message: response.message,
-                existingId: response.existingId,
-            });
-        } else {
-            console.log('❌ [LOG 2] Échec service :', response.message);
-            showToast("error", response.message || "Erreur de sauvegarde");
-        }
+      if (response.success) {
+        showToast(
+          "success",
+          editingProduit ? "Produit modifié avec succès" : "Produit créé avec succès"
+        );
+        await loadProduits();
+        setShowModal(false);
+        setEditingProduit(null);
+        setFormData(INITIAL_FORM_DATA);
+        setUnitesVente([]);
+        setDuplicateWarning(null);
+      } else if (response.isDuplicate) {
+        setDuplicateWarning({
+          message: response.message,
+          existingId: response.existingId,
+        });
+      } else {
+        showToast("error", response.message || "Erreur de sauvegarde");
+      }
     } catch (err) {
-        console.error('💥 [LOG 2] ERREUR attrapée :', err);
-        console.error('   Stack:', err.stack);
-        showToast("error", err.message || "Erreur de sauvegarde");
+      console.error("❌ Save error:", err);
+      showToast("error", err.message || "Erreur de sauvegarde");
     } finally {
-        console.log('🏁 [LOG 2] handleSave TERMINÉ');
-        setSaving(false);
+      setSaving(false);
     }
-};
+  };
 
   const confirmDelete = (produit) => {
     setProduitToDelete(produit);
@@ -1066,12 +1087,18 @@ const handleSave = async () => {
                 <div className="produit-footer-info">
                   <div className={`stock-indicator ${isLowStock ? "low" : "ok"}`}>
                     <span className="stock-label">Stock</span>
-                    <span className="stock-value">
-                      {produit.quantite_stock || 0}
-                      {produit.unite_symbole && (
-                        <small> {produit.unite_symbole}</small>
-                      )}
-                    </span>
+                    <StockSelector
+                      idProduit={produit.id_produit}
+                      stockBase={produit.quantite_stock}
+                      unitesVente={produit.unites_vente || []}
+                      uniteBase={{
+                        nom: produit.unite_nom,
+                        symbole: produit.unite_symbole,
+                      }}
+                      isLowStock={isLowStock}
+                      isRupture={produit.statut === "rupture"}
+                      variant="grid"
+                    />
                   </div>
 
                   <div className="price-indicator">
@@ -1172,12 +1199,18 @@ const handleSave = async () => {
                       {formatPrice(produit.prix_vente)} <small>FCFA</small>
                     </td>
                     <td className="stock-cell">
-                      <span className={`stock-badge ${isLowStock ? "low" : ""}`}>
-                        {produit.quantite_stock || 0}
-                        {produit.unite_symbole && (
-                          <small>{produit.unite_symbole}</small>
-                        )}
-                      </span>
+                      <StockSelector
+                        idProduit={produit.id_produit}
+                        stockBase={produit.quantite_stock}
+                        unitesVente={produit.unites_vente || []}
+                        uniteBase={{
+                          nom: produit.unite_nom,
+                          symbole: produit.unite_symbole,
+                        }}
+                        isLowStock={isLowStock}
+                        isRupture={produit.statut === "rupture"}
+                        variant="list"
+                      />
                     </td>
                     <td>{getStatusBadge(produit.statut)}</td>
                     <td className="actions-cell">
@@ -1407,7 +1440,7 @@ const handleSave = async () => {
             </div>
 
             <div className="modal-body">
-              {/* ✅ AJOUT : Bandeau warning doublon */}
+              {/* Bandeau warning doublon */}
               {duplicateWarning && (
                 <div className="alert alert-warning">
                   <AlertTriangle size={18} />
@@ -1741,21 +1774,29 @@ const handleSave = async () => {
                 </div>
 
                 <div className="form-grid-3">
-                  <div className="form-group">
+                   <div className="form-group">
                     <label>Stock actuel</label>
-                    <input
-                      type="number"
-                      name="quantite_stock"
+                    <StockInputWithSelector
                       value={formData.quantite_stock}
                       onChange={handleInputChange}
-                      placeholder="0"
-                      step="1"
-                      min="0"
+                      name="quantite_stock"
+                      idProduit={editingProduit?.id_produit || "new"}
+                      unitesVente={unitesVente.filter((u) => !u.isDeleted)}
+                      uniteBase={uniteSelectionneeForm}
                       disabled={saving}
+                      placeholder="0"
                     />
                   </div>
+                  
                   <div className="form-group">
-                    <label>Stock minimum</label>
+                    <label>
+                      Stock minimum
+                      {uniteSelectionneeForm && (
+                        <span className="unit-hint-inline">
+                          {" "}({uniteSelectionneeForm.nom})
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       name="quantite_minimale"
@@ -1768,7 +1809,14 @@ const handleSave = async () => {
                     />
                   </div>
                   <div className="form-group">
-                    <label>Stock maximum</label>
+                    <label>
+                      Stock maximum
+                      {uniteSelectionneeForm && (
+                        <span className="unit-hint-inline">
+                          {" "}({uniteSelectionneeForm.nom})
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="number"
                       name="quantite_maximale"
@@ -2011,7 +2059,17 @@ const handleSave = async () => {
                 <div className="detail-card">
                   <span className="detail-label">Stock actuel</span>
                   <span className="detail-value">
-                    {produitToView.quantite_stock || 0}
+                    <StockSelector
+                      idProduit={produitToView.id_produit}
+                      stockBase={produitToView.quantite_stock}
+                      unitesVente={produitToView.unites_vente || []}
+                      uniteBase={{
+                        nom: produitToView.unite_nom,
+                        symbole: produitToView.unite_symbole,
+                      }}
+                      isRupture={produitToView.statut === "rupture"}
+                      variant="details"
+                    />
                   </span>
                 </div>
                 <div className="detail-card">

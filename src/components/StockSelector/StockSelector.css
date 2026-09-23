@@ -1,0 +1,296 @@
+/* components/StockSelector/StockSelector.css */
+
+/* ============================================================
+   BASE
+   ============================================================ */
+.stock-selector {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 13px;
+    line-height: 1.2;
+    min-width: 0;
+}
+
+.stock-main-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: nowrap;
+}
+
+.stock-qte {
+    font-weight: 700;
+    color: #1e293b;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.stock-unite-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    white-space: nowrap;
+}
+
+.stock-reste {
+    font-size: 11px;
+    font-weight: 500;
+    color: #64748b;
+    padding-left: 2px;
+    white-space: nowrap;
+    font-style: italic;
+}
+
+/* ============================================================
+   VARIANT : LISTE
+   ============================================================ */
+.stock-selector-list .stock-qte {
+    font-size: 13.5px;
+}
+
+.stock-selector-list.is-low .stock-qte {
+    color: #d97706;
+}
+
+/* ============================================================
+   VARIANT : GRILLE
+   ============================================================ */
+.stock-selector-grid .stock-qte {
+    font-size: 15px;
+}
+
+.stock-selector-grid.is-low .stock-qte {
+    color: #d97706;
+}
+
+/* ============================================================
+   VARIANT : DETAILS
+   ============================================================ */
+.stock-selector-details .stock-qte {
+    font-size: 15px;
+}
+
+.stock-selector-details .stock-reste {
+    font-size: 12px;
+}
+
+.stock-selector-details.is-low .stock-qte {
+    color: #d97706;
+}
+
+/* ============================================================
+   TRIGGER (bouton avec chevron)
+   ============================================================ */
+.stock-unite-trigger-wrapper {
+    display: inline-block;
+}
+
+.stock-unite-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 6px;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+    white-space: nowrap;
+}
+
+.stock-unite-trigger:hover {
+    background: #eff6ff;
+    border-color: #cbd5e1;
+    color: #1e293b;
+}
+
+.stock-unite-trigger.open {
+    background: #eff6ff;
+    border-color: #995F2F;
+    color: #995F2F;
+}
+
+/* ============================================================
+   MENU DROPDOWN (PORTAL)
+   ============================================================ */
+.stock-unite-menu {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    animation: stockMenuFade 0.12s ease;
+}
+
+@keyframes stockMenuFade {
+    from {
+        opacity: 0;
+        transform: translateY(-4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.stock-unite-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 7px 10px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: #334155;
+    font-size: 12.5px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.12s;
+    font-family: inherit;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.stock-unite-menu-item:hover {
+    background: #f1f5f9;
+}
+
+.stock-unite-menu-item.active {
+    background: #eff6ff;
+    color: #995F2F;
+    font-weight: 700;
+}
+
+.unite-menu-name {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.unite-menu-name svg {
+    color: #94a3b8;
+    flex-shrink: 0;
+}
+
+.stock-unite-menu-item.active .unite-menu-name svg {
+    color: #995F2F;
+}
+
+.unite-menu-base {
+    font-size: 10.5px;
+    color: #94a3b8;
+    font-weight: 600;
+}
+
+/* ============================================================
+   RUPTURE
+   ============================================================ */
+.stock-selector.is-empty .stock-rupture {
+    color: #ef4444;
+    font-weight: 700;
+    font-size: 14px;
+}
+
+/* ============================================================
+   STOCK INPUT WITH SELECTOR (dans formulaire)
+   ============================================================ */
+
+.stock-input-with-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.stock-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.stock-input-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.stock-unite-static-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+  white-space: nowrap;
+  padding: 0 6px;
+}
+
+/* Le trigger reprend le style existant .stock-unite-trigger,
+   mais on le rend un peu plus grand pour matcher l'input */
+.stock-input-row .stock-unite-trigger {
+  padding: 10px 12px;
+  font-size: 13px;
+  height: 100%;
+  border-radius: 10px;
+  background: var(--gray-50, #f9fafb);
+  border: 1.5px solid var(--gray-200, #e5e7eb);
+}
+
+.stock-input-row .stock-unite-trigger:hover:not(:disabled) {
+  background: #eff6ff;
+  border-color: #cbd5e1;
+}
+
+.stock-input-row .stock-unite-trigger.open {
+  background: #eff6ff;
+  border-color: #995F2F;
+  color: #995F2F;
+}
+
+.stock-input-row .stock-unite-trigger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Aperçu live sous l'input */
+.stock-input-with-selector .stock-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #2563eb;
+  font-style: normal;
+  line-height: 1.3;
+  align-self: flex-start;
+  max-width: 100%;
+}
+
+.stock-input-with-selector .stock-preview svg {
+  flex-shrink: 0;
+  color: #2563eb;
+  opacity: 0.85;
+}
+
+.stock-input-with-selector .stock-preview span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .stock-input-with-selector .stock-preview span {
+    white-space: normal;
+  }
+}

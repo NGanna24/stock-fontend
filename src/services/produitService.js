@@ -444,7 +444,7 @@ class ProduitService {
         } else if (error.request) {
             return new Error('Impossible de contacter le serveur. Vérifiez votre connexion.');
         } else {
-            return new Error(error.message || 'Erreur inattendue');
+            return new Error(error.message || 'Erreur inattendue'); 
         }
     }
 }

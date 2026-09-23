@@ -340,7 +340,7 @@
 
 .search-input::placeholder {
   color: var(--gray-400);
-}
+} 
 
 .search-clear {
   background: none;
@@ -353,6 +353,43 @@
   align-items: center;
   justify-content: center;
   transition: var(--transition);
+}
+/* ============================================================
+   STOCK SELECTOR — Intégration dans Produits
+   ============================================================ */
+
+/* Cellule stock (vue liste) */
+.stock-cell {
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.stock-cell .stock-selector {
+  align-items: flex-start;
+}
+
+/* Grid : le conteneur stock-indicator */
+.stock-indicator .stock-selector {
+  align-items: flex-start;
+}
+
+.stock-indicator .stock-qte {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gray-800);
+}
+
+.stock-indicator.low .stock-qte {
+  color: var(--warning);
+}
+
+/* Détails : dans la carte */
+.detail-card .stock-selector {
+  align-items: flex-start;
+}
+
+.detail-card .stock-selector .stock-qte {
+  color: var(--primary-dark);
 }
 
 .search-clear:hover {
