@@ -31,7 +31,7 @@ const MENU_CONFIG = [
     icon: Store,
     items: [
       { id: "clients",           title: "Clients",           icon: Users,         path: "/clients" },
-      { id: "commandes-clients", title: "Commandes clients", icon: ShoppingCart,  path: "/commandes-clients" },
+      { id: "commandes-clients", title: "Vente", icon: ShoppingCart,  path: "/commandes-clients" },
       { id: "factures",          title: "Factures",          icon: FileText,      path: "/factures" },
       { id: "recettes",          title: "Recettes",          icon: Banknote,      path: "/recettes",        highlight: "#10b981" },
       { id: "retours-clients",   title: "Retours clients",   icon: RotateCcw,     path: "/retours-clients" },
@@ -55,7 +55,7 @@ const MENU_CONFIG = [
     icon: Truck,
     items: [
       { id: "fournisseurs",         title: "Fournisseurs",         icon: Truck,          path: "/fournisseurs" },
-      { id: "commandes-achat",      title: "Commandes d'achat",    icon: ShoppingBasket, path: "/commandes-achat" },
+      { id: "commandes-achat",      title: "Commandes fournisseurs",    icon: ShoppingBasket, path: "/commandes-achat" },
       { id: "receptions",           title: "Réceptions",           icon: PackageCheck,   path: "/receptions" },
       { id: "retours-fournisseurs", title: "Retours fournisseurs", icon: RotateCcw,      path: "/retours-fournisseurs" },
       // { id: "depenses",             title: "Dépenses",             icon: TrendingDown,   path: "/depenses", highlight: "#ef4444" },

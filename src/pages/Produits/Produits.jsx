@@ -1036,7 +1036,7 @@ const Produits = () => {
           <Banknote size={22} />
         </div>
         <div className="stat-content">
-          <span className="stat-label">Valeur du stock</span>
+          <span className="stat-label">Valeur du stock estimer</span>
           <span className="stat-value stat-value-money">
             {formatPrice(stats.valeurStock)} <small>FCFA</small>
           </span>

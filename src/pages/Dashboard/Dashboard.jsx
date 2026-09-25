@@ -736,7 +736,18 @@ const Dashboard = () => {
                                             <div className="mv-info">
                                                 <span className="mv-produit">{m.produit_nom}</span>
                                                 <span className="mv-meta">
-                                                    {m.quantite > 0 ? `+${m.quantite}` : m.quantite} {m.unite_symbole || ''}
+                                                    {/* ✅ StockSelector pour la quantité */}
+                                                    <StockSelector
+                                                        idProduit={`dash-mvt-${m.id_mouvement}`}
+                                                        stockBase={Math.abs(m.quantite)}
+                                                        unitesVente={m.unites_vente || []}
+                                                        uniteBase={{
+                                                            nom: m.unite_nom,
+                                                            symbole: m.unite_symbole,
+                                                        }}
+                                                        isRupture={false}
+                                                        variant="list"
+                                                    />
                                                     {m.type_reference && ` • ${m.type_reference}`}
                                                 </span>
                                             </div>

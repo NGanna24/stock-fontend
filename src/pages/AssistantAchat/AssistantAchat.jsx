@@ -813,7 +813,7 @@ const AssistantAchat = () => {
                 </div>
             </div>
         </div>
-    );
+    ); 
 };
 
 export default AssistantAchat;

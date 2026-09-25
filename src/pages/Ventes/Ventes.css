@@ -221,18 +221,6 @@
   line-height: 1.2;
 }
 
-/* Responsive */
-@media (max-width: 640px) {
-  .ventes-stats {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-  }
-
-  .stat-card {
-    padding: 10px;
-  }
-}
-
 /* ================================================================
    6. FILTRES
    ================================================================ */
@@ -409,11 +397,8 @@
 .ventes-table tbody tr:last-child td { border-bottom: none; }
 
 .commande-numero { font-weight: 600; color: var(--text-primary); }
-
 .client-cell { display: flex; align-items: center; gap: 10px; }
-
 .montant-cell { font-weight: 600; color: var(--text-primary); }
-
 .actions-cell { position: relative; text-align: right; }
 
 /* ================================================================
@@ -431,16 +416,13 @@
   background: transparent;
   width: 32px;
   height: 32px;
-  box-shadow: none !important;
-  outline: none !important;
-  transform: none !important;
 }
 
 .action-btn:hover { background: var(--bg); }
 .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .action-btn.btn-view { color: var(--primary); }
-.action-btn.btn-view:hover { background: var(--primary-light); color: var(--primary); }
+.action-btn.btn-view:hover { background: var(--primary-light); }
 
 .action-btn.btn-delete { color: var(--danger); }
 .action-btn.btn-delete:hover { background: #fce4ec; }
@@ -483,7 +465,6 @@
 }
 
 .actions-dropdown-menu .dropdown-item:hover { background: var(--bg); }
-
 .actions-dropdown-menu .dropdown-item.btn-delete { color: var(--danger); }
 .actions-dropdown-menu .dropdown-item.btn-delete:hover { background: #fce4ec; }
 
@@ -501,7 +482,6 @@
   background: var(--surface);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  /* overflow: hidden; */
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
   border: 1px solid var(--border);
   display: flex;
@@ -522,7 +502,6 @@
 }
 
 .vente-info { display: flex; flex-direction: column; gap: 4px; }
-
 .vente-numero { font-weight: 600; font-size: 14px; color: var(--text-primary); }
 
 .vente-date {
@@ -742,7 +721,6 @@
   overflow: hidden;
 }
 
-/* Header compact */
 .vente-modal .modal-header {
   display: flex;
   justify-content: space-between;
@@ -753,11 +731,7 @@
   flex-shrink: 0;
 }
 
-.modal-header-left {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
+.modal-header-left { display: flex; align-items: center; gap: 10px; }
 
 .modal-header-icon {
   width: 36px;
@@ -784,7 +758,6 @@
   margin: 1px 0 0 0;
 }
 
-/* Body en grid 2 colonnes */
 .vente-modal .modal-body.vente-body-grid {
   flex: 1;
   overflow-y: auto;
@@ -796,7 +769,6 @@
   align-content: start;
 }
 
-/* Colonne gauche : formulaire */
 .vente-form-main {
   display: flex;
   flex-direction: column;
@@ -804,7 +776,6 @@
   min-width: 0;
 }
 
-/* Colonne droite : résumé sticky */
 .vente-resume-sidebar {
   position: sticky;
   top: 0;
@@ -815,7 +786,6 @@
   min-width: 0;
 }
 
-/* Sections compactes */
 .step-section {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -836,11 +806,7 @@
   flex-wrap: wrap;
 }
 
-.section-header-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
+.section-header-left { display: flex; align-items: center; gap: 8px; }
 
 .step-badge {
   width: 22px;
@@ -878,7 +844,6 @@
   color: #d97706;
 }
 
-/* Form grid compact */
 .vente-modal .form-grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -898,7 +863,6 @@
 }
 
 .vente-modal .input-with-icon { min-width: 0; }
-
 .vente-modal .input-with-icon .input-icon { left: 10px; }
 
 .vente-modal .input-with-icon .form-input-with-icon {
@@ -912,11 +876,7 @@
 /* ================================================================
    COMBOBOX PRODUIT
    ================================================================ */
-.produit-search-wrapper {
-  margin-bottom: 10px;
-  min-width: 0;
-}
-
+.produit-search-wrapper { margin-bottom: 10px; min-width: 0; }
 .produit-search-wrapper .combobox-container {
   margin-bottom: 0;
   position: relative;
@@ -1119,7 +1079,7 @@
 }
 
 /* ================================================================
-   UNITÉS DE VENTE — ne doit JAMAIS casser le layout
+   UNITÉS DE VENTE
    ================================================================ */
 .unite-vente-section {
   margin-bottom: 12px;
@@ -1161,10 +1121,10 @@
   font-size: 12px;
 }
 
-/* ⚠️ FIX PRINCIPAL — les unités ne doivent jamais pousser le reste */
+/* ✅ FIX : Définition UNIQUE de .unites-buttons */
 .unites-buttons {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   min-width: 0;
   max-height: 180px;
@@ -1194,6 +1154,8 @@
   color: var(--text-secondary);
   min-width: 0;
   overflow: hidden;
+  flex: 0 0 auto;
+  min-width: 140px;
 }
 
 .unite-btn:hover:not(:disabled) {
@@ -1209,7 +1171,6 @@
 }
 
 .unite-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
 .unite-btn svg { color: var(--primary); flex-shrink: 0; }
 
 .unite-btn-content {
@@ -1254,7 +1215,7 @@
 }
 
 /* ================================================================
-   LIGNE D'AJOUT Qté + Prix + Bouton — grille stable
+   LIGNE D'AJOUT Qté + Prix + Bouton
    ================================================================ */
 .add-ligne-grid {
   display: grid;
@@ -1269,11 +1230,7 @@
   min-width: 0;
 }
 
-.add-ligne-grid .form-group {
-  margin: 0;
-  min-width: 0;
-  overflow: hidden;
-}
+.add-ligne-grid .form-group { margin: 0; min-width: 0; overflow: hidden; }
 
 .add-ligne-grid .form-group label {
   font-size: 10px;
@@ -1308,10 +1265,7 @@
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
 }
 
-.add-ligne-grid .form-group input:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
+.add-ligne-grid .form-group input:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .input-hint {
   display: block;
@@ -1350,7 +1304,6 @@
 .btn-add-produit:hover:not(:disabled) { background: var(--primary-dark); }
 .btn-add-produit:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Sous-total preview */
 .sous-total-preview {
   margin-top: 8px;
   padding: 8px 12px;
@@ -1378,7 +1331,6 @@
   font-style: italic;
 }
 
-/* Tableau des lignes */
 .lignes-section { margin-top: 10px; min-width: 0; }
 
 .lignes-table-container {
@@ -1468,7 +1420,6 @@
 
 .empty-lignes small { font-size: 11px; color: var(--text-muted); }
 
-/* Badges d'unité */
 .unite-badge {
   display: inline-flex;
   align-items: center;
@@ -1503,7 +1454,7 @@
 }
 
 /* ================================================================
-   14. SIDEBAR RÉSUMÉ (colonne droite)
+   14. SIDEBAR RÉSUMÉ
    ================================================================ */
 .resume-card { padding: 14px 16px; min-width: 0; }
 
@@ -1543,7 +1494,6 @@
   min-width: 0;
 }
 
-/* Liste des lignes dans le résumé */
 .resume-lignes {
   display: flex;
   flex-direction: column;
@@ -1582,10 +1532,7 @@
   white-space: nowrap;
 }
 
-.resume-ligne-unite {
-  font-size: 10px;
-  color: var(--text-muted);
-}
+.resume-ligne-unite { font-size: 10px; color: var(--text-muted); }
 
 .resume-ligne-total {
   color: var(--text-primary);
@@ -1594,7 +1541,6 @@
   flex-shrink: 0;
 }
 
-/* Total dans le résumé */
 .resume-total {
   display: flex;
   justify-content: space-between;
@@ -1651,11 +1597,8 @@
 }
 
 .summary-value { font-size: 14px; font-weight: 700; color: var(--text-primary); }
-
 .summary-value-total { font-size: 18px; font-weight: 800; color: var(--success); }
-
 .summary-divider { width: 1px; height: 28px; background: var(--border); }
-
 .footer-actions { display: flex; gap: 8px; }
 
 .footer-actions .btn {
@@ -1701,9 +1644,7 @@
 }
 
 .paiement-total { display: flex; flex-direction: column; gap: 2px; }
-
 .paiement-label { font-size: 13px; color: var(--text-muted); }
-
 .paiement-montant { font-size: 32px; font-weight: 700; color: var(--primary); }
 
 .paiement-commande {
@@ -1752,9 +1693,7 @@
 }
 
 .paiement-mode-btn.active svg { color: var(--primary); }
-
 .paiement-mode-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
 .paiement-mode-btn svg { color: var(--text-muted); transition: var(--transition); }
 
 /* ================================================================
@@ -1834,7 +1773,6 @@
 }
 
 .detail-item .montant-total { font-size: 18px; font-weight: 700; color: var(--primary); }
-
 .detail-lignes { margin-top: 18px; }
 
 .detail-lignes h4,
@@ -1870,12 +1808,10 @@
 }
 
 .detail-lignes-table .total-row { font-weight: 600; background: var(--bg); }
-
 .detail-lignes-table .total-row td { padding: 10px 12px; }
 
 .produit-nom { font-weight: 500; }
 .produit-marque { color: var(--text-muted); }
-
 .detail-paiements { margin-top: 18px; }
 
 .detail-paiements-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -1912,7 +1848,6 @@
 
 .facture-info p { margin: 4px 0; font-size: 13px; color: var(--text-secondary); }
 .facture-info strong { color: var(--text-primary); }
-
 .facture-status { display: flex; align-items: center; }
 
 .facture-lignes {
@@ -1970,13 +1905,38 @@
   transform: translateY(-1px);
 }
 
-@keyframes pulse-pay {
-  0%, 100% { box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
-  50% { box-shadow: 0 4px 20px rgba(16, 185, 129, 0.6); }
+/* Bandeau facture payée */
+.facture-paid-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
+  color: #065f46;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.facture-paid-banner svg { color: #10b981; flex-shrink: 0; }
+
+.detail-paid-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  color: #065f46;
+  font-size: 13px;
+  font-weight: 600;
 }
 
 /* ================================================================
-   BOUTONS PDF — pour FacturePDFActions
+   BOUTONS PDF
    ================================================================ */
 .facture-pdf-actions-container {
   display: flex;
@@ -2004,16 +1964,12 @@
 
 .pdf-btn-download { background: var(--primary); color: #ffffff; }
 .pdf-btn-download:hover:not(:disabled) { background: var(--primary-dark); }
-
 .pdf-btn-print { background: var(--bg); color: var(--text-secondary); }
 .pdf-btn-print:hover:not(:disabled) { background: var(--border); }
-
 .pdf-btn-close { background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border); }
 .pdf-btn-close:hover:not(:disabled) { background: var(--bg); color: var(--text-primary); }
-
 .pdf-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Overlay de génération PDF */
 .pdf-loading-overlay {
   position: fixed;
   inset: 0;
@@ -2177,7 +2133,6 @@
 }
 
 .status-badge.clickable.loading { opacity: 0.7; cursor: not-allowed; }
-
 .statut-chevron { transition: transform 0.2s ease; margin-left: 2px; }
 .statut-chevron.rotated { transform: rotate(180deg); }
 
@@ -2196,11 +2151,6 @@
   padding: 6px;
   z-index: 1000;
   animation: statutSlideDown 0.15s ease;
-}
-
-@keyframes statutSlideDown {
-  from { opacity: 0; transform: translateY(-6px); }
-  to { opacity: 1; transform: translateY(0); }
 }
 
 .statut-dropdown-header {
@@ -2241,7 +2191,6 @@
 }
 
 .statut-dropdown-item:disabled { opacity: 0.5; cursor: not-allowed; }
-
 .statut-dropdown-item .current-check { margin-left: auto; color: #10b981; }
 
 .statut-dropdown-item svg.status-en-attente { color: #f59e0b; }
@@ -2252,7 +2201,7 @@
 .statut-dropdown-item svg.status-annulee { color: #ef4444; }
 
 /* ================================================================
-   23. TOAST — Style moderne (coin bas droite)
+   23. TOAST
    ================================================================ */
 .ventes-toast {
   position: fixed;
@@ -2331,11 +2280,6 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='12' y1='16' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12.01' y2='8'/%3E%3C/svg%3E");
 }
 
-@keyframes toastSlideIn {
-  from { opacity: 0; transform: translateX(100%); }
-  to { opacity: 1; transform: translateX(0); }
-}
-
 /* ================================================================
    24. SCROLLBARS
    ================================================================ */
@@ -2384,6 +2328,18 @@
   100% { transform: scale(1); }
 }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+@keyframes pulse-pay {
+  0%, 100% { box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3); }
+  50% { box-shadow: 0 4px 20px rgba(16, 185, 129, 0.6); }
+}
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes statutSlideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 
 /* ================================================================
    26. RESPONSIVE
@@ -2415,6 +2371,7 @@
   .add-button-group { grid-column: 1 / -1; }
   .btn-add-produit { width: 100%; }
 
+  /* ✅ FIX : on garde la même max-height, pas de changement inline */
   .unites-buttons { max-height: 140px; }
 }
 
@@ -2438,7 +2395,6 @@
 
   .filter-select { width: 100%; }
   .view-toggle { align-self: flex-end; }
-
   .ventes-stats { grid-template-columns: repeat(2, 1fr); }
 
   .modal-content {
@@ -2477,11 +2433,7 @@
   .facture-pdf-actions-container .pdf-btn { width: 100%; }
 
   .form-grid-2 { grid-template-columns: 1fr; }
-
-  .add-ligne-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-
+  .add-ligne-grid { grid-template-columns: 1fr 1fr; }
   .unites-buttons { max-height: 130px; }
 
   .ventes-toast {
@@ -2511,47 +2463,6 @@
   .add-ligne-grid { grid-template-columns: 1fr; }
   .btn-add-produit { width: 100%; }
 
-.unites-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  min-width: 0;
-  max-height: 120px;
-  overflow-y: auto;
-}
-}
-/* ================================================================
-   BANDEAU "FACTURE PAYÉE" dans le modal Facture
-   ================================================================ */
-.facture-paid-banner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  padding: 12px 16px;
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
-  border: 1px solid #a7f3d0;
-  border-radius: 10px;
-  color: #065f46;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.facture-paid-banner svg {
-  color: #10b981;
-  flex-shrink: 0;
-}
-
-/* Indicateur "Payée" dans le footer Détails */
-.detail-paid-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  background: #ecfdf5;
-  border: 1px solid #a7f3d0;
-  border-radius: 8px;
-  color: #065f46;
-  font-size: 13px;
-  font-weight: 600;
+  /* FIX : on garde le flex, on ajuste juste max-height */
+  .unites-buttons { max-height: 120px; }
 }

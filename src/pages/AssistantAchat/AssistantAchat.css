@@ -167,7 +167,6 @@
     background: white;
     border-radius: 14px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-    overflow: hidden;
     border: 1.5px solid transparent;
     transition: border-color 0.15s;
 }
@@ -846,7 +845,7 @@
 /* Ajustement de la ligne quantité */
 .produit-quantite {
     display: flex;
-    align-items: center;
+    align-items: center; 
     gap: 6px;
     flex-wrap: wrap;
 }
