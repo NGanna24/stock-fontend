@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import RapportAchatService from "../../../services/rapportAchatService";
 import { useUser } from "../../../context/AuthContext";
+import StockSelector from "../../../components/StockSelector/StockSelector";
 import "./RapportAchats.css";
 
 // ========== FORMATAGE ==========
@@ -498,7 +499,19 @@ const RapportAchats = () => {
                                                     <td className="font-semibold">{p.produit_nom}</td>
                                                     <td>{p.marque_nom || '-'}</td>
                                                     <td>{p.categorie_nom || '-'}</td>
-                                                    <td className="text-center">{p.total_achete}</td>
+                                                    {/* ✅ StockSelector pour la quantité */}
+                                                    <td className="text-center">
+                                                        <StockSelector
+                                                            idProduit={`rapport-achat-${p.id_produit}`}
+                                                            stockBase={p.total_achete_base || p.total_achete || 0}
+                                                            unitesVente={p.unites_vente || []}
+                                                            uniteBase={{
+                                                                nom: p.unite_nom,
+                                                                symbole: p.unite_symbole,
+                                                            }}
+                                                            variant="list"
+                                                        />
+                                                    </td>
                                                     <td className="text-center">{p.nombre_commandes}</td>
                                                     <td className="font-bold">{formatMontant(p.montant_total)}</td>
                                                 </tr>

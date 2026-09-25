@@ -250,7 +250,7 @@ RETOUR_CLIENT: {
 
         GET_PRODUITS_RECUS: (id) => `${BASE_URL}/api/fournisseurs/${id}/produits-recu`,
 
-    },
+    }, 
 
     // ==================== URLS COMMANDES D'ACHAT ====================
 COMMANDE_ACHAT: {

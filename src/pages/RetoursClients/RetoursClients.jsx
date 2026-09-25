@@ -1388,7 +1388,7 @@ const RetoursClients = () => {
         <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
           <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>📋 Détails du retour client</h2>
+              <h2>Détails du retour client</h2>
               <button className="modal-close" onClick={() => setShowDetailModal(false)}>
                 <X size={24} />
               </button>

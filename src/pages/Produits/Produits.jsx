@@ -135,9 +135,7 @@ const DropdownMenu = ({ trigger, children, isOpen, onClose }) => {
       const spaceAbove = rect.top;
       const showAbove = spaceBelow < menuHeight + 20 && spaceAbove > spaceBelow;
 
-      let top = showAbove
-        ? rect.top - menuHeight - 6
-        : rect.bottom + 6;
+      let top = showAbove ? rect.top - menuHeight - 6 : rect.bottom + 6;
       let left = rect.right - menuWidth;
 
       if (left < 8) left = 8;
@@ -214,14 +212,13 @@ const DropdownMenu = ({ trigger, children, isOpen, onClose }) => {
 };
 
 // ============================================================
-// COMPOSANT : APERÇU DU STOCK (dans le formulaire)
+// COMPOSANT : APERÇU DU STOCK
 // ============================================================
 const StockPreview = ({ stockBase, unitesVente = [], uniteBase = null }) => {
   const stock = parseFloat(stockBase) || 0;
 
   if (stock <= 0 || !uniteBase?.nom) return null;
 
-  // Construction : base + perso (triées par quantite_base DESC)
   const toutes = [
     {
       id: null,
@@ -240,7 +237,6 @@ const StockPreview = ({ stockBase, unitesVente = [], uniteBase = null }) => {
       .sort((a, b) => b.quantite_base - a.quantite_base),
   ];
 
-  // Décomposition
   let reste = stock;
   const parts = [];
 
@@ -305,8 +301,11 @@ const Produits = () => {
   const [saving, setSaving] = useState(false);
   const [unitesVente, setUnitesVente] = useState([]);
 
-  // ✅ AJOUT : état pour le warning doublon
   const [duplicateWarning, setDuplicateWarning] = useState(null);
+
+  // Gestion des étapes du modal (1 = infos, 2 = stock)
+  const [currentStep, setCurrentStep] = useState(1);
+  const [createdProduitId, setCreatedProduitId] = useState(null);
 
   // ========== MODAL SUPPRESSION ==========
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -325,17 +324,12 @@ const Produits = () => {
   // ========== PERMISSIONS ==========
   const canManage = user && ["admin", "manager"].includes(user.role);
 
-  // ========== UNITÉ DE BASE SÉLECTIONNÉE (pour le formulaire) ==========
+  // ========== UNITÉ DE BASE SÉLECTIONNÉE ==========
   const uniteSelectionneeForm = useMemo(() => {
-    if (!formData.id_unite) {
-      const first = unitesVente.find((u) => !u.isDeleted && u.nom);
-      return first
-        ? { nom: first.nom, symbole: "" }
-        : { nom: "Unité", symbole: "" };
-    }
+    if (!formData.id_unite) return null;
     const u = unites.find((x) => x.id_unite === parseInt(formData.id_unite));
     return u ? { nom: u.nom, symbole: u.symbole || "" } : null;
-  }, [formData.id_unite, unites, unitesVente]);
+  }, [formData.id_unite, unites]);
 
   // ========== DEBOUNCE RECHERCHE ==========
   useEffect(() => {
@@ -608,6 +602,8 @@ const Produits = () => {
     setFormData(INITIAL_FORM_DATA);
     setUnitesVente([]);
     setDuplicateWarning(null);
+    setCurrentStep(1);
+    setCreatedProduitId(null);
     setShowModal(true);
   };
 
@@ -676,6 +672,8 @@ const Produits = () => {
         },
       ]);
     }
+    setCurrentStep(1);
+    setCreatedProduitId(produit.id_produit);
     setShowModal(true);
   };
 
@@ -685,9 +683,15 @@ const Produits = () => {
     setOpenDropdown(null);
   };
 
-  const handleSave = async () => {
+  // ✅ ÉTAPE 1 : Enregistre les infos générales puis propose TOUJOURS l'étape 2
+  const handleSaveAndNext = async () => {
     if (!formData.nom.trim()) {
       showToast("warning", "Veuillez saisir un nom de produit");
+      return;
+    }
+
+    if (!formData.id_unite) {
+      showToast("warning", "Veuillez choisir une unité de base");
       return;
     }
 
@@ -725,16 +729,20 @@ const Produits = () => {
         description: formData.description?.trim() || "",
         prix_achat: parseFloat(formData.prix_achat) || 0,
         prix_vente: parseFloat(formData.prix_vente) || 0,
-        quantite_stock: parseFloat(formData.quantite_stock) || 0,
-        quantite_minimale: parseFloat(formData.quantite_minimale) || 0,
-        quantite_maximale: parseFloat(formData.quantite_maximale) || 0,
+        // Étape 1 : on force le stock à 0 (sera saisi à l'étape 2)
+        quantite_stock: 0,
+        quantite_minimale: 0,
+        quantite_maximale: 0,
+        emplacement: "",
+        rayon: "",
+        etagere: "",
         id_fournisseur: formData.id_fournisseur || null,
         id_categorie: formData.id_categorie || null,
         id_marque: formData.id_marque || null,
         id_modele: formData.id_modele || null,
         id_unite: formData.id_unite || null,
         unites_vente: unitesActives.map((u) => ({
-          id_unite_vente: u.id_unite_vente,
+          id_unite_vente: u.id_unite_vente || null,
           nom: u.nom.trim(),
           quantite_base: parseFloat(u.quantite_base) || 1,
           prix_vente: parseFloat(u.prix_vente) || 0,
@@ -751,16 +759,55 @@ const Produits = () => {
         : await ProduitService.createProduit(token, data);
 
       if (response.success) {
-        showToast(
-          "success",
-          editingProduit ? "Produit modifié avec succès" : "Produit créé avec succès"
-        );
-        await loadProduits();
-        setShowModal(false);
-        setEditingProduit(null);
-        setFormData(INITIAL_FORM_DATA);
-        setUnitesVente([]);
-        setDuplicateWarning(null);
+        const idProduit =
+          response.data?.id_produit ||
+          response.id_produit ||
+          editingProduit?.id_produit;
+
+        setCreatedProduitId(idProduit);
+
+        loadProduits();
+
+        // ✅ Synchroniser les vrais IDs d'unités de vente renvoyés par le backend
+        const unitesServeur = response.data?.unites_vente || [];
+
+        if (unitesServeur.length > 0) {
+          setUnitesVente((prev) =>
+            prev.map((u) => {
+              if (u.isDeleted) return u;
+
+              const match = unitesServeur.find(
+                (s) =>
+                  s.nom &&
+                  u.nom &&
+                  s.nom.trim().toLowerCase() === u.nom.trim().toLowerCase()
+              );
+
+              if (match) {
+                return {
+                  ...u,
+                  id_unite_vente: match.id_unite_vente,
+                  isNew: false,
+                };
+              }
+              return u;
+            })
+          );
+        }
+
+        // ✅ Édition ET création → on propose l'étape 2
+        if (editingProduit) {
+          showToast(
+            "success",
+            "Produit modifié. Vous pouvez ajuster le stock ou ignorer cette étape."
+          );
+        } else {
+          showToast(
+            "success",
+            "Produit créé. Vous pouvez maintenant saisir le stock."
+          );
+        }
+        setCurrentStep(2);
       } else if (response.isDuplicate) {
         setDuplicateWarning({
           message: response.message,
@@ -775,6 +822,95 @@ const Produits = () => {
     } finally {
       setSaving(false);
     }
+  };
+
+  // ✅ ÉTAPE 2 : Enregistre le stock + emplacement
+  const handleSaveStock = async () => {
+    if (!createdProduitId) {
+      showToast("error", "Impossible de trouver le produit à mettre à jour");
+      return;
+    }
+
+    setSaving(true);
+    
+    try {
+          const unitesActives = unitesVente.filter((u) => !u.isDeleted);
+
+      const data = {
+        ...formData,
+        nom: formData.nom.trim(),
+        description: formData.description?.trim() || "",
+        prix_achat: parseFloat(formData.prix_achat) || 0,
+        prix_vente: parseFloat(formData.prix_vente) || 0,
+        quantite_stock: parseFloat(formData.quantite_stock) || 0,
+        quantite_minimale: parseFloat(formData.quantite_minimale) || 0,
+        quantite_maximale: parseFloat(formData.quantite_maximale) || 0,
+        emplacement: formData.emplacement?.trim() || "",
+        rayon: formData.rayon?.trim() || "",
+        etagere: formData.etagere?.trim() || "",
+        id_fournisseur: formData.id_fournisseur || null,
+        id_categorie: formData.id_categorie || null,
+        id_marque: formData.id_marque || null,
+        id_modele: formData.id_modele || null,
+        id_unite: formData.id_unite || null,
+        unites_vente: unitesActives.map((u) => ({
+          id_unite_vente: u.id_unite_vente || null,
+          nom: u.nom.trim(),
+          quantite_base: parseFloat(u.quantite_base) || 1,
+          prix_vente: parseFloat(u.prix_vente) || 0,
+          prix_achat: parseFloat(u.prix_achat) || 0,
+          est_principal: u.est_principal,
+        })),
+        unites_vente_deleted: unitesVente
+          .filter((u) => u.isDeleted && u.id_unite_vente)
+          .map((u) => u.id_unite_vente),
+      };
+
+      const response = await ProduitService.updateProduit(
+        token,
+        createdProduitId,
+        data
+      );
+
+      if (response.success) {
+        showToast(
+          "success",
+          editingProduit
+            ? "Produit et stock mis à jour avec succès"
+            : "Stock enregistré avec succès"
+        );
+        await loadProduits();
+        setShowModal(false);
+        setEditingProduit(null);
+        setFormData(INITIAL_FORM_DATA);
+        setUnitesVente([]);
+        setCurrentStep(1);
+        setCreatedProduitId(null);
+      } else {
+        showToast("error", response.message || "Erreur de sauvegarde du stock");
+      }
+    } catch (err) {
+      console.error("❌ SaveStock error:", err);
+      showToast("error", err.message || "Erreur de sauvegarde du stock");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ✅ Ignorer l'étape Stock et fermer
+  const handleSkipStock = () => {
+    showToast(
+      "success",
+      editingProduit
+        ? "Produit modifié avec succès"
+        : "Produit créé avec succès"
+    );
+    setShowModal(false);
+    setEditingProduit(null);
+    setFormData(INITIAL_FORM_DATA);
+    setUnitesVente([]);
+    setCurrentStep(1);
+    setCreatedProduitId(null);
   };
 
   const confirmDelete = (produit) => {
@@ -1406,7 +1542,7 @@ const Produits = () => {
       )}
 
       {/* ============================================================
-          MODAL AJOUT / ÉDITION
+          MODAL AJOUT / ÉDITION (WIZARD 2 ÉTAPES)
           ============================================================ */}
       {showModal && (
         <div className="modal-overlay">
@@ -1424,9 +1560,13 @@ const Produits = () => {
                     {editingProduit ? "Modifier le produit" : "Nouveau produit"}
                   </h2>
                   <p className="modal-subtitle">
-                    {editingProduit
-                      ? "Modifiez les informations du produit"
-                      : "Remplissez les informations du nouveau produit"}
+                    {currentStep === 1
+                      ? editingProduit
+                        ? "Étape 1/2 — Modifiez les informations du produit"
+                        : "Étape 1/2 — Remplissez les informations du nouveau produit"
+                      : editingProduit
+                        ? "Étape 2/2 — Ajustez le stock & l'emplacement (facultatif)"
+                        : "Étape 2/2 — Stock & Emplacement (facultatif)"}
                   </p>
                 </div>
               </div>
@@ -1440,466 +1580,551 @@ const Produits = () => {
             </div>
 
             <div className="modal-body">
-              {/* Bandeau warning doublon */}
-              {duplicateWarning && (
-                <div className="alert alert-warning">
-                  <AlertTriangle size={18} />
-                  <div className="alert-content">
-                    <strong>Produit déjà existant</strong>
-                    <p>{duplicateWarning.message}</p>
-                    {duplicateWarning.existingId && (
-                      <button
-                        type="button"
-                        className="alert-link"
-                        onClick={() => {
-                          const existing = produits.find(
-                            (p) => p.id_produit === duplicateWarning.existingId
-                          );
-                          if (existing) {
-                            setShowModal(false);
-                            setDuplicateWarning(null);
-                            handleView(existing);
-                          } else {
-                            showToast(
-                              "info",
-                              "Produit existant introuvable dans la liste actuelle."
-                            );
-                          }
-                        }}
-                      >
-                        Voir le produit existant →
-                      </button>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    className="alert-close"
-                    onClick={() => setDuplicateWarning(null)}
-                    aria-label="Fermer l'avertissement"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
-              )}
-
-              {/* Section : Informations générales */}
-              <div className="form-section">
-                <div className="form-section-title">
-                  <Info size={14} />
-                  <span>Informations générales</span>
-                </div>
-
-                <div className="form-group">
-                  <label>
-                    Fournisseur <span className="required">*</span>
-                  </label>
-                  <SelectSearch
-                    options={fournisseurs}
-                    value={formData.id_fournisseur}
-                    onChange={handleInputChange}
-                    placeholder="Sélectionner un fournisseur..."
-                    optionLabel="nom"
-                    optionValue="id_fournisseur"
-                    name="id_fournisseur"
-                    disabled={saving}
-                    renderOption={(f) => (
-                      <span>
-                        <strong>{f.nom}</strong>
-                        {f.ville && ` — ${f.ville}`}
-                        {f.pays && ` (${f.pays})`}
-                      </span>
-                    )}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>
-                    Nom du produit <span className="required">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="nom"
-                    value={formData.nom}
-                    onChange={handleInputChange}
-                    placeholder="Ex: Bougie NGK CR8E"
-                    disabled={saving}
-                    maxLength={100}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Description</label>
-                  <textarea
-                    name="description"
-                    value={formData.description}
-                    onChange={handleInputChange}
-                    placeholder="Description du produit..."
-                    rows="2"
-                    disabled={saving}
-                    maxLength={500}
-                  />
-                </div>
-
-                <div className="form-grid-4">
-                  <div className="form-group">
-                    <SelectSearch
-                      options={categories}
-                      value={formData.id_categorie}
-                      onChange={handleInputChange}
-                      label="Catégorie"
-                      placeholder="Sélectionner..."
-                      optionLabel="nom"
-                      optionValue="id_categorie"
-                      name="id_categorie"
-                      disabled={saving}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <SelectSearch
-                      options={marques}
-                      value={formData.id_marque}
-                      onChange={handleInputChange}
-                      label="Marque"
-                      placeholder="Sélectionner..."
-                      optionLabel="nom"
-                      optionValue="id_marque"
-                      name="id_marque"
-                      disabled={saving}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <SelectSearch
-                      options={modeles}
-                      value={formData.id_modele}
-                      onChange={handleInputChange}
-                      label="Modèle"
-                      placeholder="Sélectionner..."
-                      optionLabel="nom"
-                      optionValue="id_modele"
-                      name="id_modele"
-                      disabled={saving}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <SelectSearch
-                      options={unites}
-                      value={formData.id_unite}
-                      onChange={handleInputChange}
-                      label="Unité de base"
-                      placeholder="Sélectionner..."
-                      optionLabel="nom"
-                      optionValue="id_unite"
-                      name="id_unite"
-                      disabled={saving}
-                      renderOption={(u) => (
-                        <span>
-                          {u.nom} <small>({u.symbole})</small>
-                        </span>
-                      )}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Section : Prix */}
-              <div className="form-section">
-                <div className="form-section-title">
-                  <Banknote />
-                  <span>Prix (FCFA)</span>
-                </div>
-                <div className="form-grid-2">
-                  <div className="form-group">
-                    <label>Prix d'achat</label>
-                    <input
-                      type="number"
-                      name="prix_achat"
-                      value={formData.prix_achat}
-                      onChange={handleInputChange}
-                      placeholder="0"
-                      step="0.01"
-                      min="0"
-                      disabled={saving}
-                    />
-                    <small>Prix proposé par le fournisseur</small>
-                  </div>
-                  <div className="form-group">
-                    <label>Prix de vente</label>
-                    <input
-                      type="number"
-                      name="prix_vente"
-                      value={formData.prix_vente}
-                      onChange={handleInputChange}
-                      placeholder="0"
-                      step="0.01"
-                      min="0"
-                      disabled={saving}
-                    />
-                    <small>Prix par défaut (unité de base)</small>
-                  </div>
-                </div>
-              </div>
-
-              {/* Section : Unités de vente */}
-              <div className="form-section unites-vente-section">
-                <div className="section-header-unites">
-                  <div className="section-header-left">
-                    <Layers size={16} />
-                    <span>Unités de vente</span>
-                  </div>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-primary"
-                    onClick={handleAddUniteVente}
-                    disabled={saving}
-                  >
-                    <Plus size={14} /> Ajouter
-                  </button>
-                </div>
-
-                <p className="section-hint">
-                  Définissez les conditionnements dans lesquels vous vendez ce produit
-                  (ex : Bidon, Carton, Palette)
-                </p>
-
-                {unitesVente.filter((u) => !u.isDeleted).length === 0 ? (
-                  <div className="empty-unites">
-                    <div className="empty-icon-wrapper small">
-                      <Box size={24} />
-                    </div>
-                    <p>Aucune unité de vente</p>
-                    <small>Cliquez sur "Ajouter" pour commencer</small>
-                  </div>
-                ) : (
-                  <div className="unites-vente-list">
-                    {unitesVente.map((unite, index) => {
-                      if (unite.isDeleted) return null;
-                      return (
-                        <div
-                          key={index}
-                          className={`unite-vente-item ${
-                            unite.est_principal ? "principal" : ""
-                          }`}
-                        >
-                          <div className="unite-principal-check">
-                            <input
-                              type="radio"
-                              name="unite_principale"
-                              checked={unite.est_principal}
-                              onChange={() => handleSetUnitePrincipale(index)}
-                              disabled={saving}
-                              title="Définir comme principale"
-                            />
-                          </div>
-
-                          <div className="form-group">
-                            <label>Nom</label>
-                            <input
-                              type="text"
-                              value={unite.nom}
-                              onChange={(e) =>
-                                handleUniteVenteChange(index, "nom", e.target.value)
-                              }
-                              placeholder="Ex: Carton"
-                              disabled={saving}
-                              maxLength={50}
-                            />
-                          </div>
-
-                          <div className="form-group">
-                            <label>Qté base</label>
-                            <input
-                              type="number"
-                              value={unite.quantite_base}
-                              onChange={(e) =>
-                                handleUniteVenteChange(index, "quantite_base", e.target.value)
-                              }
-                              placeholder="12"
-                              min="1"
-                              step="1"
-                              disabled={saving}
-                            />
-                          </div>
-
-                          <div className="form-group">
-                            <label>Prix achat</label>
-                            <input
-                              type="number"
-                              value={unite.prix_achat}
-                              onChange={(e) =>
-                                handleUniteVenteChange(index, "prix_achat", e.target.value)
-                              }
-                              placeholder="0"
-                              min="0"
-                              step="0.01"
-                              disabled={saving}
-                            />
-                          </div>
-
-                          <div className="form-group">
-                            <label>Prix vente</label>
-                            <input
-                              type="number"
-                              value={unite.prix_vente}
-                              onChange={(e) =>
-                                handleUniteVenteChange(index, "prix_vente", e.target.value)
-                              }
-                              placeholder="0"
-                              min="0"
-                              step="0.01"
-                              disabled={saving}
-                            />
-                          </div>
-
+              {/* ============================================================
+                  ÉTAPE 1 : Infos générales + Prix + Unités de vente
+                  ============================================================ */}
+              {currentStep === 1 && (
+                <>
+                  {duplicateWarning && (
+                    <div className="alert alert-warning">
+                      <AlertTriangle size={18} />
+                      <div className="alert-content">
+                        <strong>Produit déjà existant</strong>
+                        <p>{duplicateWarning.message}</p>
+                        {duplicateWarning.existingId && (
                           <button
                             type="button"
-                            className="btn-remove-unite"
-                            onClick={() => handleRemoveUniteVente(index)}
-                            disabled={saving}
-                            title="Supprimer"
+                            className="alert-link"
+                            onClick={() => {
+                              const existing = produits.find(
+                                (p) => p.id_produit === duplicateWarning.existingId
+                              );
+                              if (existing) {
+                                setShowModal(false);
+                                setDuplicateWarning(null);
+                                handleView(existing);
+                              } else {
+                                showToast(
+                                  "info",
+                                  "Produit existant introuvable dans la liste actuelle."
+                                );
+                              }
+                            }}
                           >
-                            <Trash2 size={16} />
+                            Voir le produit existant →
                           </button>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="alert-close"
+                        onClick={() => setDuplicateWarning(null)}
+                        aria-label="Fermer l'avertissement"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="form-section">
+                    <div className="form-section-title">
+                      <Info size={14} />
+                      <span>Informations générales</span>
+                    </div>
+
+                    <div className="form-group">
+                      <label>
+                        Fournisseur <span className="required">*</span>
+                      </label>
+                      <SelectSearch
+                        options={fournisseurs}
+                        value={formData.id_fournisseur}
+                        onChange={handleInputChange}
+                        placeholder="Sélectionner un fournisseur..."
+                        optionLabel="nom"
+                        optionValue="id_fournisseur"
+                        name="id_fournisseur"
+                        disabled={saving}
+                        renderOption={(f) => (
+                          <span>
+                            <strong>{f.nom}</strong>
+                            {f.ville && ` — ${f.ville}`}
+                            {f.pays && ` (${f.pays})`}
+                          </span>
+                        )}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>
+                        Nom du produit <span className="required">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="nom"
+                        value={formData.nom}
+                        onChange={handleInputChange}
+                        placeholder="Ex: Bougie NGK CR8E"
+                        disabled={saving}
+                        maxLength={100}
+                      />
+                    </div>
+
+                    <div className="form-group">
+                      <label>Description</label>
+                      <textarea
+                        name="description"
+                        value={formData.description}
+                        onChange={handleInputChange}
+                        placeholder="Description du produit..."
+                        rows="2"
+                        disabled={saving}
+                        maxLength={500}
+                      />
+                    </div>
+
+                    <div className="form-grid-4">
+                      <div className="form-group">
+                        <SelectSearch
+                          options={categories}
+                          value={formData.id_categorie}
+                          onChange={handleInputChange}
+                          label="Catégorie"
+                          placeholder="Sélectionner..."
+                          optionLabel="nom"
+                          optionValue="id_categorie"
+                          name="id_categorie"
+                          disabled={saving}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <SelectSearch
+                          options={marques}
+                          value={formData.id_marque}
+                          onChange={handleInputChange}
+                          label="Marque"
+                          placeholder="Sélectionner..."
+                          optionLabel="nom"
+                          optionValue="id_marque"
+                          name="id_marque"
+                          disabled={saving}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <SelectSearch
+                          options={modeles}
+                          value={formData.id_modele}
+                          onChange={handleInputChange}
+                          label="Modèle"
+                          placeholder="Sélectionner..."
+                          optionLabel="nom"
+                          optionValue="id_modele"
+                          name="id_modele"
+                          disabled={saving}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <SelectSearch
+                          options={unites}
+                          value={formData.id_unite}
+                          onChange={handleInputChange}
+                          label="Unité de base *"
+                          placeholder="Sélectionner..."
+                          optionLabel="nom"
+                          optionValue="id_unite"
+                          name="id_unite"
+                          disabled={saving}
+                          renderOption={(u) => (
+                            <span>
+                              {u.nom} <small>({u.symbole})</small>
+                            </span>
+                          )}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-section">
+                    <div className="form-section-title">
+                      <Banknote />
+                      <span>Prix (FCFA)</span>
+                    </div>
+                    <div className="form-grid-2">
+                      <div className="form-group">
+                        <label>Prix d'achat</label>
+                        <input
+                          type="number"
+                          name="prix_achat"
+                          value={formData.prix_achat}
+                          onChange={handleInputChange}
+                          placeholder="0"
+                          step="0.01"
+                          min="0"
+                          disabled={saving}
+                        />
+                        <small>Prix proposé par le fournisseur</small>
+                      </div>
+                      <div className="form-group">
+                        <label>Prix de vente</label>
+                        <input
+                          type="number"
+                          name="prix_vente"
+                          value={formData.prix_vente}
+                          onChange={handleInputChange}
+                          placeholder="0"
+                          step="0.01"
+                          min="0"
+                          disabled={saving}
+                        />
+                        <small>Prix par défaut (unité de base)</small>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-section unites-vente-section">
+                    <div className="section-header-unites">
+                      <div className="section-header-left">
+                        <Layers size={16} />
+                        <span>Unités de vente</span>
+                      </div>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary"
+                        onClick={handleAddUniteVente}
+                        disabled={saving}
+                      >
+                        <Plus size={14} /> Ajouter
+                      </button>
+                    </div>
+
+                    <p className="section-hint">
+                      Définissez les conditionnements dans lesquels vous vendez ce produit
+                      (ex : Bidon, Carton, Palette)
+                    </p>
+
+                    {unitesVente.filter((u) => !u.isDeleted).length === 0 ? (
+                      <div className="empty-unites">
+                        <div className="empty-icon-wrapper small">
+                          <Box size={24} />
                         </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                        <p>Aucune unité de vente</p>
+                        <small>Cliquez sur "Ajouter" pour commencer</small>
+                      </div>
+                    ) : (
+                      <div className="unites-vente-list">
+                        {unitesVente.map((unite, index) => {
+                          if (unite.isDeleted) return null;
+                          return (
+                            <div
+                              key={index}
+                              className={`unite-vente-item ${
+                                unite.est_principal ? "principal" : ""
+                              }`}
+                            >
+                              <div className="unite-principal-check">
+                                <input
+                                  type="radio"
+                                  name="unite_principale"
+                                  checked={unite.est_principal}
+                                  onChange={() => handleSetUnitePrincipale(index)}
+                                  disabled={saving}
+                                  title="Définir comme principale"
+                                />
+                              </div>
 
-              {/* Section : Stock */}
-              <div className="form-section">
-                <div className="form-section-title">
-                  <Box size={14} />
-                  <span>Stock & Emplacement</span>
-                </div>
+                              <div className="form-group">
+                                <label>Nom</label>
+                                <input
+                                  type="text"
+                                  value={unite.nom}
+                                  onChange={(e) =>
+                                    handleUniteVenteChange(index, "nom", e.target.value)
+                                  }
+                                  placeholder="Ex: Carton"
+                                  disabled={saving}
+                                  maxLength={50}
+                                />
+                              </div>
 
-                <div className="form-grid-3">
-                   <div className="form-group">
-                    <label>Stock actuel</label>
-                    <StockInputWithSelector
-                      value={formData.quantite_stock}
-                      onChange={handleInputChange}
-                      name="quantite_stock"
-                      idProduit={editingProduit?.id_produit || "new"}
-                      unitesVente={unitesVente.filter((u) => !u.isDeleted)}
-                      uniteBase={uniteSelectionneeForm}
-                      disabled={saving}
-                      placeholder="0"
-                    />
+                              <div className="form-group">
+                                <label>Qté base</label>
+                                <input
+                                  type="number"
+                                  value={unite.quantite_base}
+                                  onChange={(e) =>
+                                    handleUniteVenteChange(index, "quantite_base", e.target.value)
+                                  }
+                                  placeholder="12"
+                                  min="1"
+                                  step="1"
+                                  disabled={saving}
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label>Prix achat</label>
+                                <input
+                                  type="number"
+                                  value={unite.prix_achat}
+                                  onChange={(e) =>
+                                    handleUniteVenteChange(index, "prix_achat", e.target.value)
+                                  }
+                                  placeholder="0"
+                                  min="0"
+                                  step="0.01"
+                                  disabled={saving}
+                                />
+                              </div>
+
+                              <div className="form-group">
+                                <label>Prix vente</label>
+                                <input
+                                  type="number"
+                                  value={unite.prix_vente}
+                                  onChange={(e) =>
+                                    handleUniteVenteChange(index, "prix_vente", e.target.value)
+                                  }
+                                  placeholder="0"
+                                  min="0"
+                                  step="0.01"
+                                  disabled={saving}
+                                />
+                              </div>
+
+                              <button
+                                type="button"
+                                className="btn-remove-unite"
+                                onClick={() => handleRemoveUniteVente(index)}
+                                disabled={saving}
+                                title="Supprimer"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
-                  
-                  <div className="form-group">
-                    <label>
-                      Stock minimum
-                      {uniteSelectionneeForm && (
-                        <span className="unit-hint-inline">
-                          {" "}({uniteSelectionneeForm.nom})
+                </>
+              )}
+
+              {/* ============================================================
+                  ÉTAPE 2 : Stock & Emplacement (facultatif)
+                  ============================================================ */}
+              {currentStep === 2 && (
+                <>
+                  <div
+                    style={{
+                      padding: "12px 16px",
+                      marginBottom: "18px",
+                      background: "#eff6ff",
+                      border: "1px solid #bfdbfe",
+                      borderRadius: "10px",
+                      fontSize: "13px",
+                      color: "#1e40af",
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: "10px",
+                    }}
+                  >
+                    <Info size={18} style={{ flexShrink: 0, marginTop: 1 }} />
+                    <div>
+                      <strong style={{ display: "block", marginBottom: 2 }}>
+                        Stock & Emplacement (facultatif)
+                      </strong>
+                      <span style={{ opacity: 0.85 }}>
+                        {editingProduit
+                          ? "Vous pouvez ajuster le stock, l'emplacement ou ignorer cette étape si rien ne change."
+                          : "Vous pouvez renseigner ces informations maintenant ou les laisser vides et les compléter plus tard."}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="form-section">
+                    <div className="form-section-title">
+                      <Box size={14} />
+                      <span>Stock & Emplacement</span>
+                    </div>
+
+                    {!formData.id_unite && (
+                      <div
+                        style={{
+                          padding: "10px 14px",
+                          marginBottom: "12px",
+                          background: "#fffbeb",
+                          border: "1px solid #fde68a",
+                          borderRadius: "8px",
+                          fontSize: "12.5px",
+                          color: "#92400e",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                        }}
+                      >
+                        <AlertTriangle size={16} />
+                        <span>
+                          Veuillez d'abord choisir une <strong>unité de base</strong>{" "}
+                          ci-dessus pour saisir le stock
                         </span>
-                      )}
-                    </label>
-                    <input
-                      type="number"
-                      name="quantite_minimale"
-                      value={formData.quantite_minimale}
-                      onChange={handleInputChange}
-                      placeholder="0"
-                      step="1"
-                      min="0"
-                      disabled={saving}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>
-                      Stock maximum
-                      {uniteSelectionneeForm && (
-                        <span className="unit-hint-inline">
-                          {" "}({uniteSelectionneeForm.nom})
-                        </span>
-                      )}
-                    </label>
-                    <input
-                      type="number"
-                      name="quantite_maximale"
-                      value={formData.quantite_maximale}
-                      onChange={handleInputChange}
-                      placeholder="0"
-                      step="1"
-                      min="0"
-                      disabled={saving}
-                    />
-                  </div>
-                </div>
+                      </div>
+                    )}
 
-                <div className="form-grid-3">
-                  <div className="form-group">
-                    <label>Emplacement</label>
-                    <input
-                      type="text"
-                      name="emplacement"
-                      value={formData.emplacement}
-                      onChange={handleInputChange}
-                      placeholder="Ex: A1"
-                      disabled={saving}
-                      maxLength={50}
-                    />
+                    <div className="form-grid-3">
+                      <div className="form-group">
+                        <label>Stock actuel</label>
+                        <StockInputWithSelector
+                          value={formData.quantite_stock}
+                          onChange={handleInputChange}
+                          name="quantite_stock"
+                          idProduit={createdProduitId || "new"}
+                          unitesVente={unitesVente.filter((u) => !u.isDeleted)}
+                          uniteBase={uniteSelectionneeForm}
+                          disabled={saving || !formData.id_unite}
+                          placeholder={!formData.id_unite ? "Choisir l'unité de base" : "0"}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Stock minimum</label>
+                        <StockInputWithSelector
+                          value={formData.quantite_minimale}
+                          onChange={handleInputChange}
+                          name="quantite_minimale"
+                          idProduit={createdProduitId || "new"}
+                          unitesVente={unitesVente.filter((u) => !u.isDeleted)}
+                          uniteBase={uniteSelectionneeForm}
+                          disabled={saving || !formData.id_unite}
+                          placeholder={!formData.id_unite ? "Choisir l'unité de base" : "0"}
+                        />
+                      </div>
+
+                      <div className="form-group">
+                        <label>Stock maximum</label>
+                        <StockInputWithSelector
+                          value={formData.quantite_maximale}
+                          onChange={handleInputChange}
+                          name="quantite_maximale"
+                          idProduit={createdProduitId || "new"}
+                          unitesVente={unitesVente.filter((u) => !u.isDeleted)}
+                          uniteBase={uniteSelectionneeForm}
+                          disabled={saving || !formData.id_unite}
+                          placeholder={!formData.id_unite ? "Choisir l'unité de base" : "0"}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-grid-3">
+                      <div className="form-group">
+                        <label>Emplacement</label>
+                        <input
+                          type="text"
+                          name="emplacement"
+                          value={formData.emplacement}
+                          onChange={handleInputChange}
+                          placeholder="Ex: A1"
+                          disabled={saving}
+                          maxLength={50}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Rayon</label>
+                        <input
+                          type="text"
+                          name="rayon"
+                          value={formData.rayon}
+                          onChange={handleInputChange}
+                          placeholder="Ex: R3"
+                          disabled={saving}
+                          maxLength={50}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Étagère</label>
+                        <input
+                          type="text"
+                          name="etagere"
+                          value={formData.etagere}
+                          onChange={handleInputChange}
+                          placeholder="Ex: E2"
+                          disabled={saving}
+                          maxLength={50}
+                        />
+                      </div>
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label>Rayon</label>
-                    <input
-                      type="text"
-                      name="rayon"
-                      value={formData.rayon}
-                      onChange={handleInputChange}
-                      placeholder="Ex: R3"
-                      disabled={saving}
-                      maxLength={50}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>Étagère</label>
-                    <input
-                      type="text"
-                      name="etagere"
-                      value={formData.etagere}
-                      onChange={handleInputChange}
-                      placeholder="Ex: E2"
-                      disabled={saving}
-                      maxLength={50}
-                    />
-                  </div>
-                </div>
-              </div>
+                </>
+              )}
             </div>
 
+            {/* ================= FOOTER ADAPTATIF ================= */}
             <div className="modal-footer">
-              <button
-                className="btn btn-secondary"
-                onClick={() => setShowModal(false)}
-                disabled={saving}
-              >
-                Annuler
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={handleSave}
-                disabled={
-                  saving ||
-                  !formData.id_fournisseur ||
-                  !formData.nom.trim()
-                }
-              >
-                {saving ? (
-                  <>
-                    <span className="spinner-small"></span>
-                    <span>Enregistrement...</span>
-                  </>
-                ) : (
-                  <>
-                    <Save size={18} />
-                    <span>{editingProduit ? "Mettre à jour" : "Créer"}</span>
-                  </>
-                )}
-              </button>
+              {currentStep === 1 && (
+                <>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => setShowModal(false)}
+                    disabled={saving}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleSaveAndNext}
+                    disabled={
+                      saving ||
+                      !formData.id_fournisseur ||
+                      !formData.nom.trim()
+                    }
+                  >
+                    {saving ? (
+                      <>
+                        <span className="spinner-small"></span>
+                        <span>Enregistrement...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={18} />
+                        <span>
+                          {editingProduit
+                            ? "Mettre à jour et continuer"
+                            : "Enregistrer et continuer"}
+                        </span>
+                        <ChevronRight size={16} />
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
+
+              {currentStep === 2 && (
+                <>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={handleSkipStock}
+                    disabled={saving}
+                  >
+                    <span>Ignorer cette étape</span>
+                  </button>
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleSaveStock}
+                    disabled={saving}
+                  >
+                    {saving ? (
+                      <>
+                        <span className="spinner-small"></span>
+                        <span>Enregistrement...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save size={18} />
+                        <span>Enregistrer le stock</span>
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>

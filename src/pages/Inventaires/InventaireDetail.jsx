@@ -8,26 +8,23 @@ import {
 } from "lucide-react";
 import InventaireService from "../../services/inventaireService";
 import { useUser } from "../../context/AuthContext";
+import StockSelector from "../../components/StockSelector/StockSelector";
 import "./Inventaires.css";
 
 // ============================================================
 // HELPERS
 // ============================================================
-
-// Formatage montant (prix) — reste en décimal
 const formatMontant = (v) => {
     const n = parseFloat(v) || 0;
     return Math.round(n).toLocaleString('fr-FR') + ' FCFA';
 };
 
-// ✅ Parse une quantité en ENTIER (pièces détachées)
 const parseQuantite = (v) => {
     if (v === null || v === undefined || v === '') return 0;
     const n = parseInt(String(v).replace(/[^0-9]/g, ''), 10);
     return isNaN(n) ? 0 : n;
 };
 
-// Formatage quantité (entier)
 const formatQuantite = (v) => {
     const n = parseQuantite(v);
     return n.toLocaleString('fr-FR');
@@ -78,7 +75,6 @@ const InventaireDetail = () => {
                 setInventaire(res.data);
                 const initial = {};
                 (res.data.lignes || []).forEach(l => {
-                    // ✅ On force en entier
                     initial[l.id_ligne] = parseQuantite(l.quantite_reelle);
                 });
                 setSaisies(initial);
@@ -93,23 +89,19 @@ const InventaireDetail = () => {
     };
 
     // ============================================================
-    // SAISIE — Force les entiers
+    // SAISIE
     // ============================================================
     const handleSaisieChange = (idLigne, value) => {
-        // ✅ Retire tout sauf les chiffres
         const cleaned = String(value).replace(/[^0-9]/g, '');
         setSaisies(prev => ({ ...prev, [idLigne]: cleaned }));
     };
 
-    // ✅ Bloque les touches non numériques
     const handleKeyDown = (e, index, filteredLignes) => {
-        // Bloquer . , - e + (notation scientifique)
         if (['.', ',', '-', '+', 'e', 'E'].includes(e.key)) {
             e.preventDefault();
             return;
         }
 
-        // Enter → ligne suivante
         if (e.key === 'Enter') {
             e.preventDefault();
             if (index < filteredLignes.length - 1) {
@@ -133,7 +125,7 @@ const InventaireDetail = () => {
                 .filter(([_, qte]) => qte !== "" && qte !== null && qte !== undefined)
                 .map(([idLigne, qte]) => ({
                     id_ligne: parseInt(idLigne, 10),
-                    quantite_reelle: parseQuantite(qte)   // ✅ entier
+                    quantite_reelle: parseQuantite(qte)
                 }));
 
             const res = await InventaireService.saisirLignesEnMasse(token, id, lignes);
@@ -224,7 +216,7 @@ const InventaireDetail = () => {
             const theorique = parseQuantite(l.quantite_theorique);
             const reelle = parseQuantite(saisies[l.id_ligne] ?? l.quantite_reelle);
             const ecart = theorique - reelle;
-            const prix = parseFloat(l.prix_achat) || 0;  // prix reste décimal
+            const prix = parseFloat(l.prix_achat) || 0;
 
             if (l.date_scannage) nbSaisis++;
             if (ecart !== 0) {
@@ -344,7 +336,7 @@ const InventaireDetail = () => {
                 </div>
             </div>
 
-            {/* Barre de progression + valeur écarts */}
+            {/* Barre de progression */}
             {isEnCours && (
                 <div className="progress-bar-container">
                     <div className="progress-bar">
@@ -428,11 +420,23 @@ const InventaireDetail = () => {
                                 <tr key={l.id_ligne}>
                                     <td><strong>{l.produit_nom}</strong></td>
                                     <td>{l.marque_nom || '-'}</td>
-                                    <td>
-                                        {formatQuantite(theorique)} {l.unite_symbole || ''}
+
+                                    {/* ✅ Théorique via StockSelector */}
+                                    <td className="text-center">
+                                        <StockSelector
+                                            idProduit={`inv-th-${l.id_ligne}`}
+                                            stockBase={theorique}
+                                            unitesVente={l.unites_vente || []}
+                                            uniteBase={{
+                                                nom: l.unite_nom,
+                                                symbole: l.unite_symbole,
+                                            }}
+                                            variant="list"
+                                        />
                                     </td>
+
+                                    {/* Input saisie réelle */}
                                     <td>
-                                        {/* ✅ INPUT ENTIER */}
                                         <input
                                             ref={el => inputRefs.current[l.id_ligne] = el}
                                             type="text"
@@ -446,11 +450,15 @@ const InventaireDetail = () => {
                                             placeholder="0"
                                         />
                                     </td>
+
+                                    {/* Écart */}
                                     <td>
                                         <span className={`ecart-badge ${ecartCls}`}>
                                             {ecart > 0 ? '+' : ''}{formatQuantite(ecart)}
                                         </span>
                                     </td>
+
+                                    {/* Valeur */}
                                     <td>
                                         {ecart !== 0 && prix > 0 ? (
                                             <span className={ecart > 0 ? 'text-warn' : 'text-info'}>
@@ -460,6 +468,8 @@ const InventaireDetail = () => {
                                             <span className="text-muted">—</span>
                                         )}
                                     </td>
+
+                                    {/* Statut */}
                                     <td>
                                         {l.date_scannage ? (
                                             <span className="status-badge status-termine">

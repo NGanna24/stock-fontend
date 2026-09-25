@@ -154,7 +154,7 @@ const Inventaires = () => {
     const handleView = (inv) => {
 
         
-
+ 
         const invId = inv.id_inventaire || inv.id;
     console.log('🎯 handleView appelé avec:', inv);
     console.log('🎯 invId:', invId);

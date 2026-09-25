@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import useAlertSound from "../../hooks/useAlertSound";
+import StockSelector from "../../components/StockSelector/StockSelector";
 
 import {
     Package, Users, ShoppingCart, Banknote, TrendingUp,
@@ -684,7 +685,18 @@ const Dashboard = () => {
                                                 )}
                                             </div>
                                             <div className="top-stats">
-                                                <span className="top-qte">{p.total_vendu} vendus</span>
+                                                <td>
+                                                    <StockSelector
+                                                        idProduit={`dash-top-${p.id_produit}`}
+                                                        stockBase={p.total_vendu_base}
+                                                        unitesVente={p.unites_vente || []}
+                                                        uniteBase={{
+                                                            nom: p.unite_nom,
+                                                            symbole: p.unite_symbole,
+                                                        }}
+                                                        variant="list"
+                                                    />
+                                                </td>
                                                 <span className="top-ca">{formatMontant(p.chiffre_affaires)}</span>
                                             </div>
                                         </li>

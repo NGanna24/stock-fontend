@@ -5,32 +5,18 @@ import { ChevronDown, Box, Package, Info } from "lucide-react";
 import "./StockSelector.css";
 
 // ============================================================
-// Utilitaires (identiques à StockSelector)
+// Capitaliser la 1ère lettre
 // ============================================================
-function decomposerStock(stockBase, uniteCible, uniteBase) {
-  const stock = parseFloat(stockBase) || 0;
-  const qbCible = parseFloat(uniteCible?.quantite_base) || 1;
+const capitalize = (str) => {
+  if (!str) return str;
+  const s = String(str).trim();
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
 
-  if (qbCible <= 1) {
-    return {
-      qtePrincipale: stock,
-      unitePrincipale: uniteBase?.nom || uniteCible?.nom || "Unité",
-      qteReste: 0,
-      uniteReste: null,
-    };
-  }
-
-  const qtePrincipale = Math.floor(stock / qbCible);
-  const resteBase = stock - qtePrincipale * qbCible;
-
-  return {
-    qtePrincipale,
-    unitePrincipale: uniteCible.nom,
-    qteReste: resteBase,
-    uniteReste: uniteBase?.nom || "Unité",
-  };
-}
-
+// ============================================================
+// Construire la liste complète des unités
+// ============================================================
 function buildUnitesList(unitesVente, uniteBase) {
   const liste = [];
 
@@ -60,7 +46,7 @@ function buildUnitesList(unitesVente, uniteBase) {
 }
 
 // ============================================================
-// LocalStorage : mémoriser l'unité choisie par produit
+// LocalStorage
 // ============================================================
 const STORAGE_PREFIX = "stock_unit_form_";
 
@@ -85,11 +71,13 @@ function setStoredUniteId(idProduit, idUnite) {
 }
 
 // ============================================================
-// Composant principal
+// Composant principal — Option B
+// Le champ contient la valeur DANS L'UNITÉ CHOISIE.
+// onChange remonte la valeur convertie en unité de base.
 // ============================================================
 const StockInputWithSelector = ({
-  value,
-  onChange,
+  value,               // valeur en UNITÉ DE BASE (venant du parent)
+  onChange,            // (e) => parent met à jour formData
   name = "quantite_stock",
   idProduit,
   unitesVente = [],
@@ -99,7 +87,6 @@ const StockInputWithSelector = ({
   min = "0",
   step = "1",
 }) => {
-  // Construction de la liste des unités
   const unitesDisponibles = useMemo(
     () => buildUnitesList(unitesVente, uniteBase),
     [unitesVente, uniteBase]
@@ -107,7 +94,7 @@ const StockInputWithSelector = ({
 
   const hasMultipleUnites = unitesDisponibles.length > 1;
 
-  // Unité d'affichage choisie
+  // Unité choisie
   const [selectedUniteId, setSelectedUniteId] = useState(() => {
     const stored = getStoredUniteId(idProduit);
     if (
@@ -120,7 +107,6 @@ const StockInputWithSelector = ({
     return principale ? principale.id_unite_vente : null;
   });
 
-  // Resync si unité supprimée
   useEffect(() => {
     if (
       selectedUniteId !== null &&
@@ -139,14 +125,78 @@ const StockInputWithSelector = ({
     );
   }, [unitesDisponibles, selectedUniteId]);
 
-  // Décomposition
-  const decomposition = useMemo(
-    () => decomposerStock(value, selectedUnite, uniteBase),
-    [value, selectedUnite, uniteBase]
-  );
+  const qb = parseFloat(selectedUnite?.quantite_base) || 1;
 
   // ============================================================
-  // Dropdown (portal)
+  // Valeur AFFICHÉE dans le champ = valeur base ÷ quantite_base
+  // Ex : base=36, unité=Carton(qb=12) → affiche 3
+  // ============================================================
+  const [inputValue, setInputValue] = useState(() => {
+    const base = parseFloat(value) || 0;
+    if (base === 0) return "";
+    const converted = base / qb;
+    // Arrondi propre si entier, sinon 2 décimales
+    return Number.isInteger(converted)
+      ? String(converted)
+      : converted.toFixed(2);
+  });
+
+  // Quand `value` change (ex: ouverture édition), recalculer l'affichage
+  useEffect(() => {
+    const base = parseFloat(value) || 0;
+    if (base === 0) {
+      setInputValue("");
+      return;
+    }
+    const converted = base / qb;
+    setInputValue(
+      Number.isInteger(converted) ? String(converted) : converted.toFixed(2)
+    );
+  }, [value, qb]);
+
+  // Quand l'unité change, il faut recalculer la valeur affichée
+  // mais SANS toucher au `value` du parent
+  const handleUniteChange = (unite) => {
+    setSelectedUniteId(unite.id_unite_vente);
+    setStoredUniteId(idProduit, unite.id_unite_vente);
+
+    // Recalculer l'affichage avec la nouvelle unité
+    const newQb = parseFloat(unite.quantite_base) || 1;
+    const base = parseFloat(value) || 0;
+    if (base === 0) {
+      setInputValue("");
+    } else {
+      const converted = base / newQb;
+      setInputValue(
+        Number.isInteger(converted) ? String(converted) : converted.toFixed(2)
+      );
+    }
+  };
+
+  // ============================================================
+  // Changement de saisie : on remonte au parent la valeur CONVERTIE
+  // ============================================================
+  const handleInputChange = (e) => {
+    const raw = e.target.value;
+    setInputValue(raw);
+
+    // Convertir en unité de base
+    const nb = parseFloat(raw) || 0;
+    const base = nb * qb;
+
+    // On simule un event pour le parent
+    if (onChange) {
+      onChange({
+        target: {
+          name,
+          value: String(base),
+        },
+      });
+    }
+  };
+
+  // ============================================================
+  // Dropdown
   // ============================================================
   const [open, setOpen] = useState(false);
   const triggerRef = useRef(null);
@@ -212,27 +262,18 @@ const StockInputWithSelector = ({
     };
   }, [open]);
 
-  const handleSelectUnite = (unite) => {
-    setSelectedUniteId(unite.id_unite_vente);
-    setStoredUniteId(idProduit, unite.id_unite_vente);
-    setOpen(false);
-  };
-
-  const handleInputChange = (e) => {
-    if (onChange) onChange(e);
-  };
-
-  const stockNum = parseFloat(value) || 0;
-  const { qtePrincipale, unitePrincipale, qteReste, uniteReste } = decomposition;
+  // ============================================================
+  // Rendu
+  // ============================================================
+  const baseValue = parseFloat(value) || 0;
 
   return (
     <div className="stock-input-with-selector">
-      {/* Ligne : input + dropdown */}
       <div className="stock-input-row">
         <input
           type="number"
           name={name}
-          value={value}
+          value={inputValue}
           onChange={handleInputChange}
           placeholder={placeholder}
           step={step}
@@ -251,28 +292,27 @@ const StockInputWithSelector = ({
                 setOpen((v) => !v);
               }}
               disabled={disabled}
-              title="Changer l'unité d'affichage"
+              title="Changer l'unité de saisie"
             >
-              <span>{unitePrincipale}</span>
+              <span>{capitalize(selectedUnite?.nom || "Unité")}</span>
               <ChevronDown size={12} />
             </button>
           </span>
         )}
 
         {!hasMultipleUnites && uniteBase?.nom && (
-          <span className="stock-unite-static-label">{uniteBase.nom}</span>
+          <span className="stock-unite-static-label">
+            {capitalize(uniteBase.nom)}
+          </span>
         )}
       </div>
 
-      {/* Aperçu de conversion */}
-      {stockNum > 0 && (
+      {/* Aperçu : valeur convertie en unité de base */}
+      {baseValue > 0 && (
         <small className="stock-preview">
           <Info size={11} />
           <span>
-            = {qtePrincipale} {unitePrincipale}
-            {qteReste > 0 && uniteReste && (
-              <> + {qteReste} {uniteReste}</>
-            )}
+            = {baseValue} {capitalize(uniteBase?.nom || "Unité")}
           </span>
         </small>
       )}
@@ -300,12 +340,15 @@ const StockInputWithSelector = ({
                 className={`stock-unite-menu-item ${
                   unite.id_unite_vente === selectedUniteId ? "active" : ""
                 }`}
-                onClick={() => handleSelectUnite(unite)}
+                onClick={() => {
+                  handleUniteChange(unite);
+                  setOpen(false);
+                }}
               >
                 <span className="unite-menu-name">
                   {unite.is_base && <Package size={12} />}
                   {!unite.is_base && <Box size={12} />}
-                  {unite.nom}
+                  {capitalize(unite.nom)}
                 </span>
                 {unite.quantite_base > 1 && (
                   <span className="unite-menu-base">

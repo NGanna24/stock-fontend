@@ -11,6 +11,7 @@ import {
 } from 'recharts';
 import RapportVenteService from "../../../services/rapportVenteService";
 import { useUser } from "../../../context/AuthContext";
+import StockSelector from "../../../components/StockSelector/StockSelector";
 import "./RapportVentes.css";
 
 // ========== FORMATAGE ==========
@@ -335,7 +336,6 @@ const RapportVentes = () => {
                 {activeTab === 'resume' && (
                     <>
                         <div className="charts-grid">
-                            {/* Évolution des ventes */}
                             <div className="chart-card">
                                 <div className="chart-header">
                                     <h3>Évolution des ventes</h3>
@@ -381,7 +381,6 @@ const RapportVentes = () => {
                                 </div>
                             </div>
 
-                            {/* Répartition par statut */}
                             <div className="chart-card">
                                 <div className="chart-header">
                                     <h3>Répartition par statut</h3>
@@ -431,7 +430,6 @@ const RapportVentes = () => {
                             </div>
                         </div>
 
-                        {/* Top 5 produits */}
                         <div className="chart-card">
                             <div className="chart-header">
                                 <h3>Top 5 produits</h3>
@@ -500,7 +498,19 @@ const RapportVentes = () => {
                                                     <td className="font-semibold">{p.produit_nom}</td>
                                                     <td>{p.marque_nom || '-'}</td>
                                                     <td>{p.categorie_nom || '-'}</td>
-                                                    <td className="text-center">{p.total_vendu}</td>
+                                                    {/* ✅ StockSelector pour la quantité vendue */}
+                                                    <td className="text-center">
+                                                        <StockSelector
+                                                            idProduit={`rapport-vente-${p.id_produit}`}
+                                                            stockBase={p.total_vendu_base || p.total_vendu || 0}
+                                                            unitesVente={p.unites_vente || []}
+                                                            uniteBase={{
+                                                                nom: p.unite_nom,
+                                                                symbole: p.unite_symbole,
+                                                            }}
+                                                            variant="list"
+                                                        />
+                                                    </td>
                                                     <td className="text-center">{p.nombre_commandes}</td>
                                                     <td className="font-bold">{formatMontant(p.chiffre_affaires)}</td>
                                                 </tr>

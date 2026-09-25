@@ -669,9 +669,9 @@ useEffect(() => {
     return (
         <header className="header">
             <div className="headerleft">
-                {/* ✅ SEARCH BOX AVEC DROPDOWN */}
+                {/* SEARCH BOX AVEC DROPDOWN */}
                 <div className="search-box" ref={searchRef}>
-                    <Search size={18} className="search-icon" />
+                    
                     <input
                         ref={inputRef}
                         type="text"

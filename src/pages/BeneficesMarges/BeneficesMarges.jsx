@@ -13,6 +13,7 @@ import {
 } from 'recharts';
 import BeneficeService from "../../services/beneficeService";
 import { useUser } from "../../context/AuthContext";
+import StockSelector from "../../components/StockSelector/StockSelector";
 import "./BeneficesMarges.css";
 
 // ========== FORMATAGE ==========
@@ -44,11 +45,6 @@ const formatDate = (dateStr) => {
     });
 };
 
-/**
- * ✅ NOUVEAU : formate un bénéfice en gérant le cas "non disponible"
- * @param {object} row - objet avec benefice / benefice_disponible / benefice_estime
- * @returns {JSX.Element}
- */
 const renderBenefice = (row, opts = {}) => {
     const { className = '', showBadge = true } = opts;
     const dispo = row?.benefice_disponible !== false;
@@ -63,7 +59,6 @@ const renderBenefice = (row, opts = {}) => {
         );
     }
 
-    // Cas incomplet
     return (
         <div className={`benefice-incomplet ${className}`}>
             <span className="benefice-estime">
@@ -79,7 +74,6 @@ const renderBenefice = (row, opts = {}) => {
     );
 };
 
-// ========== COULEURS ============
 const CATEGORIE_COLORS = [
     '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#995F2F',
     '#06b6d4', '#ec4899', '#f97316', '#84cc16', '#6366f1'
@@ -89,7 +83,6 @@ const BeneficesMarges = () => {
     const { isAuthenticated } = useUser();
     const token = localStorage.getItem('token');
 
-    // ========== DATES ==========
     const today = new Date();
     const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
     const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
@@ -99,20 +92,16 @@ const BeneficesMarges = () => {
     const [dateDebut, setDateDebut] = useState(formatDateInput(firstDayOfMonth));
     const [dateFin, setDateFin] = useState(formatDateInput(lastDayOfMonth));
 
-    // ========== ÉTATS ==========
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
     const [data, setData] = useState(null);
     const [activeTab, setActiveTab] = useState("resume");
     const [searchProduit, setSearchProduit] = useState("");
 
-    // ========== CHARGEMENT ==========
     const loadBenefices = useCallback(async () => {
         if (!token) return;
-
         setLoading(true);
         setError(null);
-
         try {
             const res = await BeneficeService.getBenefices(token, dateDebut, dateFin);
             if (res.success) {
@@ -134,7 +123,6 @@ const BeneficesMarges = () => {
         }
     }, [isAuthenticated, token, loadBenefices]);
 
-    // ========== EXPORT ==========
     const handleExport = async () => {
         try {
             const response = await BeneficeService.exportBenefices(token, dateDebut, dateFin);
@@ -151,7 +139,6 @@ const BeneficesMarges = () => {
         }
     };
 
-    // ========== PRESETS ==========
     const setPreset = (preset) => {
         const now = new Date();
         let debut, fin;
@@ -182,7 +169,6 @@ const BeneficesMarges = () => {
         setDateFin(formatDateInput(fin));
     };
 
-    // ========== DONNÉES ==========
     const totaux = data?.totaux || {
         nombre_commandes: 0,
         chiffre_affaires: 0,
@@ -206,10 +192,8 @@ const BeneficesMarges = () => {
     const topClients = data?.top_clients || [];
     const produitsRentables = data?.produits_rentables || [];
 
-    // ✅ Compteur global : y a-t-il au moins un bénéfice incomplet ?
     const aDesBeneficesIncomplets = !totaux.benefice_disponible;
 
-    // ========== FILTRAGE ==========
     const produitsFiltres = searchProduit
         ? parProduit.filter(p =>
             p.produit_nom?.toLowerCase().includes(searchProduit.toLowerCase()) ||
@@ -218,7 +202,6 @@ const BeneficesMarges = () => {
         )
         : parProduit;
 
-    // ========== LOADER ==========
     if (loading && !data) {
         return (
             <div className="benefices-loading">
@@ -228,7 +211,6 @@ const BeneficesMarges = () => {
         );
     }
 
-    // ========== ERREUR ==========
     if (error && !data) {
         return (
             <div className="benefices-error">
@@ -432,10 +414,8 @@ const BeneficesMarges = () => {
             {/* ==================== CONTENU ==================== */}
             <div className="benefices-content">
 
-                {/* ✅ ONGLET RÉSUMÉ */}
                 {activeTab === 'resume' && (
                     <>
-                        {/* Évolution bénéfices */}
                         <div className="chart-card">
                             <div className="chart-header">
                                 <h3>Évolution du chiffre d'affaires et des bénéfices</h3>
@@ -506,7 +486,6 @@ const BeneficesMarges = () => {
                             </div>
                         </div>
 
-                        {/* Répartition bénéfices par catégorie */}
                         <div className="charts-grid">
                             <div className="chart-card">
                                 <div className="chart-header">
@@ -587,7 +566,6 @@ const BeneficesMarges = () => {
                     </>
                 )}
 
-                {/* ✅ ONGLET PRODUITS */}
                 {activeTab === 'produits' && (
                     <div className="benefices-card">
                         <div className="card-header">
@@ -623,7 +601,19 @@ const BeneficesMarges = () => {
                                                 <tr key={p.id_produit}>
                                                     <td className="font-semibold">{p.produit_nom}</td>
                                                     <td className="text-muted">{p.categorie_nom || '-'}</td>
-                                                    <td className="text-center">{p.quantite_vendue}</td>
+                                                    {/* ✅ StockSelector */}
+                                                    <td className="text-center">
+                                                        <StockSelector
+                                                            idProduit={`benefice-${p.id_produit}`}
+                                                            stockBase={p.quantite_vendue_base || p.quantite_vendue || 0}
+                                                            unitesVente={p.unites_vente || []}
+                                                            uniteBase={{
+                                                                nom: p.unite_nom,
+                                                                symbole: p.unite_symbole,
+                                                            }}
+                                                            variant="list"
+                                                        />
+                                                    </td>
                                                     <td>{formatMontant(p.prix_achat)}</td>
                                                     <td>{formatMontant(p.prix_vente)}</td>
                                                     <td className={p.marge_unitaire >= 0 ? 'text-success' : 'text-danger'}>
@@ -658,7 +648,6 @@ const BeneficesMarges = () => {
                     </div>
                 )}
 
-                {/* ✅ ONGLET CATÉGORIES */}
                 {activeTab === 'categories' && (
                     <>
                         {parCategorie.length > 0 ? (
@@ -715,7 +704,16 @@ const BeneficesMarges = () => {
                                                         <tr key={c.id_categorie || 'none'}>
                                                             <td className="font-semibold">{c.categorie_nom}</td>
                                                             <td className="text-center">{c.nombre_produits}</td>
-                                                            <td className="text-center">{c.quantite_vendue}</td>
+                                                            {/* ✅ StockSelector sur Qté vendue (agrégat) */}
+                                                            <td className="text-center">
+                                                                <StockSelector
+                                                                    idProduit={`benefice-cat-${c.id_categorie || 'none'}`}
+                                                                    stockBase={c.quantite_vendue_base || c.quantite_vendue || 0}
+                                                                    unitesVente={[]}
+                                                                    uniteBase={null}
+                                                                    variant="list"
+                                                                />
+                                                            </td>
                                                             <td>{formatMontant(c.chiffre_affaires)}</td>
                                                             <td>{formatMontant(c.cout_achat)}</td>
                                                             <td>{renderBenefice(c)}</td>
@@ -752,7 +750,6 @@ const BeneficesMarges = () => {
                     </>
                 )}
 
-                {/* ✅ ONGLET TOP RENTABLES */}
                 {activeTab === 'rentables' && (
                     <div className="benefices-card">
                         <div className="card-header">
@@ -805,7 +802,19 @@ const BeneficesMarges = () => {
                                                             <span className="badge-incomplet">N/D</span>
                                                         )}
                                                     </td>
-                                                    <td className="text-center">{p.quantite_vendue}</td>
+                                                    {/* ✅ StockSelector */}
+                                                    <td className="text-center">
+                                                        <StockSelector
+                                                            idProduit={`benefice-rent-${p.id_produit}`}
+                                                            stockBase={p.quantite_vendue_base || p.quantite_vendue || 0}
+                                                            unitesVente={p.unites_vente || []}
+                                                            uniteBase={{
+                                                                nom: p.unite_nom,
+                                                                symbole: p.unite_symbole,
+                                                            }}
+                                                            variant="list"
+                                                        />
+                                                    </td>
                                                     <td className="font-bold text-green">
                                                         {formatMontant(p.benefice_total)}
                                                     </td>
@@ -825,7 +834,6 @@ const BeneficesMarges = () => {
                     </div>
                 )}
 
-                {/* ✅ ONGLET CLIENTS */}
                 {activeTab === 'clients' && (
                     <div className="benefices-card">
                         <div className="card-header">

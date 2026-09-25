@@ -1,5 +1,5 @@
 /* ================================================================
-   VENTES.CSS — Version finale avec modal 2 colonnes
+   VENTES.CSS — Version finale corrigée
    ================================================================ */
 
 /* ================================================================
@@ -155,9 +155,6 @@
 /* ================================================================
    5. STATISTIQUES
    ================================================================ */
-/* ================================================================
-   STATISTIQUES — Style simple
-   ================================================================ */
 .ventes-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -230,13 +227,11 @@
     grid-template-columns: repeat(2, 1fr);
     gap: 8px;
   }
-  
+
   .stat-card {
     padding: 10px;
   }
 }
-
-
 
 /* ================================================================
    6. FILTRES
@@ -378,7 +373,7 @@
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   margin-bottom: 20px;
-  overflow: visible;       /* ✅ AJOUTER */
+  overflow: visible;
 }
 
 .ventes-table {
@@ -506,7 +501,7 @@
   background: var(--surface);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  overflow: hidden;
+  /* overflow: hidden; */
   transition: box-shadow 0.2s ease, border-color 0.2s ease;
   border: 1px solid var(--border);
   display: flex;
@@ -796,7 +791,7 @@
   padding: 16px;
   background: var(--bg-alt);
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: minmax(0, 1fr) 320px;
   gap: 14px;
   align-content: start;
 }
@@ -817,6 +812,7 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  min-width: 0;
 }
 
 /* Sections compactes */
@@ -826,6 +822,7 @@
   border-radius: 10px;
   padding: 14px 16px;
   animation: slideInUp 0.2s ease-out;
+  min-width: 0;
 }
 
 .step-section .section-header {
@@ -888,7 +885,7 @@
   gap: 10px;
 }
 
-.vente-modal .form-group { margin-bottom: 0; }
+.vente-modal .form-group { margin-bottom: 0; min-width: 0; }
 
 .vente-modal .form-group label {
   display: block;
@@ -900,6 +897,8 @@
   letter-spacing: 0.03em;
 }
 
+.vente-modal .input-with-icon { min-width: 0; }
+
 .vente-modal .input-with-icon .input-icon { left: 10px; }
 
 .vente-modal .input-with-icon .form-input-with-icon {
@@ -907,19 +906,27 @@
   font-size: 13px;
   background: var(--bg-alt);
   border-radius: 8px;
+  min-width: 0;
 }
 
-/* Combobox produit */
-.produit-search-wrapper { margin-bottom: 10px; }
+/* ================================================================
+   COMBOBOX PRODUIT
+   ================================================================ */
+.produit-search-wrapper {
+  margin-bottom: 10px;
+  min-width: 0;
+}
 
 .produit-search-wrapper .combobox-container {
   margin-bottom: 0;
   position: relative;
+  min-width: 0;
 }
 
 .combobox-container {
   position: relative;
   margin-bottom: 10px;
+  min-width: 0;
 }
 
 .combobox-input-wrapper.large {
@@ -931,6 +938,7 @@
   position: relative;
   display: flex;
   align-items: center;
+  min-width: 0;
 }
 
 .combobox-input-wrapper.large:focus-within {
@@ -944,16 +952,40 @@
   border: none;
   background: transparent;
   width: 100%;
+  min-width: 0;
   border-radius: 0;
   outline: none;
   color: var(--text-primary);
   font-family: inherit;
 }
 
-.combobox-input-wrapper.large .combobox-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
-.combobox-input-wrapper.large .combobox-arrow { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); cursor: pointer; }
+.combobox-input-wrapper.large .combobox-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.combobox-input-wrapper.large .combobox-arrow {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
 .combobox-input-wrapper.large .combobox-arrow:hover { color: var(--text-primary); }
-.combobox-input-wrapper.large .combobox-spinner { position: absolute; right: 36px; top: 50%; transform: translateY(-50%); color: var(--primary); }
+
+.combobox-input-wrapper.large .combobox-spinner {
+  position: absolute;
+  right: 36px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--primary);
+}
 
 .produit-dropdown {
   position: absolute;
@@ -989,21 +1021,50 @@
   cursor: pointer;
   transition: var(--transition);
   font-size: 13px;
+  gap: 8px;
 }
 
 .produit-dropdown .dropdown-item:last-child { border-bottom: none; }
 .produit-dropdown .dropdown-item:hover { background: var(--bg); }
-.produit-dropdown .dropdown-item.selected {
-  background: var(--primary-light);
+.produit-dropdown .dropdown-item.selected { background: var(--primary-light); }
+
+.dropdown-item-info {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
 }
 
-.dropdown-item-info { display: flex; flex-direction: column; flex: 1; min-width: 0; gap: 1px; }
-.dropdown-item-nom { font-weight: 500; color: var(--text-primary); font-size: 13px; }
-.dropdown-item-modele { font-size: 11px; color: var(--text-muted); }
-.dropdown-item-prix { font-weight: 600; color: var(--primary); font-size: 13px; white-space: nowrap; }
+.dropdown-item-nom {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-/* Badge produit sélectionné */
-.produit-selection-info { margin-bottom: 10px; }
+.dropdown-item-modele {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dropdown-item-prix {
+  font-weight: 600;
+  color: var(--primary);
+  font-size: 13px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* ================================================================
+   BADGE PRODUIT SÉLECTIONNÉ
+   ================================================================ */
+.produit-selection-info { margin-bottom: 10px; min-width: 0; }
 
 .produit-selection-badge {
   display: flex;
@@ -1016,11 +1077,19 @@
   color: #065f46;
   animation: pulseGreen 0.3s ease-out;
   font-size: 12px;
+  min-width: 0;
 }
 
 .produit-selection-badge > svg:first-child { flex-shrink: 0; color: var(--success); }
 
-.produit-selection-details { flex: 1; display: flex; flex-direction: column; gap: 0; min-width: 0; }
+.produit-selection-details {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
 .produit-selection-details strong {
   font-size: 12px;
   font-weight: 700;
@@ -1029,7 +1098,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.produit-selection-modele { font-size: 10px; color: var(--success-dark); }
+
+.produit-selection-modele {
+  font-size: 10px;
+  color: var(--success-dark);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .produit-selection-stock {
   font-size: 10px;
@@ -1042,13 +1118,17 @@
   flex-shrink: 0;
 }
 
-/* Unités de vente */
+/* ================================================================
+   UNITÉS DE VENTE — ne doit JAMAIS casser le layout
+   ================================================================ */
 .unite-vente-section {
   margin-bottom: 12px;
   padding: 10px 12px;
   background: #f8fafc;
   border-radius: 8px;
   border: 1px solid #e2e8f0;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .unite-vente-section > label {
@@ -1081,10 +1161,22 @@
   font-size: 12px;
 }
 
+/* ⚠️ FIX PRINCIPAL — les unités ne doivent jamais pousser le reste */
 .unites-buttons {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 6px;
+  min-width: 0;
+  max-height: 180px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+}
+
+.unites-buttons::-webkit-scrollbar { width: 5px; }
+.unites-buttons::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
 }
 
 .unite-btn {
@@ -1100,6 +1192,8 @@
   font-family: inherit;
   text-align: left;
   color: var(--text-secondary);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .unite-btn:hover:not(:disabled) {
@@ -1114,9 +1208,18 @@
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+.unite-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 .unite-btn svg { color: var(--primary); flex-shrink: 0; }
 
-.unite-btn-content { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
+.unite-btn-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
 
 .unite-btn-nom {
   font-weight: 700;
@@ -1127,15 +1230,35 @@
   white-space: nowrap;
 }
 
-.badge-base { color: #2563eb; font-weight: 500; font-size: 10px; }
+.badge-base {
+  color: #2563eb;
+  font-weight: 500;
+  font-size: 10px;
+}
 
-.unite-btn-base { font-size: 10px; color: var(--text-muted); }
-.unite-btn-prix { font-weight: 600; font-size: 11px; color: #059669; }
+.unite-btn-base {
+  font-size: 10px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
-/* Ligne d'ajout Qté + Prix + Bouton */
+.unite-btn-prix {
+  font-weight: 600;
+  font-size: 11px;
+  color: #059669;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ================================================================
+   LIGNE D'AJOUT Qté + Prix + Bouton — grille stable
+   ================================================================ */
 .add-ligne-grid {
   display: grid;
-  grid-template-columns: 100px 1fr 130px;
+  grid-template-columns: 120px minmax(0, 1fr) 130px;
   gap: 8px;
   align-items: end;
   margin-bottom: 10px;
@@ -1143,9 +1266,14 @@
   background: var(--bg-alt);
   border-radius: 8px;
   border: 1px dashed #cbd5e1;
+  min-width: 0;
 }
 
-.add-ligne-grid .form-group { margin: 0; }
+.add-ligne-grid .form-group {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+}
 
 .add-ligne-grid .form-group label {
   font-size: 10px;
@@ -1155,10 +1283,15 @@
   display: block;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .add-ligne-grid .form-group input {
   width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -1186,6 +1319,9 @@
   color: var(--text-muted);
   margin-top: 2px;
   font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .add-button-group { min-width: 0; }
@@ -1193,7 +1329,7 @@
 .btn-add-produit {
   width: 100%;
   height: 36px;
-  padding: 0 16px;
+  padding: 0 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1208,6 +1344,7 @@
   transition: var(--transition);
   font-family: inherit;
   font-size: 13px;
+  box-sizing: border-box;
 }
 
 .btn-add-produit:hover:not(:disabled) { background: var(--primary-dark); }
@@ -1220,6 +1357,7 @@
   background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
   border-radius: 8px;
   border: 1px solid #93c5fd;
+  min-width: 0;
 }
 
 .sous-total-line {
@@ -1228,6 +1366,7 @@
   align-items: center;
   font-size: 12px;
   color: #1e40af;
+  gap: 8px;
 }
 
 .sous-total-line strong { font-size: 15px; font-weight: 700; }
@@ -1240,7 +1379,7 @@
 }
 
 /* Tableau des lignes */
-.lignes-section { margin-top: 10px; }
+.lignes-section { margin-top: 10px; min-width: 0; }
 
 .lignes-table-container {
   border: 1px solid var(--border);
@@ -1248,6 +1387,7 @@
   overflow: hidden;
   background: var(--surface);
   overflow-x: auto;
+  min-width: 0;
 }
 
 .lignes-table {
@@ -1365,9 +1505,9 @@
 /* ================================================================
    14. SIDEBAR RÉSUMÉ (colonne droite)
    ================================================================ */
-.resume-card { padding: 14px 16px; }
+.resume-card { padding: 14px 16px; min-width: 0; }
 
-.resume-content { display: flex; flex-direction: column; gap: 10px; }
+.resume-content { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 
 .resume-row {
   display: flex;
@@ -1377,6 +1517,7 @@
   border-bottom: 1px solid var(--border-light);
   font-size: 12px;
   gap: 8px;
+  min-width: 0;
 }
 
 .resume-row:last-of-type { border-bottom: none; }
@@ -1399,6 +1540,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   max-width: 60%;
+  min-width: 0;
 }
 
 /* Liste des lignes dans le résumé */
@@ -1411,6 +1553,7 @@
   border-bottom: 1px solid var(--border-light);
   max-height: 200px;
   overflow-y: auto;
+  min-width: 0;
 }
 
 .resume-ligne-item {
@@ -1419,6 +1562,7 @@
   align-items: flex-start;
   gap: 8px;
   font-size: 12px;
+  min-width: 0;
 }
 
 .resume-ligne-info {
@@ -1427,6 +1571,7 @@
   gap: 1px;
   min-width: 0;
   flex: 1;
+  overflow: hidden;
 }
 
 .resume-ligne-nom {
@@ -1459,6 +1604,8 @@
   background: linear-gradient(135deg, #ecfdf5, #d1fae5);
   border-radius: 8px;
   border: 1px solid #a7f3d0;
+  gap: 8px;
+  min-width: 0;
 }
 
 .resume-total-label {
@@ -1473,6 +1620,7 @@
   font-size: 16px;
   font-weight: 800;
   color: #059669;
+  white-space: nowrap;
 }
 
 /* ================================================================
@@ -1827,6 +1975,17 @@
   50% { box-shadow: 0 4px 20px rgba(16, 185, 129, 0.6); }
 }
 
+/* ================================================================
+   BOUTONS PDF — pour FacturePDFActions
+   ================================================================ */
+.facture-pdf-actions-container {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+}
+
 .pdf-btn {
   display: inline-flex;
   align-items: center;
@@ -1839,6 +1998,8 @@
   cursor: pointer;
   transition: var(--transition);
   font-family: inherit;
+  min-width: 160px;
+  justify-content: center;
 }
 
 .pdf-btn-download { background: var(--primary); color: #ffffff; }
@@ -1847,7 +2008,36 @@
 .pdf-btn-print { background: var(--bg); color: var(--text-secondary); }
 .pdf-btn-print:hover:not(:disabled) { background: var(--border); }
 
+.pdf-btn-close { background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border); }
+.pdf-btn-close:hover:not(:disabled) { background: var(--bg); color: var(--text-primary); }
+
 .pdf-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* Overlay de génération PDF */
+.pdf-loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 9999;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.pdf-loading-spinner {
+  width: 44px;
+  height: 44px;
+  border: 4px solid rgba(255, 255, 255, 0.2);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
 
 /* ================================================================
    19. MODAL SUPPRESSION
@@ -2151,22 +2341,26 @@
    ================================================================ */
 .modal-content::-webkit-scrollbar,
 .vente-modal .modal-body::-webkit-scrollbar,
-.resume-lignes::-webkit-scrollbar { width: 6px; height: 6px; }
+.resume-lignes::-webkit-scrollbar,
+.unites-buttons::-webkit-scrollbar { width: 6px; height: 6px; }
 
 .modal-content::-webkit-scrollbar-track,
 .vente-modal .modal-body::-webkit-scrollbar-track,
-.resume-lignes::-webkit-scrollbar-track { background: transparent; }
+.resume-lignes::-webkit-scrollbar-track,
+.unites-buttons::-webkit-scrollbar-track { background: transparent; }
 
 .modal-content::-webkit-scrollbar-thumb,
 .vente-modal .modal-body::-webkit-scrollbar-thumb,
-.resume-lignes::-webkit-scrollbar-thumb {
+.resume-lignes::-webkit-scrollbar-thumb,
+.unites-buttons::-webkit-scrollbar-thumb {
   background: var(--border);
   border-radius: 3px;
 }
 
 .modal-content::-webkit-scrollbar-thumb:hover,
 .vente-modal .modal-body::-webkit-scrollbar-thumb:hover,
-.resume-lignes::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+.resume-lignes::-webkit-scrollbar-thumb:hover,
+.unites-buttons::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
 /* ================================================================
    25. ANIMATIONS
@@ -2203,7 +2397,7 @@
   .ventes-stats { grid-template-columns: repeat(4, 1fr); }
 
   .vente-modal .modal-body.vente-body-grid {
-    grid-template-columns: 1fr 280px;
+    grid-template-columns: minmax(0, 1fr) 280px;
   }
 }
 
@@ -2220,6 +2414,8 @@
   .add-ligne-grid { grid-template-columns: 1fr 1fr; }
   .add-button-group { grid-column: 1 / -1; }
   .btn-add-produit { width: 100%; }
+
+  .unites-buttons { max-height: 140px; }
 }
 
 @media (max-width: 768px) {
@@ -2274,7 +2470,19 @@
   .facture-actions .pdf-btn,
   .facture-actions .btn-payer { justify-content: center; width: 100%; }
 
+  .facture-pdf-actions-container {
+    flex-direction: column;
+    width: 100%;
+  }
+  .facture-pdf-actions-container .pdf-btn { width: 100%; }
+
   .form-grid-2 { grid-template-columns: 1fr; }
+
+  .add-ligne-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .unites-buttons { max-height: 130px; }
 
   .ventes-toast {
     bottom: 12px;
@@ -2299,4 +2507,51 @@
   .footer-summary { justify-content: space-between; width: 100%; }
   .footer-actions { width: 100%; }
   .footer-actions .btn { flex: 1; }
+
+  .add-ligne-grid { grid-template-columns: 1fr; }
+  .btn-add-produit { width: 100%; }
+
+.unites-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  max-height: 120px;
+  overflow-y: auto;
+}
+}
+/* ================================================================
+   BANDEAU "FACTURE PAYÉE" dans le modal Facture
+   ================================================================ */
+.facture-paid-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
+  color: #065f46;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.facture-paid-banner svg {
+  color: #10b981;
+  flex-shrink: 0;
+}
+
+/* Indicateur "Payée" dans le footer Détails */
+.detail-paid-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  color: #065f46;
+  font-size: 13px;
+  font-weight: 600;
 }

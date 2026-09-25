@@ -4,7 +4,7 @@ import {
     TrendingUp, TrendingDown, Download, RefreshCw,
     Package, Boxes, Banknote, AlertTriangle,
     Warehouse, ArrowDownCircle, ArrowUpCircle, SlidersHorizontal,
-    Repeat, ClipboardList, Receipt,BarChart3
+    Repeat, ClipboardList, Receipt, BarChart3
 } from "lucide-react";
 import {
     ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import RapportStockService from "../../../services/rapportStockService";
 import { useUser } from "../../../context/AuthContext";
+import StockSelector from "../../../components/StockSelector/StockSelector";
 import "./RapportStocks.css";
 
 // ========== FORMATAGE ==========
@@ -211,7 +212,7 @@ const RapportStocks = () => {
                 </div>
             </div>
 
-            {/* ==================== FILTRES PÉRIODE (pour mouvements) ==================== */}
+            {/* ==================== FILTRES PÉRIODE ==================== */}
             <div className="rapport-filters">
                 <div className="filter-row">
                     <div className="filter-group">
@@ -326,7 +327,6 @@ const RapportStocks = () => {
                 {activeTab === 'resume' && (
                     <>
                         <div className="charts-grid">
-                            {/* Valeur par catégorie */}
                             <div className="chart-card">
                                 <div className="chart-header">
                                     <h3>Valeur du stock par catégorie</h3>
@@ -371,7 +371,6 @@ const RapportStocks = () => {
                                 </div>
                             </div>
 
-                            {/* Top produits par valeur */}
                             <div className="chart-card">
                                 <div className="chart-header">
                                     <h3>Top 8 produits (valeur immobilisée)</h3>
@@ -411,7 +410,6 @@ const RapportStocks = () => {
                             </div>
                         </div>
 
-                        {/* Valeur par marque */}
                         {parMarque.length > 0 && (
                             <div className="chart-card">
                                 <div className="chart-header">
@@ -483,9 +481,19 @@ const RapportStocks = () => {
                                                         <td className="font-semibold">{p.produit_nom}</td>
                                                         <td>{p.categorie_nom || '-'}</td>
                                                         <td>{p.marque_nom || '-'}</td>
+                                                        {/* ✅ StockSelector */}
                                                         <td className="text-center">
-                                                            <strong>{p.quantite_stock}</strong>
-                                                            {p.unite_symbole && ` ${p.unite_symbole}`}
+                                                            <StockSelector
+                                                                idProduit={`rapport-${p.id_produit}`}
+                                                                stockBase={p.quantite_stock}
+                                                                unitesVente={p.unites_vente || []}
+                                                                uniteBase={{
+                                                                    nom: p.unite_nom,
+                                                                    symbole: p.unite_symbole,
+                                                                }}
+                                                                isRupture={p.etat_stock === 'rupture'}
+                                                                variant="list"
+                                                            />
                                                         </td>
                                                         <td className="text-muted">
                                                             {p.quantite_minimale} / {p.quantite_maximale}
@@ -540,7 +548,17 @@ const RapportStocks = () => {
                                                     <tr key={p.id_produit}>
                                                         <td className="font-semibold">{p.produit_nom}</td>
                                                         <td className="text-center text-danger">
-                                                            <strong>{p.quantite_stock}</strong>
+                                                            <StockSelector
+                                                                idProduit={`rapport-rupt-${p.id_produit}`}
+                                                                stockBase={p.quantite_stock}
+                                                                unitesVente={p.unites_vente || []}
+                                                                uniteBase={{
+                                                                    nom: p.unite_nom,
+                                                                    symbole: p.unite_symbole,
+                                                                }}
+                                                                isRupture={true}
+                                                                variant="list"
+                                                            />
                                                         </td>
                                                         <td className="text-center">{p.quantite_minimale}</td>
                                                         <td>
@@ -581,7 +599,16 @@ const RapportStocks = () => {
                                                     <tr key={p.id_produit}>
                                                         <td className="font-semibold">{p.produit_nom}</td>
                                                         <td className="text-center text-warning">
-                                                            <strong>{p.quantite_stock}</strong>
+                                                            <StockSelector
+                                                                idProduit={`rapport-bas-${p.id_produit}`}
+                                                                stockBase={p.quantite_stock}
+                                                                unitesVente={p.unites_vente || []}
+                                                                uniteBase={{
+                                                                    nom: p.unite_nom,
+                                                                    symbole: p.unite_symbole,
+                                                                }}
+                                                                variant="list"
+                                                            />
                                                         </td>
                                                         <td className="text-center">{p.quantite_minimale}</td>
                                                         <td>
@@ -622,7 +649,16 @@ const RapportStocks = () => {
                                                     <tr key={p.id_produit}>
                                                         <td className="font-semibold">{p.produit_nom}</td>
                                                         <td className="text-center">
-                                                            <strong>{p.quantite_stock}</strong>
+                                                            <StockSelector
+                                                                idProduit={`rapport-sur-${p.id_produit}`}
+                                                                stockBase={p.quantite_stock}
+                                                                unitesVente={p.unites_vente || []}
+                                                                uniteBase={{
+                                                                    nom: p.unite_nom,
+                                                                    symbole: p.unite_symbole,
+                                                                }}
+                                                                variant="list"
+                                                            />
                                                         </td>
                                                         <td className="text-center">{p.quantite_maximale}</td>
                                                         <td>
@@ -688,13 +724,20 @@ const RapportStocks = () => {
                                                         </span>
                                                     </td>
                                                     <td className="font-semibold">{m.produit_nom}</td>
+                                                    {/* ✅ Quantité via StockSelector */}
                                                     <td className={`text-center ${
                                                         m.quantite > 0 ? 'text-success' : 'text-danger'
                                                     }`}>
-                                                        <strong>
-                                                            {m.quantite > 0 ? `+${m.quantite}` : m.quantite}
-                                                        </strong>
-                                                        {m.unite_symbole && ` ${m.unite_symbole}`}
+                                                        <StockSelector
+                                                            idProduit={`rapport-mvt-${m.id_mouvement}`}
+                                                            stockBase={Math.abs(m.quantite)}
+                                                            unitesVente={m.unites_vente || []}
+                                                            uniteBase={{
+                                                                nom: m.unite_nom,
+                                                                symbole: m.unite_symbole,
+                                                            }}
+                                                            variant="list"
+                                                        />
                                                     </td>
                                                     <td className="text-muted">
                                                         {m.ancienne_quantite} → {m.nouvelle_quantite}

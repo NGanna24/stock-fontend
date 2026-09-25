@@ -17,7 +17,6 @@ Font.register({
 // ============================================================
 // CONFIG
 // ============================================================
-// Détection automatique : local vs production
 const isLocal =
   window.location.hostname === "localhost" ||
   window.location.hostname === "127.0.0.1" ||
@@ -27,16 +26,15 @@ const API_BASE_URL = isLocal
   ? "http://192.168.187.1:8080" 
   : "https://miyo.n-double.com";
 
-// Palette de couleurs 
 const COLORS = {
-    dark: '#2d3748',          // Bandeau entête tableau + bandeau footer
-    darkLight: '#4a5568',     // Gris foncé
-    gray: '#e2e8f0',          // Bordures
-    grayLight: '#f7fafc',     // Fond lignes alternées
-    grayText: '#718096',      // Texte secondaire
-    black: '#1a202c',         // Texte principal 
+    dark: '#2d3748',
+    darkLight: '#4a5568',
+    gray: '#e2e8f0',
+    grayLight: '#f7fafc',
+    grayText: '#718096',
+    black: '#1a202c',
     white: '#ffffff',
-    accent: '#2563eb',        // Bleu accent (total)
+    accent: '#2563eb',
 };
 
 // ============================================================
@@ -70,6 +68,7 @@ const formatDateFR = (date) => {
 const styles = StyleSheet.create({
     page: {
         padding: 0,
+        paddingBottom: 60,   // ✅ FIX : espace pour le footer fixe
         fontSize: 10,
         fontFamily: 'Helvetica',
         backgroundColor: COLORS.white,
@@ -97,11 +96,11 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         overflow: 'hidden',
     },
-logoImage: {
-    maxWidth: 60,
-    maxHeight: 60,
-    objectFit: 'contain',
-},
+    logoImage: {
+        maxWidth: 60,
+        maxHeight: 60,
+        objectFit: 'contain',
+    },
     logoPlaceholder: {
         fontSize: 20,
         color: COLORS.white,
@@ -223,6 +222,7 @@ logoImage: {
         paddingHorizontal: 12,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.grayLight,
+        minHeight: 28,          // ✅ FIX : hauteur minimale
     },
     tableRowAlt: {
         backgroundColor: COLORS.grayLight,
@@ -365,6 +365,7 @@ logoImage: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        backgroundColor: COLORS.dark,
     },
     footerCol: {
         flex: 1, 
@@ -400,6 +401,15 @@ logoImage: {
         fontSize: 8,
         color: COLORS.white,
         lineHeight: 1.4,
+    },
+
+    // ✅ NOUVEAU : Bloc pagination
+    pageNumber: {
+        position: 'absolute',
+        bottom: 40,
+        right: 40,
+        fontSize: 8,
+        color: COLORS.grayText,
     },
 });
 
@@ -496,14 +506,13 @@ const FacturePDF = ({ data }) => {
     // ============================================================
     return (
         <Document>
-            <Page size="A4" style={styles.page}>
+            <Page size="A4" style={styles.page} wrap>
 
                 {/* ============================================================ */}
-                {/* HEADER : LOGO + NOM ENTREPRISE À GAUCHE, "FACTURE" À DROITE  */}
+                {/* HEADER : fixé uniquement sur la 1ère page                    */}
                 {/* ============================================================ */}
-                <View style={styles.header}>
+                <View style={styles.header} fixed={false}>
                     <View style={styles.headerLeft}>
-                        {/* Logo ou initiales */}
                         <View style={styles.logoBox}>
                             {getLogoUrl() ? (
                                 <Image src={getLogoUrl()} style={styles.logoImage} />
@@ -514,7 +523,6 @@ const FacturePDF = ({ data }) => {
                             )}
                         </View>
 
-                        {/* Nom + infos entreprise */}
                         <View style={styles.headerCompanyInfo}>
                             <Text style={styles.headerCompanyName}>{getNomMagasin()}</Text>
                             {magasin?.slogan && (
@@ -534,7 +542,6 @@ const FacturePDF = ({ data }) => {
                         </View>
                     </View>
 
-                    {/* Titre FACTURE */}
                     <View style={styles.headerRight}>
                         <Text style={styles.invoiceTitle}>FACTURE</Text>
                     </View>
@@ -543,8 +550,7 @@ const FacturePDF = ({ data }) => {
                 {/* ============================================================ */}
                 {/* BLOC CLIENT + INFOS FACTURE                                  */}
                 {/* ============================================================ */}
-                <View style={styles.infoBlock}>
-                    {/* Client */}
+                <View style={styles.infoBlock} wrap={false}>
                     <View style={styles.infoClient}>
                         <Text style={styles.infoTitle}>FACTURÉ À</Text>
                         <Text style={styles.clientName}>{nomclient || '-'}</Text>
@@ -561,7 +567,6 @@ const FacturePDF = ({ data }) => {
                         )}
                     </View>
 
-                    {/* Meta facture */}
                     <View style={styles.infoMeta}>
                         <View style={styles.infoMetaLine}>
                             <Text style={styles.infoMetaLabel}>N° Facture :</Text>
@@ -602,8 +607,8 @@ const FacturePDF = ({ data }) => {
                 {/* TABLEAU PRODUITS                                             */}
                 {/* ============================================================ */}
                 <View style={styles.tableWrapper}>
-                    {/* Header */}
-                    <View style={styles.tableHeader}>
+                    {/* ✅ FIX : En-tête du tableau répété sur chaque page */}
+                    <View style={styles.tableHeader} fixed>
                         <Text style={[styles.colIndex, styles.tableHeaderText]}>#</Text>
                         <Text style={[styles.colDesc, styles.tableHeaderText]}>Description</Text>
                         <Text style={[styles.colPrice, styles.tableHeaderText]}>Prix</Text>
@@ -611,7 +616,7 @@ const FacturePDF = ({ data }) => {
                         <Text style={[styles.colAmount, styles.tableHeaderText]}>Montant</Text>
                     </View>
 
-                    {/* Lignes */}
+                    {/* ✅ FIX : Lignes avec wrap={false} pour éviter la coupure */}
                     {lignes.length === 0 ? (
                         <View style={styles.tableRow}>
                             <Text style={[styles.colDesc, styles.tableCellGray]}>
@@ -630,6 +635,8 @@ const FacturePDF = ({ data }) => {
                             return (
                                 <View
                                     key={index}
+                                    // ✅ FIX CRITIQUE : empêche la ligne d'être coupée entre 2 pages
+                                    wrap={false}
                                     style={[
                                         styles.tableRow,
                                         index % 2 === 1 ? styles.tableRowAlt : {}
@@ -661,8 +668,8 @@ const FacturePDF = ({ data }) => {
                 {/* ============================================================ */}
                 {/* TOTAUX                                                       */}
                 {/* ============================================================ */}
-                <View style={styles.totalsWrapper}>
-                    {/* Gauche : Total à payer en grand */}
+                {/* ✅ FIX : minPresenceAhead pour ne pas isoler en bas de page */}
+                <View style={styles.totalsWrapper} wrap={false} minPresenceAhead={100}>
                     <View style={styles.totalsLeft}>
                         <Text style={styles.totalDueLabel}>Total à payer</Text>
                         <Text style={styles.totalDueValue}>
@@ -680,7 +687,6 @@ const FacturePDF = ({ data }) => {
                         )}
                     </View>
 
-                    {/* Droite : détail des totaux */}
                     <View style={styles.totalsRight}>
                         <View style={styles.totalLine}>
                             <Text style={styles.totalLabel}>Sous-total</Text>
@@ -695,7 +701,6 @@ const FacturePDF = ({ data }) => {
                             </Text>
                         </View>
 
-                        {/* Ligne noire : Total final */}
                         <View style={styles.totalLineLast}>
                             <Text style={styles.totalLabelLast}>TOTAL</Text>
                             <Text style={styles.totalValueLast}>
@@ -708,8 +713,12 @@ const FacturePDF = ({ data }) => {
                 {/* ============================================================ */}
                 {/* CONDITIONS + SIGNATURE                                       */}
                 {/* ============================================================ */}
-                <View style={styles.termsWrapper}>
-                    {/* Conditions */}
+                {/* ✅ FIX : minPresenceAhead + wrap=false pour ne pas couper */}
+                <View
+                    style={styles.termsWrapper}
+                    wrap={false}
+                    minPresenceAhead={120}
+                >
                     <View style={styles.termsBlock}>
                         <Text style={styles.termsTitle}>Conditions & Informations</Text>
                         <Text style={styles.termsText}>
@@ -717,7 +726,6 @@ const FacturePDF = ({ data }) => {
                         </Text>
                     </View>
 
-                    {/* Signature */}
                     <View style={styles.signatureBlock}>
                         <View style={styles.signatureLine} />
                         <Text style={styles.signatureName}>{getNomMagasin()}</Text>
@@ -726,12 +734,10 @@ const FacturePDF = ({ data }) => {
                 </View>
 
                 {/* ============================================================ */}
-                {/* FOOTER NOIR : CONTACT EN 3 COLONNES                          */}
+                {/* FOOTER NOIR : fixé sur toutes les pages                      */}
                 {/* ============================================================ */}
                 <View style={styles.footer} fixed>
-                    {/* Colonne 1 : Téléphone */}
                     <View style={styles.footerCol}>
-                       
                         <View>
                             {magasin?.telephone && (
                                 <Text style={styles.footerText}>{magasin.telephone}</Text>
@@ -742,9 +748,7 @@ const FacturePDF = ({ data }) => {
                         </View>
                     </View>
 
-                    {/* Colonne 2 : Adresse */}
                     <View style={styles.footerColCenter}>
-                        
                         <View>
                             <Text style={styles.footerText}>
                                 {getAdresseComplete() || 'Adresse non renseignée'}
@@ -752,9 +756,7 @@ const FacturePDF = ({ data }) => {
                         </View>
                     </View>
 
-                    {/* Colonne 3 : Email */}
                     <View style={styles.footerColRight}>
-                        
                         <View>
                             {magasin?.email && (
                                 <Text style={styles.footerText}>{magasin.email}</Text>
@@ -767,16 +769,19 @@ const FacturePDF = ({ data }) => {
                 </View>
 
                 {/* ============================================================ */}
-                {/* MENTIONS LÉGALES (AU-DESSUS DU FOOTER NOIR)                  */}
+                {/* MENTIONS LÉGALES (au-dessus du footer, fixe sur chaque page) */}
                 {/* ============================================================ */}
-                <View style={{
-                    position: 'absolute',
-                    bottom: 15,
-                    left: 40,
-                    right: 40,
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                }}>
+                <View
+                    fixed
+                    style={{
+                        position: 'absolute',
+                        bottom: 70,
+                        left: 40,
+                        right: 40,
+                        flexDirection: 'row',
+                        justifyContent: 'space-between',
+                    }}
+                >
                     {magasin?.numero_rccm && (
                         <Text style={{ fontSize: 7, color: COLORS.grayText }}>
                             RCCM : {magasin.numero_rccm}
@@ -793,6 +798,15 @@ const FacturePDF = ({ data }) => {
                         </Text>
                     )}
                 </View>
+
+                {/* ✅ NOUVEAU : Numérotation des pages */}
+                <Text
+                    fixed
+                    style={styles.pageNumber}
+                    render={({ pageNumber, totalPages }) =>
+                        `Page ${pageNumber} / ${totalPages}`
+                    }
+                />
 
             </Page>
         </Document>

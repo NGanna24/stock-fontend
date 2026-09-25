@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import MouvementStockService from "../../services/mouvementStockService";
 import { useUser } from "../../context/AuthContext";
+import StockSelector from "../../components/StockSelector/StockSelector";
 import "./Mouvements.css";
 
 const Mouvements = () => {
@@ -326,10 +327,19 @@ const Mouvements = () => {
                                                 <span className="produit-marque"> — {m.marque_nom}</span>
                                             )}
                                         </td>
+                                        {/* ✅ Utilisation du composant StockSelector */}
                                         <td className="qte-cell">
-                                            <strong>
-                                                {formatQte(m.quantite)} {m.unite_symbole || ''}
-                                            </strong>
+                                            <StockSelector
+                                                idProduit={m.id_produit}
+                                                stockBase={m.quantite}
+                                                unitesVente={m.unites_vente || []}
+                                                uniteBase={{
+                                                    nom: m.unite_nom,
+                                                    symbole: m.unite_symbole
+                                                }}
+                                                isRupture={false}
+                                                variant="list"
+                                            />
                                         </td>
                                         <td>{formatQte(m.ancienne_quantite)}</td>
                                         <td>{formatQte(m.nouvelle_quantite)}</td>
@@ -402,11 +412,21 @@ const Mouvements = () => {
                                 </span>
                             </div>
 
+                            {/* ✅ Quantité via StockSelector */}
                             <div className="detail-item">
                                 <label>Quantité</label>
                                 <span>
-                                    {formatQte(selectedMouvement.quantite)}{' '}
-                                    {selectedMouvement.unite_symbole || ''}
+                                    <StockSelector
+                                        idProduit={selectedMouvement.id_produit}
+                                        stockBase={selectedMouvement.quantite}
+                                        unitesVente={selectedMouvement.unites_vente || []}
+                                        uniteBase={{
+                                            nom: selectedMouvement.unite_nom,
+                                            symbole: selectedMouvement.unite_symbole
+                                        }}
+                                        isRupture={false}
+                                        variant="details"
+                                    />
                                 </span>
                             </div>
 

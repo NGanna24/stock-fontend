@@ -11,9 +11,10 @@ import {
 import CommandeVenteService from "../../services/commandeVenteService";
 import ProduitService from "../../services/produitService";
 import UniteVenteService from "../../services/uniteVenteService";
+import MagasinService from "../../services/magasinService";
+import FacturePDFService from "../../services/facturePDFService";
 import { useUser } from "../../context/AuthContext";
-import FacturePDF from "../../components/Facture/FacturePDF";
-import { PDFDownloadLink } from '@react-pdf/renderer';
+import FacturePDFActions from "../../components/Facture/FacturePDFActions";
 
 import "./Ventes.css";
 
@@ -41,6 +42,26 @@ const formatDateFR = (date) => {
   } catch {
     return '-';
   }
+};
+
+// ============================================================
+// HELPERS PAIEMENT — logique centralisée
+// ============================================================
+const isFacturePayee = (commande) => {
+  if (!commande) return false;
+  const statut = commande.statut_facture;
+  if (statut === 'payee') return true;
+  const montant = parseFloat(commande.montant_total) || 0;
+  const paye = parseFloat(commande.total_paye) || 0;
+  return montant > 0 && paye >= montant;
+};
+
+const isFacturePartiellementPayee = (commande) => {
+  if (!commande) return false;
+  if (commande.statut_facture === 'partiellement_payee') return true;
+  const montant = parseFloat(commande.montant_total) || 0;
+  const paye = parseFloat(commande.total_paye) || 0;
+  return montant > 0 && paye > 0 && paye < montant;
 };
 
 // ============================================================
@@ -96,7 +117,7 @@ const StatutDropdown = ({ commande, onSelect, updatingStatut, canManage }) => {
       <span className={`status-badge ${currentStatut.className} ${isLocked ? 'locked' : ''}`}>
         <Icon size={14} />
         {currentStatut.label}
-        {isLocked && <span className="lock-icon" title="Statut verrouillé">🔒</span>}
+        {isLocked && <span className="lock-icon" title="Statut verrouillé"></span>}
       </span>
     );
   }
@@ -220,6 +241,9 @@ const Ventes = () => {
     mode_paiement: "especes"
   });
 
+  // ========== ÉTAT MAGASIN (pour le PDF) ==========
+  const [magasin, setMagasin] = useState(null);
+
   const canManage = user && ['admin', 'manager', 'caissier'].includes(user.role);
   const [openMenuId, setOpenMenuId] = useState(null);
 
@@ -234,6 +258,7 @@ const Ventes = () => {
     if (isAuthenticated && token) {
       loadCommandes();
       loadProduits();
+      loadMagasin();
     }
   }, [isAuthenticated, token]);
 
@@ -273,6 +298,15 @@ const Ventes = () => {
       }
     } catch (error) {
       console.error('❌ LoadProduits error:', error);
+    }
+  };
+
+  const loadMagasin = async () => {
+    try {
+      const res = await MagasinService.getMonMagasin(token);
+      if (res.success) setMagasin(res.magasin);
+    } catch (error) {
+      console.error('❌ LoadMagasin error:', error);
     }
   };
 
@@ -583,37 +617,68 @@ const Ventes = () => {
     setShowDetailModal(true);
   };
 
-  const handleChangeStatut = async (id, statut) => {
-    if (updatingStatut === id) return;
-    setUpdatingStatut(id);
-    setError(null);
+const handleChangeStatut = async (id, statut) => {
+  if (updatingStatut === id) return;
+  setUpdatingStatut(id);
+  setError(null);
 
+  try {
+    const response = await CommandeVenteService.updateStatut(token, id, statut);
+
+    if (response.success) {
+      await loadCommandes();
+
+      // ✅ Mettre à jour le selectedCommande si le modal Détails est ouvert sur cette commande
+      setSelectedCommande(prev => {
+        if (prev && prev.id_commande === id) {
+          return { ...prev, statut };
+        }
+        return prev;
+      });
+
+      // ✅ Mettre à jour commandeEnCours si le modal Paiement est ouvert sur cette commande
+      setCommandeEnCours(prev => {
+        if (prev && prev.id_commande === id) {
+          return { ...prev, statut };
+        }
+        return prev;
+      });
+
+      const labels = {
+        'en_attente': 'En attente',
+        'confirmee': 'Confirmée',
+        'en_preparation': 'En préparation',
+        'expediee': 'Expédiée',
+        'livree': 'Livrée',
+        'annulee': 'Annulée'
+      };
+
+      showToast(`Statut modifié : "${labels[statut] || statut}"`, 'success');
+    } else {
+      setError(response.message || 'Erreur lors du changement de statut');
+      showToast(response.message || 'Erreur lors du changement', 'error');
+    }
+  } catch (error) {
+    console.error('❌ Change statut error:', error);
+    setError(error.message || 'Erreur lors du changement de statut');
+    showToast(error.message || 'Erreur lors du changement', 'error');
+  } finally {
+    setUpdatingStatut(null);
+  }
+};
+
+  const handleImprimerDepuisListe = async (commande) => {
     try {
-      const response = await CommandeVenteService.updateStatut(token, id, statut);
-
-      if (response.success) {
-        await loadCommandes();
-
-        const labels = {
-          'en_attente': 'En attente',
-          'confirmee': 'Confirmée',
-          'en_preparation': 'En préparation',
-          'expediee': 'Expédiée',
-          'livree': 'Livrée',
-          'annulee': 'Annulée'
-        };
-
-        showToast(`Statut modifié : "${labels[statut] || statut}"`, 'success');
-      } else {
-        setError(response.message || 'Erreur lors du changement de statut');
-        showToast(response.message || 'Erreur lors du changement', 'error');
+      const res = await CommandeVenteService.getCommandeById(token, commande.id_commande);
+      if (!res.success) {
+        showToast('Impossible de charger la facture', 'error');
+        return;
       }
-    } catch (error) {
-      console.error('❌ Change statut error:', error);
-      setError(error.message || 'Erreur lors du changement de statut');
-      showToast(error.message || 'Erreur lors du changement', 'error');
-    } finally {
-      setUpdatingStatut(null);
+      const facture = { ...res.data, magasin };
+      await FacturePDFService.print(facture);
+    } catch (err) {
+      console.error('❌ Print error:', err);
+      showToast('Erreur lors de l\'impression', 'error');
     }
   };
 
@@ -686,12 +751,16 @@ const Ventes = () => {
         mode_paiement: commandeComplete.mode_paiement || "especes",
         statut: commandeComplete.statut_facture || 'en_attente',
         notes: commandeComplete.notes || `Facture pour commande ${commandeComplete.numero_commande}`,
-        lignes: commandeComplete.lignes || [],
+        lignes: (commandeComplete.lignes || []).map(l => ({
+          ...l,
+          unite_symbole: l.unite_symbole || l.nom_unite_vente || '',
+        })),
         paiements: commandeComplete.paiements || [],
         total_paye: commandeComplete.total_paye || 0,
         reste_a_payer: parseFloat(commandeComplete.montant_total) - (commandeComplete.total_paye || 0),
         numero_commande: commandeComplete.numero_commande,
         id_commande: commandeComplete.id_commande,
+        magasin: magasin,
       };
 
       setFactureGeneree(facture);
@@ -761,18 +830,24 @@ const Ventes = () => {
         nouveauStatutFacture = commandeComplete.data.statut_facture || 'en_attente';
         nouveauResteAPayer = nouveauMontantTotal - nouveauTotalPaye;
 
-        setFactureGeneree({
-          ...factureGeneree,
+        // ✅ Mise à jour complète et cohérente de factureGeneree
+        setFactureGeneree(prev => ({
+          ...prev,
           statut: nouveauStatutFacture,
           total_paye: nouveauTotalPaye,
           reste_a_payer: nouveauResteAPayer,
-          paiements: commandeComplete.data.paiements || []
-        });
+          paiements: commandeComplete.data.paiements || [],
+          lignes: (commandeComplete.data.lignes || []).map(l => ({
+            ...l,
+            unite_symbole: l.unite_symbole || l.nom_unite_vente || '',
+          })),
+          magasin: magasin,
+        }));
       }
 
       await loadCommandes();
 
-      if (nouveauStatutFacture === 'payee') {
+      if (nouveauStatutFacture === 'payee' || nouveauResteAPayer <= 0) {
         setShowPaiementModal(false);
         setCommandeEnCours(null);
         setPaiementData({ mode_paiement: "especes", montant: "" });
@@ -826,13 +901,17 @@ const Ventes = () => {
         telephone: commandeComplete.telephone,
         montant_total: montantTotal,
         statut: commandeComplete.statut_facture || 'en_attente',
-        lignes: commandeComplete.lignes || [],
+        lignes: (commandeComplete.lignes || []).map(l => ({
+          ...l,
+          unite_symbole: l.unite_symbole || l.nom_unite_vente || '',
+        })),
         paiements: commandeComplete.paiements || [],
         total_paye: totalPaye,
         reste_a_payer: resteAPayer,
         numero_commande: commandeComplete.numero_commande,
         id_commande: commandeComplete.id_commande,
         mode_paiement: commandeComplete.mode_paiement || 'especes',
+        magasin: magasin,
       };
 
       setCommandeEnCours(commandeComplete);
@@ -1061,81 +1140,105 @@ const Ventes = () => {
               </td>
             </tr>
           ) : (
-            currentItems.map((commande) => (
-              <tr key={commande.id_commande}>
-                <td className="numero-cell">
-                  <span className="commande-numero">{commande.numero_commande}</span>
-                </td>
-                <td>{formatDateFR(commande.date_commande)}</td>
-                <td className="client-cell">
-                  <User size={14} />
-                  <span>{commande.nomclient || '-'}</span>
-                </td>
-                <td>{commande.telephone || '-'}</td>
-                <td>{commande.numero_facture || '-'}</td>
-                <td className="montant-cell">
-                  <strong>{formatMontant(commande.montant_total)}</strong>
-                </td>
-                <td>
-                  <StatutDropdown
-                    commande={commande}
-                    onSelect={handleChangeStatut}
-                    updatingStatut={updatingStatut}
-                    canManage={canManage}
-                  />
-                </td>
-                <td>{commande.statut_facture ? getStatutFactureBadge(commande.statut_facture) : '-'}</td>
-                <td className="actions-cell">
-                  <div className="actions-dropdown-container">
-                    <button
-                      className="action-btn btn-more"
-                      onClick={() => toggleMenu(commande.id_commande)}
-                      title="Actions"
-                    >
-                      <MoreVertical size={18} />
-                    </button>
+            currentItems.map((commande) => {
+              const facturePayee = isFacturePayee(commande);
+              const facturePartielle = isFacturePartiellementPayee(commande);
+              const peutPayer = canManage &&
+                commande.statut !== 'livree' &&
+                commande.statut !== 'annulee' &&
+                !facturePayee;
 
-                    {openMenuId === commande.id_commande && (
-                      <div className="actions-dropdown-menu">
-                        <button
-                          className="dropdown-item"
-                          onClick={() => {
-                            handleView(commande);
-                            setOpenMenuId(null);
-                          }}
-                        >
-                          <Eye size={16} />
-                          <span>Voir</span>
-                        </button>
+              return (
+                <tr key={commande.id_commande}>
+                  <td className="numero-cell">
+                    <span className="commande-numero">{commande.numero_commande}</span>
+                  </td>
+                  <td>{formatDateFR(commande.date_commande)}</td>
+                  <td className="client-cell">
+                    <User size={14} />
+                    <span>{commande.nomclient || '-'}</span>
+                  </td>
+                  <td>{commande.telephone || '-'}</td>
+                  <td>{commande.numero_facture || '-'}</td>
+                  <td className="montant-cell">
+                    <strong>{formatMontant(commande.montant_total)}</strong>
+                  </td>
+                  <td>
+                    <StatutDropdown
+                      commande={commande}
+                      onSelect={handleChangeStatut}
+                      updatingStatut={updatingStatut}
+                      canManage={canManage}
+                    />
+                  </td>
+                  <td>{commande.statut_facture ? getStatutFactureBadge(commande.statut_facture) : '-'}</td>
+                  <td className="actions-cell">
+                    <div className="actions-dropdown-container">
+                      <button
+                        className="action-btn btn-more"
+                        onClick={() => toggleMenu(commande.id_commande)}
+                        title="Actions"
+                      >
+                        <MoreVertical size={18} />
+                      </button>
 
-                        {canManage && commande.statut !== 'livree' && commande.statut !== 'annulee' && (
+                      {openMenuId === commande.id_commande && (
+                        <div className="actions-dropdown-menu">
                           <button
                             className="dropdown-item"
-                            onClick={() => preparerPaiement(commande)}
-                          >
-                            <Wallet size={16} />
-                            <span>Payer</span>
-                          </button>
-                        )}
-
-                        {canManage && (
-                          <button
-                            className="dropdown-item btn-delete"
                             onClick={() => {
-                              confirmDelete(commande);
+                              handleView(commande);
                               setOpenMenuId(null);
                             }}
                           >
-                            <Trash2 size={16} />
-                            <span>Supprimer</span>
+                            <Eye size={16} />
+                            <span>Voir</span>
                           </button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))
+
+                          {commande.id_facture && (
+                            <button
+                              className="dropdown-item"
+                              onClick={() => {
+                                handleImprimerDepuisListe(commande);
+                                setOpenMenuId(null);
+                              }}
+                            >
+                              <Printer size={16} />
+                              <span>Imprimer</span>
+                            </button>
+                          )}
+
+                          {peutPayer && (
+                            <button
+                              className="dropdown-item"
+                              onClick={() => preparerPaiement(commande)}
+                            >
+                              <Wallet size={16} />
+                              <span>
+                                {facturePartielle ? 'Compléter le paiement' : 'Payer'}
+                              </span>
+                            </button>
+                          )}
+
+                          {canManage && (
+                            <button
+                              className="dropdown-item btn-delete"
+                              onClick={() => {
+                                confirmDelete(commande);
+                                setOpenMenuId(null);
+                              }}
+                            >
+                              <Trash2 size={16} />
+                              <span>Supprimer</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })
           )}
         </tbody>
       </table>
@@ -1153,65 +1256,74 @@ const Ventes = () => {
           <p>Aucune commande trouvée</p>
         </div>
       ) : (
-        currentItems.map((commande) => (
-          <div key={commande.id_commande} className="vente-card">
-            <div className="vente-card-header">
-              <div className="vente-info">
-                <span className="vente-numero">{commande.numero_commande}</span>
-                <span className="vente-date">
-                  <Calendar size={14} />
-                  {formatDateFR(commande.date_commande)}
-                </span>
+        currentItems.map((commande) => {
+          const facturePayee = isFacturePayee(commande);
+          const facturePartielle = isFacturePartiellementPayee(commande);
+          const peutPayer = canManage &&
+            commande.statut !== 'livree' &&
+            commande.statut !== 'annulee' &&
+            !facturePayee;
+
+          return (
+            <div key={commande.id_commande} className="vente-card">
+              <div className="vente-card-header">
+                <div className="vente-info">
+                  <span className="vente-numero">{commande.numero_commande}</span>
+                  <span className="vente-date">
+                    <Calendar size={14} />
+                    {formatDateFR(commande.date_commande)}
+                  </span>
+                </div>
+                <div className="vente-actions">
+                  <button
+                    className="action-btn btn-view"
+                    onClick={() => handleView(commande)}
+                    title="Voir"
+                  >
+                    <Eye size={16} />
+                  </button>
+                </div>
               </div>
-              <div className="vente-actions">
-                <button
-                  className="action-btn btn-view"
-                  onClick={() => handleView(commande)}
-                  title="Voir"
-                >
-                  <Eye size={16} />
-                </button>
+              <div className="vente-card-body">
+                <div className="client-info">
+                  <User size={16} />
+                  <span>{commande.nomclient || 'Client inconnu'}</span>
+                </div>
+                <div className="client-telephone">
+                  <Phone size={14} />
+                  <span>{commande.telephone || '-'}</span>
+                </div>
+                <div className="vente-facture">
+                  <FileText size={14} />
+                  <span>{commande.numero_facture || 'Facture non générée'}</span>
+                </div>
+                <div className="vente-montant">
+                  <span>{formatMontant(commande.montant_total)}</span>
+                </div>
+                <div className="vente-stats">
+                  <StatutDropdown
+                    commande={commande}
+                    onSelect={handleChangeStatut}
+                    updatingStatut={updatingStatut}
+                    canManage={canManage}
+                  />
+                  {commande.statut_facture && getStatutFactureBadge(commande.statut_facture)}
+                </div>
               </div>
-            </div>
-            <div className="vente-card-body">
-              <div className="client-info">
-                <User size={16} />
-                <span>{commande.nomclient || 'Client inconnu'}</span>
-              </div>
-              <div className="client-telephone">
-                <Phone size={14} />
-                <span>{commande.telephone || '-'}</span>
-              </div>
-              <div className="vente-facture">
-                <FileText size={14} />
-                <span>{commande.numero_facture || 'Facture non générée'}</span>
-              </div>
-              <div className="vente-montant">
-                <span>{formatMontant(commande.montant_total)}</span>
-              </div>
-              <div className="vente-stats">
-                <StatutDropdown
-                  commande={commande}
-                  onSelect={handleChangeStatut}
-                  updatingStatut={updatingStatut}
-                  canManage={canManage}
-                />
-                {commande.statut_facture && getStatutFactureBadge(commande.statut_facture)}
-              </div>
-            </div>
-            <div className="vente-card-footer">
-              {canManage && commande.statut !== 'livree' && commande.statut !== 'annulee' && (
-                <button
-                  className="btn btn-paiement"
-                  onClick={() => preparerPaiement(commande)}
-                >
-                  <Wallet size={16} />
-                  Payer
-                </button>
+              {peutPayer && (
+                <div className="vente-card-footer">
+                  <button
+                    className="btn btn-paiement"
+                    onClick={() => preparerPaiement(commande)}
+                  >
+                    <Wallet size={16} />
+                    {facturePartielle ? 'Compléter' : 'Payer'}
+                  </button>
+                </div>
               )}
             </div>
-          </div>
-        ))
+          );
+        })
       )}
     </div>
   );
@@ -1249,58 +1361,58 @@ const Ventes = () => {
         </div>
       </div>
 
-{/* Statistiques */}
-<div className="ventes-stats">
-  <div className="stat-card">
-    <div className="stat-icon total"><ShoppingBag size={18} /></div>
-    <div className="stat-info">
-      <span className="stat-label">Total</span>
-      <span className="stat-value" title={stats.total}>{stats.total}</span>
-    </div>
-  </div>
-  <div className="stat-card">
-    <div className="stat-icon en-attente"><Clock size={18} /></div>
-    <div className="stat-info">
-      <span className="stat-label">En attente</span>
-      <span className="stat-value" title={stats.enAttente}>{stats.enAttente}</span>
-    </div>
-  </div>
-  <div className="stat-card">
-    <div className="stat-icon confirmee"><CheckCircle size={18} /></div>
-    <div className="stat-info">
-      <span className="stat-label">Confirmées</span>
-      <span className="stat-value" title={stats.confirmee}>{stats.confirmee}</span>
-    </div>
-  </div>
-  <div className="stat-card">
-    <div className="stat-icon preparation"><Package size={18} /></div>
-    <div className="stat-info">
-      <span className="stat-label">En préparation</span>
-      <span className="stat-value" title={stats.enPreparation}>{stats.enPreparation}</span>
-    </div>
-  </div>
-  <div className="stat-card">
-    <div className="stat-icon expediee"><Truck size={18} /></div>
-    <div className="stat-info">
-      <span className="stat-label">Expédiées</span>
-      <span className="stat-value" title={stats.expediee}>{stats.expediee}</span>
-    </div>
-  </div>
-  <div className="stat-card">
-    <div className="stat-icon livree"><CheckCircle size={18} /></div>
-    <div className="stat-info">
-      <span className="stat-label">Livrées</span>
-      <span className="stat-value" title={stats.livree}>{stats.livree}</span>
-    </div>
-  </div>
-  <div className="stat-card">
-    <div className="stat-icon ca"><TrendingUp size={18} /></div>
-    <div className="stat-info">
-      <span className="stat-label">Chiffre d'affaires</span>
-      <span className="stat-value" title={formatMontant(stats.totalCA)}>{formatMontant(stats.totalCA)}</span>
-    </div>
-  </div>
-</div>
+      {/* Statistiques */}
+      <div className="ventes-stats">
+        <div className="stat-card">
+          <div className="stat-icon total"><ShoppingBag size={18} /></div>
+          <div className="stat-info">
+            <span className="stat-label">Total</span>
+            <span className="stat-value" title={stats.total}>{stats.total}</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon en-attente"><Clock size={18} /></div>
+          <div className="stat-info">
+            <span className="stat-label">En attente</span>
+            <span className="stat-value" title={stats.enAttente}>{stats.enAttente}</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon confirmee"><CheckCircle size={18} /></div>
+          <div className="stat-info">
+            <span className="stat-label">Confirmées</span>
+            <span className="stat-value" title={stats.confirmee}>{stats.confirmee}</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon preparation"><Package size={18} /></div>
+          <div className="stat-info">
+            <span className="stat-label">En préparation</span>
+            <span className="stat-value" title={stats.enPreparation}>{stats.enPreparation}</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon expediee"><Truck size={18} /></div>
+          <div className="stat-info">
+            <span className="stat-label">Expédiées</span>
+            <span className="stat-value" title={stats.expediee}>{stats.expediee}</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon livree"><CheckCircle size={18} /></div>
+          <div className="stat-info">
+            <span className="stat-label">Livrées</span>
+            <span className="stat-value" title={stats.livree}>{stats.livree}</span>
+          </div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-icon ca"><TrendingUp size={18} /></div>
+          <div className="stat-info">
+            <span className="stat-label">Chiffre d'affaires</span>
+            <span className="stat-value" title={formatMontant(stats.totalCA)}>{formatMontant(stats.totalCA)}</span>
+          </div>
+        </div>
+      </div>
 
       {/* Filtres */}
       <div className="ventes-filters">
@@ -1379,7 +1491,7 @@ const Ventes = () => {
             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
           >
-            <ChevronLeft size={18} />
+            <ChevronLeft size={22} />
           </button>
           <span className="pagination-info">
             Page {currentPage} sur {totalPages}
@@ -1395,12 +1507,11 @@ const Ventes = () => {
       )}
 
       {/* ============================================================
-          MODAL - NOUVELLE VENTE (STRUCTURE 2 COLONNES)
+          MODAL - NOUVELLE VENTE
           ============================================================ */}
       {showModal && (
         <div className="modal-overlay" >
           <div className="modal-content large vente-modal" onClick={(e) => e.stopPropagation()}>
-            {/* HEADER */}
             <div className="modal-header">
               <div className="modal-header-left">
                 <div className="modal-header-icon">
@@ -1416,9 +1527,7 @@ const Ventes = () => {
               </button>
             </div>
 
-            {/* BODY : 2 COLONNES */}
             <div className="modal-body vente-body-grid">
-              {/* ═══════════ COLONNE GAUCHE : FORMULAIRE ═══════════ */}
               <div className="vente-form-main">
                 {error && (
                   <div className="modal-error">
@@ -1427,7 +1536,6 @@ const Ventes = () => {
                   </div>
                 )}
 
-                {/* ÉTAPE 1 : CLIENT */}
                 <div className="step-section">
                   <div className="section-header">
                     <div className="section-header-left">
@@ -1474,7 +1582,6 @@ const Ventes = () => {
                   </div>
                 </div>
 
-                {/* ÉTAPE 2 : PRODUITS */}
                 <div className="step-section">
                   <div className="section-header">
                     <div className="section-header-left">
@@ -1486,7 +1593,6 @@ const Ventes = () => {
                     </span>
                   </div>
 
-                  {/* Combobox produit */}
                   <div className="produit-search-wrapper">
                     <div className="combobox-container" ref={dropdownRef}>
                       <div className="combobox-input-wrapper large">
@@ -1521,7 +1627,6 @@ const Ventes = () => {
                     </div>
                   </div>
 
-                  {/* Badge produit sélectionné */}
                   {selectedProduit && (
                     <div className="produit-selection-info">
                       <div className="produit-selection-badge">
@@ -1541,7 +1646,6 @@ const Ventes = () => {
                     </div>
                   )}
 
-                  {/* Unité de vente */}
                   {selectedProduit && (
                     <div className="unite-vente-section">
                       <label>Unité de vente *</label>
@@ -1590,7 +1694,6 @@ const Ventes = () => {
                     </div>
                   )}
 
-                  {/* Qté + Prix + Bouton Ajouter */}
                   <div className="add-ligne-grid">
                     <div className="form-group">
                       <label>Quantité *</label>
@@ -1642,7 +1745,6 @@ const Ventes = () => {
                     </div>
                   </div>
 
-                  {/* Sous-total preview */}
                   {quantite && selectedUnite && prixVente && (
                     <div className="sous-total-preview">
                       <div className="sous-total-line">
@@ -1657,14 +1759,12 @@ const Ventes = () => {
                     </div>
                   )}
 
-                  {/* Tableau des lignes */}
                   <div className="lignes-section">
                     {renderLignesForm()}
                   </div>
                 </div>
               </div>
 
-              {/* ═══════════ COLONNE DROITE : RÉSUMÉ ═══════════ */}
               <aside className="vente-resume-sidebar">
                 <div className="step-section resume-card">
                   <div className="section-header">
@@ -1734,7 +1834,6 @@ const Ventes = () => {
               </aside>
             </div>
 
-            {/* FOOTER */}
             <div className="modal-footer vente-footer">
               <div className="footer-summary">
                 <div className="summary-item">
@@ -1898,295 +1997,307 @@ const Ventes = () => {
       {/* ============================================================
           MODAL - FACTURE
           ============================================================ */}
-      {showFactureModal && factureGeneree && (
-        <div className="modal-overlay" >
-          <div className="modal-content facture-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2> Facture N° {factureGeneree.numero_facture}</h2>
-              <button className="modal-close" onClick={() => setShowFactureModal(false)}>
-                <X size={22} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="facture-header">
-                <div className="facture-info">
-                  <p><strong>Client :</strong> {factureGeneree.nomclient}</p>
-                  <p><strong>Téléphone :</strong> {factureGeneree.telephone || '-'}</p>
-                  <p><strong>Date :</strong> {formatDateFR(factureGeneree.date_facture)}</p>
-                  <p><strong>Échéance :</strong> {formatDateFR(factureGeneree.date_echeance)}</p>
-                  <p><strong>Commande :</strong> {factureGeneree.numero_commande}</p>
+      {showFactureModal && factureGeneree && (() => {
+        const resteAPayer = factureGeneree.reste_a_payer !== undefined
+          ? parseFloat(factureGeneree.reste_a_payer)
+          : parseFloat(factureGeneree.montant_total) || 0;
+
+        const estPayee = factureGeneree.statut === 'payee' || resteAPayer <= 0;
+
+        return (
+          <div className="modal-overlay" >
+            <div className="modal-content facture-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2> Facture N° {factureGeneree.numero_facture}</h2>
+                <button className="modal-close" onClick={() => setShowFactureModal(false)}>
+                  <X size={22} />
+                </button>
+              </div>
+              <div className="modal-body">
+                <div className="facture-header">
+                  <div className="facture-info">
+                    <p><strong>Client :</strong> {factureGeneree.nomclient}</p>
+                    <p><strong>Téléphone :</strong> {factureGeneree.telephone || '-'}</p>
+                    <p><strong>Date :</strong> {formatDateFR(factureGeneree.date_facture)}</p>
+                    <p><strong>Échéance :</strong> {formatDateFR(factureGeneree.date_echeance)}</p>
+                    <p><strong>Commande :</strong> {factureGeneree.numero_commande}</p>
+                  </div>
+                  <div className="facture-status">
+                    {estPayee ? (
+                      <span className="status-badge status-livree">Payée</span>
+                    ) : factureGeneree.statut === 'partiellement_payee' ? (
+                      <span className="status-badge status-preparation">Partiellement payée</span>
+                    ) : (
+                      <span className="status-badge status-en-attente">En attente</span>
+                    )}
+                  </div>
                 </div>
-                <div className="facture-status">
-                  {factureGeneree.statut === 'payee' ? (
-                    <span className="status-badge status-livree">Payée</span>
-                  ) : factureGeneree.statut === 'partiellement_payee' ? (
-                    <span className="status-badge status-preparation"> Partiellement payée</span>
+
+                <table className="facture-lignes">
+                  <thead>
+                    <tr>
+                      <th>Produit</th>
+                      <th>Unité</th>
+                      <th>Qté</th>
+                      <th>Prix unitaire</th>
+                      <th>Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {factureGeneree.lignes?.map((ligne, index) => (
+                      <tr key={index}>
+                        <td>{ligne.produit_nom}</td>
+                        <td>
+                          <span className="unite-badge">
+                            {ligne.nom_unite_vente || 'Unité'}
+                            {ligne.quantite_base > 1 && ` (${ligne.quantite_base})`}
+                          </span>
+                        </td>
+                        <td>{ligne.quantite}</td>
+                        <td>{formatMontant(ligne.prix_vente)}</td>
+                        <td>{formatMontant(ligne.montant_total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="total-row">
+                      <td colSpan="4"><strong>TOTAL</strong></td>
+                      <td><strong>{formatMontant(factureGeneree.montant_total)}</strong></td>
+                    </tr>
+                  </tfoot>
+                </table>
+
+                <div className="facture-actions">
+                  {estPayee ? (
+                    <div className="facture-paid-banner">
+                      <CheckCircle size={18} />
+                      <span>Cette facture est entièrement payée</span>
+                    </div>
                   ) : (
-                    <span className="status-badge status-en-attente"> En attente</span>
+                    <>
+                      <button
+                        className="btn btn-success btn-payer"
+                        onClick={() => {
+                          setShowFactureModal(false);
+                          setPaiementData({ mode_paiement: "especes" });
+                          setShowPaiementModal(true);
+                        }}
+                      >
+                        <Wallet size={18} />
+                        <span>
+                          {factureGeneree.statut === 'partiellement_payee'
+                            ? 'Compléter le paiement'
+                            : 'Payer maintenant'}
+                        </span>
+                      </button>
+
+                      <button
+                        className="btn btn-secondary btn-payer-plus-tard"
+                        onClick={async () => {
+                          setShowFactureModal(false);
+                          await loadCommandes();
+                          await loadProduits();
+                          showToast(
+                            `Commande ${commandeEnCours?.numero_commande} enregistrée. ` +
+                            `Facture ${factureGeneree?.numero_facture} en attente de paiement.`,
+                            'success'
+                          );
+                          setCommandeEnCours(null);
+                          setFactureGeneree(null);
+                          setFormData({ nomclient: "", telephone: "", lignes: [] });
+                        }}
+                      >
+                        <Clock size={16} />
+                        <span>Enregistrer sans payer</span>
+                      </button>
+                    </>
                   )}
+
+                  <FacturePDFActions
+                    factureData={factureGeneree}
+                    onClose={() => setShowFactureModal(false)}
+                  />
                 </div>
               </div>
-
-              <table className="facture-lignes">
-                <thead>
-                  <tr>
-                    <th>Produit</th>
-                    <th>Unité</th>
-                    <th>Qté</th>
-                    <th>Prix unitaire</th>
-                    <th>Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {factureGeneree.lignes?.map((ligne, index) => (
-                    <tr key={index}>
-                      <td>{ligne.produit_nom}</td>
-                      <td>
-                        <span className="unite-badge">
-                          {ligne.nom_unite_vente || 'Unité'}
-                          {ligne.quantite_base > 1 && ` (${ligne.quantite_base})`}
-                        </span>
-                      </td>
-                      <td>{ligne.quantite}</td>
-                      <td>{formatMontant(ligne.prix_vente)}</td>
-                      <td>{formatMontant(ligne.montant_total)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="total-row">
-                    <td colSpan="4"><strong>TOTAL</strong></td>
-                    <td><strong>{formatMontant(factureGeneree.montant_total)}</strong></td>
-                  </tr>
-                </tfoot>
-              </table>
-
-              <div className="facture-actions">
-                {factureGeneree.statut !== 'payee' ? (
-                  <>
-                    <button
-                      className="btn btn-success btn-payer"
-                      onClick={() => {
-                        setShowFactureModal(false);
-                        setPaiementData({ mode_paiement: "especes" });
-                        setShowPaiementModal(true);
-                      }}
-                    >
-                      <Wallet size={18} />
-                      <span>Payer maintenant</span>
-                    </button>
-
-                    <button
-                      className="btn btn-secondary btn-payer-plus-tard"
-                      onClick={async () => {
-                        setShowFactureModal(false);
-                        await loadCommandes();
-                        await loadProduits();
-                        showToast(
-                          `Commande ${commandeEnCours?.numero_commande} enregistrée. ` +
-                          `Facture ${factureGeneree?.numero_facture} en attente de paiement.`,
-                          'success'
-                        );
-                        setCommandeEnCours(null);
-                        setFactureGeneree(null);
-                        setFormData({ nomclient: "", telephone: "", lignes: [] });
-                      }}
-                    >
-                      <Clock size={16} />
-                      <span>Enregistrer sans payer</span>
-                    </button>
-                  </>
-                ) : (
-                  <PDFDownloadLink
-                    document={<FacturePDF data={factureGeneree} />}
-                    fileName={`facture-${factureGeneree.numero_facture}.pdf`}
-                  >
-                    {({ loading }) => (
-                      <button className="pdf-btn pdf-btn-download" disabled={loading}>
-                        {loading ? (
-                          <><span className="spinner-small"></span><span>Génération...</span></>
-                        ) : (
-                          <><FileDown size={16} /><span>Télécharger PDF</span></>
-                        )}
-                      </button>
-                    )}
-                  </PDFDownloadLink>
-                )}
-
-                <button
-                  className="pdf-btn pdf-btn-print"
-                  onClick={() => {
-                    if (!factureGeneree) return;
-                    alert(`Impression de la facture ${factureGeneree.numero_facture}`);
-                  }}
-                  disabled={!factureGeneree}
-                >
-                  <Printer size={16} />
-                  <span>Imprimer</span>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowFactureModal(false)}>
+                  Fermer
                 </button>
               </div>
             </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowFactureModal(false)}>
-                Fermer
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ============================================================
           MODAL - DÉTAILS
           ============================================================ */}
-      {showDetailModal && selectedCommande && (
-        <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>📋 Détails de la commande</h2>
-              <button className="modal-close" onClick={() => setShowDetailModal(false)}>
-                <X size={22} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="detail-header">
-                <div className="detail-header-left">
-                  <div className="detail-icon"><ShoppingBag size={26} /></div>
-                  <div>
-                    <h3 className="detail-numero">{selectedCommande.numero_commande}</h3>
-                    <span className="detail-date">
-                      <Calendar size={14} />
-                      {formatDateFR(selectedCommande.date_commande)}
-                    </span>
-                  </div>
-                </div>
-                <div className="detail-header-right">
-                  <StatutDropdown
-                    commande={selectedCommande}
-                    onSelect={handleChangeStatut}
-                    updatingStatut={updatingStatut}
-                    canManage={canManage}
-                  />
-                  {selectedCommande.statut_facture && getStatutFactureBadge(selectedCommande.statut_facture)}
-                </div>
-              </div>
+      {showDetailModal && selectedCommande && (() => {
+        const facturePayee = isFacturePayee(selectedCommande);
+        const facturePartielle = isFacturePartiellementPayee(selectedCommande);
+        const peutPayer = canManage &&
+          selectedCommande.statut !== 'livree' &&
+          selectedCommande.statut !== 'annulee' &&
+          !facturePayee;
 
-              <div className="detail-grid">
-                <div className="detail-section">
-                  <h4><User size={16} /> Client</h4>
-                  <div className="detail-item">
-                    <label>Nom</label>
-                    <span>{selectedCommande.nomclient || '-'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Téléphone</label>
-                    <span>{selectedCommande.telephone || '-'}</span>
-                  </div>
-                </div>
-                <div className="detail-section">
-                  <h4><FileText size={16} /> Informations</h4>
-                  <div className="detail-item">
-                    <label>Facture</label>
-                    <span>{selectedCommande.numero_facture || 'Non générée'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Mode de paiement</label>
-                    <span>{selectedCommande.mode_paiement || '-'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Montant total</label>
-                    <span className="montant-total">{formatMontant(selectedCommande.montant_total)}</span>
-                  </div>
-                </div>
+        return (
+          <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
+            <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>Détails de la commande</h2>
+                <button className="modal-close" onClick={() => setShowDetailModal(false)}>
+                  <X size={22} />
+                </button>
               </div>
+              <div className="modal-body">
+                <div className="detail-header">
+                  <div className="detail-header-left">
+                    <div className="detail-icon"><ShoppingBag size={26} /></div>
+                    <div>
+                      <h3 className="detail-numero">{selectedCommande.numero_commande}</h3>
+                      <span className="detail-date">
+                        <Calendar size={14} />
+                        {formatDateFR(selectedCommande.date_commande)}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="detail-header-right">
+                    <StatutDropdown
+                      commande={selectedCommande}
+                      onSelect={handleChangeStatut}
+                      updatingStatut={updatingStatut}
+                      canManage={canManage}
+                    />
+                    {selectedCommande.statut_facture && getStatutFactureBadge(selectedCommande.statut_facture)}
+                  </div>
+                </div>
 
-              {selectedCommande.lignes && selectedCommande.lignes.length > 0 && (
-                <div className="detail-lignes">
-                  <h4>Produits</h4>
-                  <div className="detail-lignes-wrapper">
-                    <table className="detail-lignes-table">
+                <div className="detail-grid">
+                  <div className="detail-section">
+                    <h4><User size={16} /> Client</h4>
+                    <div className="detail-item">
+                      <label>Nom</label>
+                      <span>{selectedCommande.nomclient || '-'}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>Téléphone</label>
+                      <span>{selectedCommande.telephone || '-'}</span>
+                    </div>
+                  </div>
+                  <div className="detail-section">
+                    <h4><FileText size={16} /> Informations</h4>
+                    <div className="detail-item">
+                      <label>Facture</label>
+                      <span>{selectedCommande.numero_facture || 'Non générée'}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>Mode de paiement</label>
+                      <span>{selectedCommande.mode_paiement || '-'}</span>
+                    </div>
+                    <div className="detail-item">
+                      <label>Montant total</label>
+                      <span className="montant-total">{formatMontant(selectedCommande.montant_total)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedCommande.lignes && selectedCommande.lignes.length > 0 && (
+                  <div className="detail-lignes">
+                    <h4>Produits</h4>
+                    <div className="detail-lignes-wrapper">
+                      <table className="detail-lignes-table">
+                        <thead>
+                          <tr>
+                            <th>Produit</th>
+                            <th>Unité</th>
+                            <th>Qté</th>
+                            <th>Prix unitaire</th>
+                            <th>Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedCommande.lignes.map((ligne, index) => (
+                            <tr key={index}>
+                              <td>
+                                <span className="produit-nom">{ligne.produit_nom}</span>
+                                {ligne.marque_nom && <span className="produit-marque"> - {ligne.marque_nom}</span>}
+                              </td>
+                              <td>
+                                <span className="unite-badge">
+                                  <Box size={11} />
+                                  {ligne.nom_unite_vente || 'Unité'}
+                                  {ligne.quantite_base > 1 && ` (${ligne.quantite_base})`}
+                                </span>
+                              </td>
+                              <td>{ligne.quantite}</td>
+                              <td>{formatMontant(ligne.prix_vente)}</td>
+                              <td className="montant-cell">{formatMontant(ligne.montant_total)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr className="total-row">
+                            <td colSpan="4"><strong>Total</strong></td>
+                            <td><strong>{formatMontant(selectedCommande.montant_total)}</strong></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {selectedCommande.paiements && selectedCommande.paiements.length > 0 && (
+                  <div className="detail-paiements">
+                    <h4>Paiements</h4>
+                    <table className="detail-paiements-table">
                       <thead>
                         <tr>
-                          <th>Produit</th>
-                          <th>Unité</th>
-                          <th>Qté</th>
-                          <th>Prix unitaire</th>
-                          <th>Total</th>
+                          <th>Date</th>
+                          <th>Montant</th>
+                          <th>Mode</th>
+                          <th>Référence</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedCommande.lignes.map((ligne, index) => (
+                        {selectedCommande.paiements.map((paiement, index) => (
                           <tr key={index}>
-                            <td>
-                              <span className="produit-nom">{ligne.produit_nom}</span>
-                              {ligne.marque_nom && <span className="produit-marque"> - {ligne.marque_nom}</span>}
-                            </td>
-                            <td>
-                              <span className="unite-badge">
-                                <Box size={11} />
-                                {ligne.nom_unite_vente || 'Unité'}
-                                {ligne.quantite_base > 1 && ` (${ligne.quantite_base})`}
-                              </span>
-                            </td>
-                            <td>{ligne.quantite}</td>
-                            <td>{formatMontant(ligne.prix_vente)}</td>
-                            <td className="montant-cell">{formatMontant(ligne.montant_total)}</td>
+                            <td>{formatDateFR(paiement.date_paiement)}</td>
+                            <td className="montant-cell">{formatMontant(paiement.montant)}</td>
+                            <td>{paiement.mode_paiement}</td>
+                            <td>{paiement.reference || '-'}</td>
                           </tr>
                         ))}
                       </tbody>
-                      <tfoot>
-                        <tr className="total-row">
-                          <td colSpan="4"><strong>Total</strong></td>
-                          <td><strong>{formatMontant(selectedCommande.montant_total)}</strong></td>
-                        </tr>
-                      </tfoot>
                     </table>
                   </div>
-                </div>
-              )}
-
-              {selectedCommande.paiements && selectedCommande.paiements.length > 0 && (
-                <div className="detail-paiements">
-                  <h4>Paiements</h4>
-                  <table className="detail-paiements-table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Montant</th>
-                        <th>Mode</th>
-                        <th>Référence</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {selectedCommande.paiements.map((paiement, index) => (
-                        <tr key={index}>
-                          <td>{formatDateFR(paiement.date_paiement)}</td>
-                          <td className="montant-cell">{formatMontant(paiement.montant)}</td>
-                          <td>{paiement.mode_paiement}</td>
-                          <td>{paiement.reference || '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowDetailModal(false)}>
-                Fermer
-              </button>
-              {canManage && selectedCommande.statut !== 'livree' && selectedCommande.statut !== 'annulee' && (
-                <button
-                  className="btn btn-success"
-                  onClick={() => preparerPaiement(selectedCommande)}
-                >
-                  <Wallet size={16} />
-                  <span>Payer</span>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button className="btn btn-secondary" onClick={() => setShowDetailModal(false)}>
+                  Fermer
                 </button>
-              )}
+
+                {facturePayee && selectedCommande.statut !== 'annulee' && (
+                  <span className="detail-paid-indicator">
+                    <CheckCircle size={16} />
+                    Payée
+                  </span>
+                )}
+
+                {peutPayer && (
+                  <button
+                    className="btn btn-success"
+                    onClick={() => preparerPaiement(selectedCommande)}
+                  >
+                    <Wallet size={16} />
+                    <span>{facturePartielle ? 'Compléter le paiement' : 'Payer'}</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ============================================================
           MODAL - SUPPRESSION

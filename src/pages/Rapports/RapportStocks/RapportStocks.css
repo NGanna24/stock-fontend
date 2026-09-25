@@ -5,7 +5,7 @@
     max-width: 1400px;
     margin: 0 auto;
     background: #f8fafc;
-    min-height: 100vh;
+    min-height: 100vh; 
 }
 
 /* ==================== HEADER ==================== */
@@ -517,4 +517,50 @@
     .search-box-small {
         max-width: 150px;
     }
+}
+/* ==================== STOCK SELECTOR dans les tableaux ==================== */
+.rapport-table .stock-selector {
+    align-items: flex-start;
+    justify-content: center;
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.rapport-table .stock-selector .stock-main-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    justify-content: center;
+}
+
+.rapport-table .stock-qte {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.rapport-table .stock-unite-trigger,
+.rapport-table .stock-unite-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: #475569;
+}
+
+.rapport-table .stock-reste {
+    font-size: 11px;
+    color: #94a3b8;
+    text-align: center;
+}
+
+.text-danger .stock-qte {
+    color: #ef4444;
+}
+
+.text-warning .stock-qte {
+    color: #f59e0b;
+}
+
+.text-success .stock-qte {
+    color: #10b981;
 }

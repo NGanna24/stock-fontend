@@ -1,5 +1,5 @@
 // pages/Factures/Factures.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Search,
   Eye,
@@ -17,15 +17,24 @@ import {
   AlertCircle,
   CheckCircle,
   Ban,
+  Wallet,
+  CreditCard,
+  Building,
+  Coins,
+  Printer,
+  Loader,
+  Phone,
+  Box,
 } from "lucide-react"; 
 import FactureService from "../../services/factureService";
+import CommandeVenteService from "../../services/commandeVenteService";
 import MagasinService from "../../services/magasinService";
 import { useUser } from "../../context/AuthContext";
 import FacturePDFActions from "../../components/Facture/FacturePDFActions";
 import "./Factures.css";
 
 // ============================================================
-// HELPERS INTERNES
+// HELPERS
 // ============================================================
 const formatMontant = (value) => {
   const num = Number(value || 0);
@@ -49,6 +58,8 @@ const formatDateFR = (date) => {
   }
 };
 
+const getTodayISO = () => new Date().toISOString().split('T')[0];
+
 // ============================================================
 // COMPOSANT
 // ============================================================
@@ -63,18 +74,42 @@ const Factures = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [error, setError] = useState(null);
+
+  // Filtres
   const [filterStatut, setFilterStatut] = useState("");
   const [filterDateDebut, setFilterDateDebut] = useState("");
   const [filterDateFin, setFilterDateFin] = useState("");
 
-  // Modal détails
+  const debounceRef = useRef(null);
+
+  // Modals
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedFacture, setSelectedFacture] = useState(null);
 
-  // ✅ NOUVEAU : Magasin (pour le PDF)
+  // Modal Paiement
+  const [showPaiementModal, setShowPaiementModal] = useState(false);
+  const [factureEnCours, setFactureEnCours] = useState(null);
+  const [paiementData, setPaiementData] = useState({
+    montant: "",
+    mode_paiement: "especes",
+  });
+  const [savingPaiement, setSavingPaiement] = useState(false);
+
+  // Modal Facture (après paiement)
+  const [showFactureModal, setShowFactureModal] = useState(false);
+  const [facturePourImpression, setFacturePourImpression] = useState(null);
+
+  // Magasin
   const [magasin, setMagasin] = useState(null);
 
-  // Statistiques
+  // Toast
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  // Stats
   const [stats, setStats] = useState({
     total_factures: 0,
     total_montant: 0,
@@ -83,6 +118,7 @@ const Factures = () => {
     partiellement_payee: 0,
     en_retard: 0,
     annulee: 0,
+    total_impayees: 0,
     montant_impaye: 0,
     montant_moyen: 0,
   });
@@ -96,9 +132,22 @@ const Factures = () => {
     if (isAuthenticated && token) {
       loadFactures();
       loadStats();
-      loadMagasin();   
+      loadMagasin();
     }
   }, [isAuthenticated, token]);
+
+  // Debounce filtres
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      loadFactures();
+    }, 400);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [searchTerm, filterStatut, filterDateDebut, filterDateFin, isAuthenticated, token]);
 
   const loadFactures = async () => {
     setLoading(true);
@@ -133,7 +182,6 @@ const Factures = () => {
     }
   };
 
-  // ✅ NOUVEAU : Chargement du magasin
   const loadMagasin = async () => {
     try {
       const res = await MagasinService.getMonMagasin(token);
@@ -163,6 +211,8 @@ const Factures = () => {
   };
 
   const getStatutCalcule = (facture) => {
+    if (facture.statut_effectif) return facture.statut_effectif;
+
     if (facture.statut === 'annulee') return 'annulee';
     const total = parseFloat(facture.montant_total || 0);
     const paye = getMontantPaye(facture);
@@ -177,29 +227,170 @@ const Factures = () => {
     return facture.statut || 'en_attente';
   };
 
+  // ✅ Construire une facture complète depuis une commande (même logique que Ventes.jsx)
+  const construireFactureComplete = (commandeComplete) => {
+    const montantTotal = parseFloat(commandeComplete.montant_total) || 0;
+    const totalPaye = (commandeComplete.paiements || []).reduce(
+      (sum, p) => sum + (parseFloat(p.montant) || 0),
+      0
+    );
+    const resteAPayer = montantTotal - totalPaye;
+
+    return {
+      id_facture: commandeComplete.id_facture,
+      numero_facture: commandeComplete.numero_facture,
+      date_facture: commandeComplete.date_facture,
+      date_echeance: commandeComplete.date_echeance,
+      nomclient: commandeComplete.nomclient,
+      telephone: commandeComplete.telephone,
+      montant_total: montantTotal,
+      statut: commandeComplete.statut_facture || 'en_attente',
+      statut_effectif: commandeComplete.statut_facture || 'en_attente',
+      mode_paiement: commandeComplete.mode_paiement || 'especes',
+      notes: commandeComplete.notes,
+      // ✅ Lignes avec fallback complet
+      lignes: (commandeComplete.lignes || []).map(l => ({
+        ...l,
+        produit_nom: l.produit_nom || '-',
+        nom_unite_vente: l.nom_unite_vente || l.unite_vente_nom || 'Unité',
+        unite_symbole: l.unite_symbole || l.nom_unite_vente || '',
+        quantite_base: parseFloat(l.quantite_base) || 1,
+        quantite_totale_base: parseFloat(l.quantite_totale_base)
+          || (parseFloat(l.quantite) * (parseFloat(l.quantite_base) || 1)),
+        prix_vente: parseFloat(l.prix_vente) || 0,
+        montant_total: parseFloat(l.montant_total)
+          || (parseFloat(l.quantite) * parseFloat(l.prix_vente || 0)),
+      })),
+      paiements: commandeComplete.paiements || [],
+      total_paye: totalPaye,
+      reste_a_payer: resteAPayer,
+      numero_commande: commandeComplete.numero_commande,
+      id_commande: commandeComplete.id_commande,
+      magasin: magasin,
+    };
+  };
+
   // ============================================================
   // ACTIONS
   // ============================================================
-const handleView = async (facture) => {
-    console.log('📦 Facture sélectionnée :', facture);
-
-    // Ouvrir le modal tout de suite avec les données de la liste
+  const handleView = async (facture) => {
     setSelectedFacture(facture);
     setShowDetailModal(true);
 
-    // Puis recharger la facture complète avec ses lignes
     try {
-        const res = await FactureService.getFactureById(token, facture.id_facture);
-        console.log('✅ Facture complète :', res);
-
-        if (res.success && res.data) {
-            console.log('📋 Lignes reçues :', res.data.lignes);
-            setSelectedFacture(res.data);
-        }
+      const res = await FactureService.getFactureById(token, facture.id_facture);
+      if (res.success && res.data) {
+        setSelectedFacture(res.data);
+      }
     } catch (err) {
-        console.error('❌ Impossible de charger la facture complète :', err);
+      console.error('❌ Impossible de charger la facture complète :', err);
     }
-};
+  };
+
+  // ✅ Ouvrir le modal de paiement
+  const handleOpenPaiement = (facture) => {
+    const reste = getResteAPayer(facture);
+    if (reste <= 0) {
+      showToast('Cette facture est déjà totalement payée', 'info');
+      return;
+    }
+    if (facture.statut === 'annulee') {
+      showToast('Impossible de payer une facture annulée', 'error');
+      return;
+    }
+
+    setFactureEnCours(facture);
+    setPaiementData({
+      montant: reste.toString(),
+      mode_paiement: facture.mode_paiement || 'especes',
+    });
+    setShowPaiementModal(true);
+    setShowDetailModal(false);
+  };
+
+  // ✅ Enregistrer le paiement (même logique que Ventes.jsx)
+  const handleSavePaiement = async () => {
+    if (!factureEnCours) return;
+
+    const montant = parseFloat(paiementData.montant);
+    if (!montant || montant <= 0) {
+      showToast('Veuillez saisir un montant valide', 'warning');
+      return;
+    }
+
+    const reste = getResteAPayer(factureEnCours);
+    if (montant > reste) {
+      showToast(
+        `Le montant ne peut pas dépasser le reste à payer (${formatMontant(reste)})`,
+        'warning'
+      );
+      return;
+    }
+
+    // ✅ Vérifier qu'on a bien un id_commande pour utiliser l'API de CommandeVente
+    if (!factureEnCours.id_commande) {
+      showToast('Impossible de trouver la commande associée', 'error');
+      return;
+    }
+
+    setSavingPaiement(true);
+    try {
+      // ✅ Utiliser l'API CommandeVente (comme dans Ventes.jsx)
+      const paiementResponse = await CommandeVenteService.addPaiement(
+        token,
+        factureEnCours.id_commande,
+        {
+          id_facture: factureEnCours.id_facture,
+          date_paiement: getTodayISO(),
+          montant: montant,
+          mode_paiement: paiementData.mode_paiement || 'especes',
+          note: `Paiement pour facture ${factureEnCours.numero_facture}`,
+          reference: null,
+        }
+      );
+
+      if (!paiementResponse.success) {
+        throw new Error(paiementResponse.message || 'Erreur lors du paiement');
+      }
+
+      // ✅ Recharger la COMMANDE complète (comme dans Ventes.jsx)
+      const commandeComplete = await CommandeVenteService.getCommandeById(
+        token,
+        factureEnCours.id_commande
+      );
+
+      let factureComplete = null;
+
+      if (commandeComplete.success && commandeComplete.data) {
+        factureComplete = construireFactureComplete(commandeComplete.data);
+
+        setFactureEnCours(factureComplete);
+        setFacturePourImpression(factureComplete);
+      }
+
+      // ✅ Recharger la liste + stats
+      await Promise.all([loadFactures(), loadStats()]);
+
+      // ✅ Fermer le modal paiement
+      setShowPaiementModal(false);
+
+      // ✅ Ouvrir le modal Facture
+      if (factureComplete) {
+        setFacturePourImpression(factureComplete);
+        setShowFactureModal(true);
+      }
+
+      showToast(
+        `Paiement de ${formatMontant(montant)} enregistré avec succès`,
+        'success'
+      );
+    } catch (e) {
+      console.error('❌ SavePaiement error:', e);
+      showToast(e.message || 'Erreur lors du paiement', 'error');
+    } finally {
+      setSavingPaiement(false);
+    }
+  };
 
   const handleExport = async () => {
     try {
@@ -242,7 +433,7 @@ const handleView = async (facture) => {
       }
     } catch (error) {
       console.error('❌ Export error:', error);
-      alert('Erreur lors de l\'exportation');
+      showToast('Erreur lors de l\'exportation', 'error');
     }
   };
 
@@ -251,6 +442,16 @@ const handleView = async (facture) => {
     loadStats();
     loadMagasin();
   };
+
+  const handleResetFilters = () => {
+    setSearchTerm("");
+    setFilterStatut("");
+    setFilterDateDebut("");
+    setFilterDateFin("");
+    setCurrentPage(1);
+  };
+
+  const hasActiveFilters = searchTerm || filterStatut || filterDateDebut || filterDateFin;
 
   const getStatutBadge = (statut) => {
     const configs = {
@@ -277,10 +478,13 @@ const handleView = async (facture) => {
   const totalPages = Math.ceil(factures.length / itemsPerPage);
 
   // ============================================================
-  // RENDER
+  // RENDER LIGNE
   // ============================================================
   const renderFactureRow = (facture) => {
     const statutCalcule = getStatutCalcule(facture);
+    const reste = getResteAPayer(facture);
+    const peutPayer = canManage && facture.statut !== 'annulee' && reste > 0;
+
     return (
       <tr key={facture.id_facture}>
         <td className="numero-cell">
@@ -299,13 +503,25 @@ const handleView = async (facture) => {
         </td>
         <td>{getStatutBadge(statutCalcule)}</td>
         <td className="actions-cell">
-          <button
-            className="action-btn btn-view"
-            onClick={() => handleView(facture)}
-            title="Voir"
-          >
-            <Eye size={16} />
-          </button>
+          <div className="actions-buttons">
+            <button
+              className="action-btn btn-view"
+              onClick={() => handleView(facture)}
+              title="Voir les détails"
+            >
+              <Eye size={16} />
+            </button>
+
+            {peutPayer && (
+              <button
+                className="action-btn btn-pay"
+                onClick={() => handleOpenPaiement(facture)}
+                title={`Enregistrer un paiement (reste: ${formatMontant(reste)})`}
+              >
+                <Wallet size={16} />
+              </button>
+            )}
+          </div>
         </td>
       </tr>
     );
@@ -313,12 +529,21 @@ const handleView = async (facture) => {
 
   return (
     <div className="factures-container">
+      {/* Toast */}
+      {toast && (
+        <div className={`factures-toast factures-toast-${toast.type}`}>
+          <span className="toast-message">{toast.message}</span>
+          <button className="toast-close" onClick={() => setToast(null)}>×</button>
+        </div>
+      )}
+
       {/* En-tête */}
       <div className="factures-header">
         <div>
           <h1 className="factures-title">Factures</h1>
           <p className="factures-subtitle">
             {stats.total_factures} factures au total
+            {hasActiveFilters && ` • ${factures.length} résultat(s) affiché(s)`}
           </p>
         </div>
         <div className="factures-actions">
@@ -337,7 +562,7 @@ const handleView = async (facture) => {
         </div>
       </div>
 
-      {/* Statistiques */}
+      {/* Stats */}
       <div className="factures-stats">
         <div className="stat-card">
           <div className="stat-icon total"><FileText size={20} /></div>
@@ -353,13 +578,24 @@ const handleView = async (facture) => {
             <span className="stat-value">{formatMontant(stats.total_montant)}</span>
           </div>
         </div>
-        <div className="stat-card">
+
+        <div
+          className="stat-card clickable"
+          onClick={() => setFilterStatut('impayees')}
+          title="Cliquer pour voir toutes les factures impayées"
+        >
           <div className="stat-icon impaye"><AlertCircle size={20} /></div>
           <div className="stat-info">
-            <span className="stat-label">Montant impayé</span>
+            <span className="stat-label">
+              Impayées
+              {stats.total_impayees > 0 && (
+                <span className="badge-count">{stats.total_impayees}</span>
+              )}
+            </span>
             <span className="stat-value">{formatMontant(stats.montant_impaye)}</span>
           </div>
         </div>
+
         <div className="stat-card">
           <div className="stat-icon moyen"><TrendingUp size={20} /></div>
           <div className="stat-info">
@@ -407,10 +643,11 @@ const handleView = async (facture) => {
             onChange={(e) => setFilterStatut(e.target.value)}
           >
             <option value="">Tous les statuts</option>
+            <option value="impayees">🔴 Impayées (toutes)</option>
             <option value="en_attente">En attente</option>
-            <option value="payee">Payée</option>
             <option value="partiellement_payee">Partiellement payée</option>
             <option value="en_retard">En retard</option>
+            <option value="payee">Payée</option>
             <option value="annulee">Annulée</option>
           </select>
         </div>
@@ -420,6 +657,7 @@ const handleView = async (facture) => {
             className="filter-date"
             value={filterDateDebut}
             onChange={(e) => setFilterDateDebut(e.target.value)}
+            title="Date de début"
           />
         </div>
         <div className="filter-group">
@@ -428,23 +666,16 @@ const handleView = async (facture) => {
             className="filter-date"
             value={filterDateFin}
             onChange={(e) => setFilterDateFin(e.target.value)}
+            title="Date de fin"
           />
         </div>
-        <button className="btn btn-primary btn-filter" onClick={loadFactures}>
-          Filtrer
-        </button>
-        {(filterStatut || filterDateDebut || filterDateFin || searchTerm) && (
+        {hasActiveFilters && (
           <button
             className="btn btn-secondary btn-filter"
-            onClick={() => {
-              setFilterStatut("");
-              setFilterDateDebut("");
-              setFilterDateFin("");
-              setSearchTerm("");
-              loadFactures();
-            }}
+            onClick={handleResetFilters}
           >
-            Réinitialiser
+            <X size={16} />
+            <span>Réinitialiser</span>
           </button>
         )}
       </div>
@@ -488,6 +719,9 @@ const handleView = async (facture) => {
                   <td colSpan="9" className="empty-state">
                     <FileText size={32} />
                     <p>Aucune facture trouvée</p>
+                    {hasActiveFilters && (
+                      <small>Essayez de modifier vos filtres</small>
+                    )}
                   </td>
                 </tr>
               ) : (
@@ -521,12 +755,15 @@ const handleView = async (facture) => {
         </div>
       )}
 
-      {/* Modal Détails */}
+      {/* ============================================================
+          MODAL DÉTAILS
+          ============================================================ */}
       {showDetailModal && selectedFacture && (() => {
         const montantTotal = parseFloat(selectedFacture.montant_total || 0);
         const montantPaye = getMontantPaye(selectedFacture);
         const resteAPayer = getResteAPayer(selectedFacture);
         const statutCalcule = getStatutCalcule(selectedFacture);
+        const peutPayer = canManage && selectedFacture.statut !== 'annulee' && resteAPayer > 0;
 
         return (
           <div className="modal-overlay">
@@ -612,7 +849,6 @@ const handleView = async (facture) => {
                   </div>
                 </div>
 
-                {/* Lignes produits */}
                 {selectedFacture.lignes && selectedFacture.lignes.length > 0 && (
                   <div className="detail-lignes">
                     <h4>Produits</h4>
@@ -621,6 +857,7 @@ const handleView = async (facture) => {
                         <thead>
                           <tr>
                             <th>Produit</th>
+                            <th>Unité</th>
                             <th>Quantité</th>
                             <th>Prix unitaire</th>
                             <th>Total</th>
@@ -640,7 +877,14 @@ const handleView = async (facture) => {
                                     <span className="produit-marque"> - {ligne.marque_nom}</span>
                                   )}
                                 </td>
-                                <td>{qte} {ligne.unite_symbole || ''}</td>
+                                <td>
+                                  <span className="unite-badge">
+                                    <Box size={11} />
+                                    {ligne.nom_unite_vente || ligne.unite_symbole || 'Unité'}
+                                    {ligne.quantite_base > 1 && ` (${ligne.quantite_base})`}
+                                  </span>
+                                </td>
+                                <td>{qte}</td>
                                 <td>{formatMontant(prix)}</td>
                                 <td className="montant-cell">{formatMontant(totalLigne)}</td>
                               </tr>
@@ -649,7 +893,7 @@ const handleView = async (facture) => {
                         </tbody>
                         <tfoot>
                           <tr className="total-row">
-                            <td colSpan="3"><strong>Total</strong></td>
+                            <td colSpan="4"><strong>Total</strong></td>
                             <td><strong>{formatMontant(montantTotal)}</strong></td>
                           </tr>
                         </tfoot>
@@ -658,7 +902,6 @@ const handleView = async (facture) => {
                   </div>
                 )}
 
-                {/* Paiements */}
                 {selectedFacture.paiements && selectedFacture.paiements.length > 0 && (
                   <div className="detail-paiements">
                     <h4>Paiements</h4>
@@ -690,7 +933,29 @@ const handleView = async (facture) => {
                   </div>
                 )}
               </div>
+
               <div className="modal-footer">
+                <button
+                  className="btn btn-secondary"
+                  onClick={() => setShowDetailModal(false)}
+                >
+                  Fermer
+                </button>
+
+                {peutPayer && (
+                  <button
+                    className="btn btn-success"
+                    onClick={() => handleOpenPaiement(selectedFacture)}
+                  >
+                    <Wallet size={16} />
+                    <span>
+                      {statutCalcule === 'partiellement_payee'
+                        ? 'Compléter le paiement'
+                        : 'Payer'}
+                    </span>
+                  </button>
+                )}
+
                 <FacturePDFActions
                   factureData={{
                     ...selectedFacture,
@@ -698,7 +963,7 @@ const handleView = async (facture) => {
                     total_paye: montantPaye,
                     reste_a_payer: resteAPayer,
                     statut: statutCalcule,
-                    magasin: magasin,   // ✅ NOUVEAU : infos du magasin pour le PDF
+                    magasin: magasin,
                   }}
                   onClose={() => setShowDetailModal(false)}
                 />
@@ -707,6 +972,286 @@ const handleView = async (facture) => {
           </div>
         );
       })()}
+
+      {/* ============================================================
+          MODAL PAIEMENT
+          ============================================================ */}
+      {showPaiementModal && factureEnCours && (
+        <div
+          className="modal-overlay"
+          onClick={() => !savingPaiement && setShowPaiementModal(false)}
+        >
+          <div
+            className="modal-content modal-paiement"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-header">
+              <div className="modal-title-group">
+                <div className="modal-icon success">
+                  <Wallet size={22} />
+                </div>
+                <div>
+                  <h2>Paiement de la facture</h2>
+                  <p className="modal-subtitle">
+                    Facture {factureEnCours.numero_facture}
+                  </p>
+                </div>
+              </div>
+              <button
+                className="modal-close"
+                onClick={() => !savingPaiement && setShowPaiementModal(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="paiement-recap">
+                <div className="recap-client">
+                  <User size={18} />
+                  <span>{factureEnCours.nomclient || 'Client'}</span>
+                </div>
+                <div className="recap-line">
+                  <span>Montant total</span>
+                  <strong>{formatMontant(factureEnCours.montant_total)}</strong>
+                </div>
+                <div className="recap-line">
+                  <span>Déjà payé</span>
+                  <strong className="text-success">
+                    {formatMontant(getMontantPaye(factureEnCours))}
+                  </strong>
+                </div>
+                <div className="recap-line highlight">
+                  <span>Reste à payer</span>
+                  <strong className="text-danger">
+                    {formatMontant(getResteAPayer(factureEnCours))}
+                  </strong>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>
+                  Montant à payer <span className="required">*</span>
+                </label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={paiementData.montant}
+                  onChange={(e) =>
+                    setPaiementData({ ...paiementData, montant: e.target.value })
+                  }
+                  placeholder="0"
+                  min="0"
+                  step="0.01"
+                  autoFocus
+                  disabled={savingPaiement}
+                />
+                <small>
+                  Maximum : {formatMontant(getResteAPayer(factureEnCours))}
+                </small>
+              </div>
+
+              <div className="form-group">
+                <label>Mode de paiement</label>
+                <div className="paiement-modes">
+                  <button
+                    type="button"
+                    className={`paiement-mode-btn ${paiementData.mode_paiement === 'especes' ? 'active' : ''}`}
+                    onClick={() => setPaiementData({ ...paiementData, mode_paiement: 'especes' })}
+                    disabled={savingPaiement}
+                  >
+                    <Coins size={20} />
+                    <span>Espèces</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`paiement-mode-btn ${paiementData.mode_paiement === 'carte' ? 'active' : ''}`}
+                    onClick={() => setPaiementData({ ...paiementData, mode_paiement: 'carte' })}
+                    disabled={savingPaiement}
+                  >
+                    <CreditCard size={20} />
+                    <span>Carte</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`paiement-mode-btn ${paiementData.mode_paiement === 'virement' ? 'active' : ''}`}
+                    onClick={() => setPaiementData({ ...paiementData, mode_paiement: 'virement' })}
+                    disabled={savingPaiement}
+                  >
+                    <Building size={20} />
+                    <span>Virement</span>
+                  </button>
+                  <button
+                    type="button"
+                    className={`paiement-mode-btn ${paiementData.mode_paiement === 'cheque' ? 'active' : ''}`}
+                    onClick={() => setPaiementData({ ...paiementData, mode_paiement: 'cheque' })}
+                    disabled={savingPaiement}
+                  >
+                    <FileText size={20} />
+                    <span>Chèque</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowPaiementModal(false)}
+                disabled={savingPaiement}
+              >
+                Annuler
+              </button>
+              <button
+                className="btn btn-success"
+                onClick={handleSavePaiement}
+                disabled={savingPaiement || !paiementData.montant}
+              >
+                {savingPaiement ? (
+                  <>
+                    <Loader size={16} className="spinning" />
+                    <span>Paiement...</span>
+                  </>
+                ) : (
+                  <>
+                    <Wallet size={16} />
+                    <span>Payer {formatMontant(paiementData.montant || 0)}</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================
+          MODAL FACTURE (après paiement)
+          ============================================================ */}
+      {showFactureModal && facturePourImpression && (
+        <div className="modal-overlay">
+          <div className="modal-content large">
+            <div className="modal-header">
+              <div className="modal-title-group">
+                <div className="modal-icon">
+                  <FileText size={20} />
+                </div>
+                <div>
+                  <h2>Facture {facturePourImpression.numero_facture}</h2>
+                  <p className="modal-subtitle">
+                    {getStatutCalcule(facturePourImpression) === 'payee'
+                      ? '✅ Facture totalement payée'
+                      : `Reste à payer : ${formatMontant(getResteAPayer(facturePourImpression))}`
+                    }
+                  </p>
+                </div>
+              </div>
+              <button
+                className="modal-close"
+                onClick={() => setShowFactureModal(false)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="paiement-recap">
+                <div className="recap-client">
+                  <User size={18} />
+                  <span>{facturePourImpression.nomclient || 'Client'}</span>
+                </div>
+                <div className="recap-line">
+                  <span>Montant total</span>
+                  <strong>{formatMontant(facturePourImpression.montant_total)}</strong>
+                </div>
+                <div className="recap-line">
+                  <span>Total payé</span>
+                  <strong className="text-success">
+                    {formatMontant(getMontantPaye(facturePourImpression))}
+                  </strong>
+                </div>
+                <div className="recap-line highlight">
+                  <span>Reste à payer</span>
+                  <strong className={
+                    getResteAPayer(facturePourImpression) > 0 ? 'text-danger' : 'text-success'
+                  }>
+                    {formatMontant(getResteAPayer(facturePourImpression))}
+                  </strong>
+                </div>
+              </div>
+
+              {facturePourImpression.lignes && facturePourImpression.lignes.length > 0 ? (
+                <div className="detail-lignes">
+                  <h4>Produits ({facturePourImpression.lignes.length})</h4>
+                  <table className="detail-lignes-table">
+                    <thead>
+                      <tr>
+                        <th>Produit</th>
+                        <th>Unité</th>
+                        <th>Qté</th>
+                        <th>Prix unitaire</th>
+                        <th>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {facturePourImpression.lignes.map((l, i) => (
+                        <tr key={i}>
+                          <td>{l.produit_nom || '-'}</td>
+                          <td>
+                            {l.nom_unite_vente || l.unite_symbole || 'Unité'}
+                            {l.quantite_base > 1 && ` (${l.quantite_base})`}
+                          </td>
+                          <td>{l.quantite}</td>
+                          <td>{formatMontant(l.prix_vente)}</td>
+                          <td className="montant-cell">
+                            {formatMontant(l.montant_total || (l.quantite * l.prix_vente))}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="total-row">
+                        <td colSpan="4"><strong>TOTAL</strong></td>
+                        <td><strong>{formatMontant(facturePourImpression.montant_total)}</strong></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              ) : (
+                <div className="facture-info-banner warning">
+                  <AlertCircle size={20} />
+                  <span>
+                    ⚠️ Aucune ligne détectée. Vérifiez que la facture contient bien des produits.
+                  </span>
+                </div>
+              )}
+
+              <div className="facture-info-banner">
+                <CheckCircle size={20} />
+                <span>
+                  Vous pouvez maintenant imprimer ou télécharger la facture.
+                </span>
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowFactureModal(false)}
+              >
+                Fermer
+              </button>
+
+              <FacturePDFActions
+                factureData={{
+                  ...facturePourImpression,
+                  magasin: magasin,
+                }}
+                onClose={() => setShowFactureModal(false)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

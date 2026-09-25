@@ -467,7 +467,7 @@ const Paiements = () => {
         <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>📋 Détails du paiement</h2>
+              <h2> Détails du paiement</h2>
               <button className="modal-close" onClick={() => setShowDetailModal(false)}>
                 <X size={24} />
               </button>

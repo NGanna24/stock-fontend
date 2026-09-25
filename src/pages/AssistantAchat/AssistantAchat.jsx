@@ -1,5 +1,5 @@
 // pages/AssistantAchat/AssistantAchat.jsx
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
     Bot, Package, Truck, Check, X, RefreshCw, AlertCircle,
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import AssistantAchatService from '../../services/assistantAchatService';
 import { useUser } from '../../context/AuthContext';
+import StockSelector from '../../components/StockSelector/StockSelector';
 import './AssistantAchat.css';
 
 // ============ HELPERS ============
@@ -28,6 +29,112 @@ const NIVEAUX = [
     { id: 'large',  label: 'Large',   description: 'Couvrir 30 jours', color: '#10b981', bg: '#ecfdf5' },
 ];
 
+// ============================================================
+// COMPOSANT : Sélecteur d'unité de vente
+// ============================================================
+const UniteSelect = ({ unites, uniteBaseNom, selectedId, onChange, disabled }) => {
+    const [open, setOpen] = useState(false);
+    const ref = useRef(null);
+
+    // Fermer au clic extérieur
+    useEffect(() => {
+        if (!open) return;
+        const handleClick = (e) => {
+            if (ref.current && !ref.current.contains(e.target)) {
+                setOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClick);
+        return () => document.removeEventListener('mousedown', handleClick);
+    }, [open]);
+
+    // Construire la liste : unité de base + toutes les unités personnalisées
+    const toutesUnites = useMemo(() => {
+        const list = [];
+
+        // Unité de base (id = null)
+        if (uniteBaseNom) {
+            list.push({
+                id_unite_vente: null,
+                nom: uniteBaseNom,
+                quantite_base: 1,
+                prix_achat: null,
+                is_base: true,
+            });
+        }
+
+        // Unités personnalisées (triées par quantite_base croissant)
+        (unites || [])
+            .filter(u => u && u.nom)
+            .sort((a, b) => (a.quantite_base || 1) - (b.quantite_base || 1))
+            .forEach(u => {
+                list.push({
+                    ...u,
+                    quantite_base: parseFloat(u.quantite_base) || 1,
+                    is_base: false,
+                });
+            });
+
+        return list;
+    }, [unites, uniteBaseNom]);
+
+    const selectedUnite = toutesUnites.find(u => u.id_unite_vente === selectedId)
+        || toutesUnites[0];
+
+    // Une seule unité → pas de dropdown, juste un label
+    if (toutesUnites.length <= 1) {
+        return (
+            <span className="unite-static">
+                {selectedUnite?.nom || 'Unité'}
+            </span>
+        );
+    }
+
+    return (
+        <div className="unite-select" ref={ref}>
+            <button
+                type="button"
+                className={`unite-select-trigger ${open ? 'open' : ''}`}
+                onClick={() => !disabled && setOpen(v => !v)}
+                disabled={disabled}
+                title="Changer l'unité de commande"
+            >
+                <span>{selectedUnite?.nom || 'Unité'}</span>
+                {selectedUnite?.quantite_base > 1 && (
+                    <small>×{selectedUnite.quantite_base}</small>
+                )}
+                <ChevronDown size={12} />
+            </button>
+
+            {open && (
+                <div className="unite-select-menu">
+                    {toutesUnites.map(u => (
+                        <button
+                            key={u.id_unite_vente ?? 'base'}
+                            type="button"
+                            className={`unite-select-item ${
+                                u.id_unite_vente === selectedId ? 'active' : ''
+                            }`}
+                            onClick={() => {
+                                onChange(u);
+                                setOpen(false);
+                            }}
+                        >
+                            <span className="unite-name">{u.nom}</span>
+                            {u.quantite_base > 1 && (
+                                <span className="unite-base">×{u.quantite_base}</span>
+                            )}
+                        </button>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// ============================================================
+// COMPOSANT PRINCIPAL
+// ============================================================
 const AssistantAchat = () => {
     const { isAuthenticated, user } = useUser();
     const { slug = '' } = useParams();
@@ -56,22 +163,32 @@ const AssistantAchat = () => {
             if (res.success) {
                 setData(res.data);
 
-                // Init sélection : tout coché par défaut
+                // ✅ Init sélection : tout coché par défaut
                 const sel = {};
                 (res.data.fournisseurs || []).forEach(f => {
                     f.produits.forEach(p => {
-                        // ✅ FIX 3 : garantir au moins 1
+                        const uvProposee = p.unite_proposee;
+
                         const qteProposee = Math.max(
                             1,
                             parseInt(p.quantite_proposee_uv, 10) || 1
                         );
 
+                        // Prix unitaire de l'unité proposée (fallback sur prix produit)
+                        const prixUnitaire =
+                            uvProposee?.prix_achat ||
+                            p.prix_unitaire ||
+                            null;
+
                         sel[p.id_produit] = {
                             selected: true,
                             quantite_uv: qteProposee,
-                            id_unite_vente: p.unite_proposee?.id_unite_vente || null,
-                            nom_unite_vente: p.unite_proposee?.nom || p.unite_base_nom,
-                            quantite_base: parseFloat(p.unite_proposee?.quantite_base) || 1,
+                            id_unite_vente: uvProposee?.id_unite_vente || null,
+                            nom_unite_vente: uvProposee?.nom || p.unite_base_nom,
+                            quantite_base: parseFloat(uvProposee?.quantite_base) || 1,
+                            prix_unitaire: prixUnitaire,
+                            // Besoin en base (constant quand on change d'unité)
+                            besoin_base: p.besoin_base || (qteProposee * (uvProposee?.quantite_base || 1)) || 1,
                         };
                     });
                 });
@@ -123,20 +240,62 @@ const AssistantAchat = () => {
         setSelection(prev => {
             const current = prev[idProduit];
             const newQte = Math.max(1, (current.quantite_uv || 1) + delta);
+            const newBesoinBase = newQte * (current.quantite_base || 1);
             return {
                 ...prev,
-                [idProduit]: { ...current, quantite_uv: newQte },
+                [idProduit]: {
+                    ...current,
+                    quantite_uv: newQte,
+                    besoin_base: newBesoinBase,
+                },
             };
         });
     };
 
     const setQuantiteExacte = (idProduit, valeur) => {
-        // ✅ FIX : garantir au moins 1
         const qte = Math.max(1, parseInt(valeur, 10) || 1);
-        setSelection(prev => ({
-            ...prev,
-            [idProduit]: { ...prev[idProduit], quantite_uv: qte },
-        }));
+        setSelection(prev => {
+            const current = prev[idProduit];
+            return {
+                ...prev,
+                [idProduit]: {
+                    ...current,
+                    quantite_uv: qte,
+                    besoin_base: qte * (current.quantite_base || 1),
+                },
+            };
+        });
+    };
+
+    // ✅ Changer l'unité de vente
+    const changeUnite = (idProduit, unite) => {
+        setSelection(prev => {
+            const current = prev[idProduit];
+
+            // Le besoin en base reste CONSTANT quand on change d'unité
+            const besoinBase = current.besoin_base ||
+                (current.quantite_uv * current.quantite_base) || 1;
+
+            // Recalcul de la quantité dans la nouvelle unité
+            const nouvelleQteBase = parseFloat(unite.quantite_base) || 1;
+            const nouvelleQteUV = Math.max(1, Math.ceil(besoinBase / nouvelleQteBase));
+
+            // Prix unitaire de la nouvelle unité
+            const nouveauPrix = unite.prix_achat || current.prix_unitaire || null;
+
+            return {
+                ...prev,
+                [idProduit]: {
+                    ...current,
+                    id_unite_vente: unite.id_unite_vente,
+                    nom_unite_vente: unite.nom,
+                    quantite_base: nouvelleQteBase,
+                    quantite_uv: nouvelleQteUV,
+                    prix_unitaire: nouveauPrix,
+                    besoin_base: besoinBase,
+                },
+            };
+        });
     };
 
     const toggleAccordion = (key) => {
@@ -158,7 +317,10 @@ const AssistantAchat = () => {
                 if (s?.selected) {
                     produits += 1;
                     hasSelected = true;
-                    const prixUnitaire = p.prix_unitaire;
+
+                    // ✅ Prix de l'unité choisie
+                    const prixUnitaire = s.prix_unitaire || p.prix_unitaire;
+
                     if (prixUnitaire) {
                         montant += s.quantite_uv * prixUnitaire;
                     } else {
@@ -179,8 +341,6 @@ const AssistantAchat = () => {
 
     // ============ CRÉATION ============
     const handleCreer = async () => {
-       
-
         if (totalSelectionne.produits === 0) {
             alert('Veuillez sélectionner au moins un produit');
             return;
@@ -194,7 +354,6 @@ const AssistantAchat = () => {
         try {
             const groupes = [];
             (data.fournisseurs || []).forEach(f => {
-
                 if (!f.id_fournisseur) {
                     return;
                 }
@@ -207,7 +366,6 @@ const AssistantAchat = () => {
                         return;
                     }
 
-                    // ✅ FIX 3 : garantir au moins 1
                     const qteUV = Math.max(1, parseInt(s.quantite_uv, 10) || 1);
                     const qteBase = parseFloat(s.quantite_base) || 1;
                     const qteTotaleBase = qteUV * qteBase;
@@ -219,7 +377,8 @@ const AssistantAchat = () => {
                         quantite_base: qteBase,
                         quantite: qteUV,
                         quantite_totale_base: qteTotaleBase,
-                        prix_achat: p.prix_unitaire || null,
+                        // ✅ Prix de l'unité choisie
+                        prix_achat: s.prix_unitaire || p.prix_unitaire || null,
                     };
 
                     lignes.push(ligne);
@@ -229,7 +388,6 @@ const AssistantAchat = () => {
                     groupes.push({ id_fournisseur: f.id_fournisseur, lignes });
                 }
             });
-
 
             if (groupes.length === 0) {
                 alert('Aucun groupe valide à créer');
@@ -242,9 +400,7 @@ const AssistantAchat = () => {
                 groupes,
             };
 
-
             const res = await AssistantAchatService.creerBons(token, payload);
-
 
             if (res.success) {
                 const nbCrees = res.data?.total_crees || 0;
@@ -454,6 +610,9 @@ const AssistantAchat = () => {
                                         const s = selection[p.id_produit];
                                         const isSel = s?.selected;
 
+                                        // Toutes les unités de vente du produit
+                                        const unitesPourSelector = p.unites_vente || [];
+
                                         return (
                                             <div key={p.id_produit} className={`produit-ligne ${isSel ? 'selected' : ''}`}>
                                                 <div className="produit-checkbox">
@@ -473,12 +632,42 @@ const AssistantAchat = () => {
                                                         <span className={`alerte-badge ${p.type_alerte}`}>
                                                             {p.type_alerte === 'rupture' ? 'Rupture' : 'Stock bas'}
                                                         </span>
-                                                        <span>Stock : <strong>{p.quantite_stock}</strong> / min {p.quantite_minimale}</span>
+
+                                                        {/* ✅ Stock actuel décomposé */}
+                                                        <span className="stock-inline">
+                                                            <span className="stock-inline-label">Stock :</span>
+                                                            <StockSelector
+                                                                idProduit={`assistant-${p.id_produit}`}
+                                                                stockBase={p.quantite_stock}
+                                                                unitesVente={unitesPourSelector}
+                                                                uniteBase={{
+                                                                    nom: p.unite_base_nom,
+                                                                    symbole: p.unite_base_symbole,
+                                                                }}
+                                                                variant="list"
+                                                            />
+                                                            <span className="stock-inline-min">
+                                                                / min {p.quantite_minimale}
+                                                            </span>
+                                                        </span>
+
                                                         {p.quantite_en_commande > 0 && (
                                                             <span className="en-commande">
-                                                                ⏳ {p.quantite_en_commande} en commande
+                                                                <span>⏳</span>
+                                                                <StockSelector
+                                                                    idProduit={`assistant-cmd-${p.id_produit}`}
+                                                                    stockBase={p.quantite_en_commande}
+                                                                    unitesVente={unitesPourSelector}
+                                                                    uniteBase={{
+                                                                        nom: p.unite_base_nom,
+                                                                        symbole: p.unite_base_symbole,
+                                                                    }}
+                                                                    variant="list"
+                                                                />
+                                                                <span>en commande</span>
                                                             </span>
                                                         )}
+
                                                         {p.ventes_30j_base > 0 && (
                                                             <span className="vitesse">
                                                                 <TrendingUp size={12} />
@@ -517,29 +706,45 @@ const AssistantAchat = () => {
                                                     >
                                                         <Plus size={14} />
                                                     </button>
-                                                    <span className="qte-unite">
-                                                        {s?.nom_unite_vente || p.unite_base_nom}
-                                                        {s?.quantite_base > 1 && (
-                                                            <small> ×{s.quantite_base}</small>
-                                                        )}
-                                                    </span>
+
+                                                    {/* ✅ Sélecteur d'unité */}
+                                                    <UniteSelect
+                                                        unites={unitesPourSelector}
+                                                        uniteBaseNom={p.unite_base_nom}
+                                                        selectedId={s?.id_unite_vente}
+                                                        onChange={(u) => changeUnite(p.id_produit, u)}
+                                                        disabled={!isSel}
+                                                    />
+
+                                                    {/* ✅ Équivalent en base */}
+                                                    {s?.quantite_base > 1 && (
+                                                        <span className="qte-equivalent">
+                                                            = {s.quantite_uv * s.quantite_base} {p.unite_base_nom}
+                                                        </span>
+                                                    )}
                                                 </div>
 
                                                 <div className="produit-prix">
-                                                    {p.prix_unitaire ? (
-                                                        <>
-                                                            <span className="prix-value">
-                                                                {formatMontant(s.quantite_uv * p.prix_unitaire)}
+                                                    {(() => {
+                                                        const prixUnitaire = s?.prix_unitaire || p.prix_unitaire;
+                                                        if (prixUnitaire) {
+                                                            return (
+                                                                <>
+                                                                    <span className="prix-value">
+                                                                        {formatMontant(s.quantite_uv * prixUnitaire)}
+                                                                    </span>
+                                                                    <small className="prix-detail">
+                                                                        {formatMontant(prixUnitaire)} / {s.nom_unite_vente || 'unité'}
+                                                                    </small>
+                                                                </>
+                                                            );
+                                                        }
+                                                        return (
+                                                            <span className="prix-inconnu">
+                                                                À définir
                                                             </span>
-                                                            <small className="prix-detail">
-                                                                {formatMontant(p.prix_unitaire)} / {s.nom_unite_vente || 'unité'}
-                                                            </small>
-                                                        </>
-                                                    ) : (
-                                                        <span className="prix-inconnu">
-                                                            À définir
-                                                        </span>
-                                                    )}
+                                                        );
+                                                    })()}
                                                 </div>
                                             </div>
                                         );

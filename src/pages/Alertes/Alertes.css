@@ -7,6 +7,50 @@
     background: #f8fafc;
     min-height: 100vh;
 }
+/* ==================== STOCK SELECTOR dans les alertes ==================== */
+.alerte-stock-info .stock-info-item .stock-selector {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.alerte-stock-info .stock-info-item .stock-main-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.alerte-stock-info .stock-qte {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.alerte-stock-info .stock-unite-trigger,
+.alerte-stock-info .stock-unite-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: #475569;
+}
+
+.alerte-stock-info .stock-reste {
+    font-size: 11px;
+    color: #94a3b8;
+}
+
+/* Le conteneur du stock-info-item prend la couleur de l'alerte */
+.alerte-card.type-rupture .stock-info-item .stock-qte {
+    color: #ef4444;
+}
+
+.alerte-card.type-stock-bas .stock-info-item .stock-qte {
+    color: #f59e0b;
+}
+
+.alerte-card.type-surstock .stock-info-item .stock-qte {
+    color: #8b5cf6;
+}
 
 /* ==================== HEADER ==================== */
 .alertes-header {
