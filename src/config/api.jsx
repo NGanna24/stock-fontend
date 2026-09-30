@@ -24,7 +24,7 @@ DASHBOARD: {
 // ==================== URLS ASSISTANT D'ACHAT ====================
 ASSISTANT_ACHAT: {
     GET_PROPOSITION: (niveau = 'normal') =>
-        `${BASE_URL}/api/assistant-achat/proposition?niveau=${niveau}`,
+        `${BASE_URL}/api/assistant-achat/proposition?niveau=${niveau}`, 
     CREER: `${BASE_URL}/api/assistant-achat/creer`,
 },
 // ==================== URLS SEARCH ====================
@@ -210,17 +210,15 @@ RECETTE: {
     DELETE: (id) => `${BASE_URL}/api/recettes/${id}`,
 },
 // ==================== URLS RETOURS CLIENTS ====================
+// ==================== URLS RETOURS CLIENTS ====================
 RETOUR_CLIENT: {
     GET_ALL: `${BASE_URL}/api/retours-clients`,
     GET_BY_ID: (id) => `${BASE_URL}/api/retours-clients/${id}`,
     GET_STATS: `${BASE_URL}/api/retours-clients/stats`,
-    EXPORT: `${BASE_URL}/api/retours-clients/export`,
     CREATE: `${BASE_URL}/api/retours-clients`,
-    UPDATE_STATUT: (id) => `${BASE_URL}/api/retours-clients/${id}/statut`,
-    DELETE: (id) => `${BASE_URL}/api/retours-clients/${id}`,
-    
-    // ✅ NOUVELLE ROUTE
-    SEARCH_COMMANDE: `${BASE_URL}/api/retours-clients/search-commande`,
+    ANNULER: (id) => `${BASE_URL}/api/retours-clients/${id}/annuler`,
+    SEARCH_COMMANDE: (q, jours = 90) =>
+        `${BASE_URL}/api/retours-clients/search-commande?q=${encodeURIComponent(q)}&jours=${jours}`,
 },
 // ==================== URLS FOURNISSEURS ====================
     FOURNISSEUR: {

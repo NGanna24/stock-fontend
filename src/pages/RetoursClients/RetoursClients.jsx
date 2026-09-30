@@ -1,817 +1,556 @@
 // pages/RetoursClients/RetoursClients.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { useSearchParams, useNavigate, useParams } from "react-router-dom";
 import {
-  Plus,
-  Search,
-  Eye,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  X,
-  Check,
-  RefreshCw,
-  Grid,
-  List,
-  Package,
-  Banknote,
-  Calendar,
-  Clock,
-  AlertCircle,
-  CheckCircle,
-  Ban,
-  FileText,
-  AlertTriangle,
-  Trash2,
-  RotateCcw,
-  Box,
-  User,
-  Phone,
-  Mail,
-  ShoppingBag,
-  Search as SearchIcon
+  Plus, Search, Eye, X, Check, RefreshCw,
+  AlertCircle, CheckCircle, Ban, FileText,
+  RotateCcw, ShoppingBag, User, Phone,
+  Calendar, Package, Box, Trash2, Loader,
+  ChevronRight, ChevronLeft, Info, AlertTriangle,
+  MoreVertical, Printer
 } from "lucide-react";
 import RetourClientService from "../../services/retourClient/retourClientService";
+import CommandeVenteService from "../../services/commandeVenteService";
+import UniteVenteService from "../../services/uniteVenteService";
+import StockSelector from "../../components/StockSelector/StockSelector";
 import { useUser } from "../../context/AuthContext";
 import "./RetoursClients.css";
-import RetourClientPDFActions from "../../components/RetourClient/RetourClientPDFActions";
 
+// ============================================================
+// Helpers
+// ============================================================
+const formatMontant = (value) => {
+  if (value === undefined || value === null || isNaN(value)) return '0 FCFA';
+  const num = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : value;
+  if (isNaN(num)) return '0 FCFA';
+  const fixed = Math.round(num).toString();
+  const formatted = fixed.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+  return `${formatted} FCFA`;
+};
+
+const formatDateFR = (date) => {
+  if (!date) return '-';
+  try {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return '-';
+    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+  } catch {
+    return '-';
+  }
+};
+
+const MOTIFS = [
+  { value: 'defectueux', label: 'Produit défectueux' },
+  { value: 'non_conforme', label: 'Non conforme' },
+  { value: 'mecontentement', label: 'Mécontentement' },
+  { value: 'erreur_livraison', label: 'Erreur de livraison' },
+  { value: 'echange', label: 'Échange' },
+  { value: 'autre', label: 'Autre' },
+];
+
+const RESOLUTIONS = [
+  { value: 'remboursement_especes', label: 'Remboursement espèces', icon: "💵" },
+  { value: 'avoir', label: 'Avoir / Crédit', icon: "📝" },
+  { value: 'echange', label: 'Échange', icon: "🔄" },
+];
+
+const ETATS_PRODUIT = [
+  { value: 'neuf', label: 'Neuf (revendable)' },
+  { value: 'usage', label: 'Usagé' },
+  { value: 'endommage', label: 'Endommagé' },
+  { value: 'incomplet', label: 'Incomplet' },
+];
+
+// ============================================================
+// Sous-composant : Affichage d'une quantité en unités de vente
+// ============================================================
+const QteAffichage = ({ qteBase, unitesVente, uniteBase, isLow, variant = "list" }) => {
+  if (!qteBase || qteBase <= 0) {
+    return <span className="qte-vide">0</span>;
+  }
+
+  // Filtrer l'unité de base (StockSelector la reconstruit lui-même)
+  const unitesPerso = (unitesVente || []).filter(u => !u.is_base && u.nom);
+
+  return (
+    <StockSelector
+      idProduit={`qte-${Math.random().toString(36).slice(2, 8)}`}
+      stockBase={qteBase}
+      unitesVente={unitesPerso}
+      uniteBase={uniteBase || { nom: 'Unité', symbole: 'u' }}
+      isLowStock={isLow}
+      variant={variant}
+    />
+  );
+};
+
+// ============================================================
+// Composant principal
+// ============================================================
 const RetoursClients = () => {
   const { user, isAuthenticated } = useUser();
   const token = localStorage.getItem('token');
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const { slug } = useParams();
 
-  // États principaux
+  // ========== ÉTATS ==========
   const [retours, setRetours] = useState([]);
+  const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(8);
-  const [viewMode, setViewMode] = useState("list");
   const [error, setError] = useState(null);
-  const [filterStatut, setFilterStatut] = useState("");
-  const [filterMotif, setFilterMotif] = useState("");
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatut, setFilterStatut] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [toast, setToast] = useState(null);
 
-  // États pour les modals
-  const [showModal, setShowModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedRetour, setSelectedRetour] = useState(null);
-  const [retourToDelete, setRetourToDelete] = useState(null);
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [updatingStatut, setUpdatingStatut] = useState(null);
+  const showToast = (message, type = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
-  // État du formulaire (retour)
-  const [formData, setFormData] = useState({
-    id_commande_vente: "",
-    id_facture: "",
-    date_retour: new Date().toISOString().split('T')[0],
-    nomclient: "",
-    telephone: "",
-    email: "",
-    adresse: "",
-    motif_retour: "",
-    notes: "",
-    lignes: []
-  });
+  // ========== WIZARD ==========
+  const [showWizard, setShowWizard] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1);
 
-  // Recherche par numéro de commande
-  const [commandeSearch, setCommandeSearch] = useState("");
-  const [commandeTrouvee, setCommandeTrouvee] = useState(null);
-  const [searchingCommande, setSearchingCommande] = useState(false);
-  const [searchCommandeError, setSearchCommandeError] = useState(null);
+  // Étape 1 : Recherche commande
+  const [searchCommande, setSearchCommande] = useState('');
+  const [resultatsRecherche, setResultatsRecherche] = useState([]);
+  const [isSearchingCommande, setIsSearchingCommande] = useState(false);
   const [selectedCommande, setSelectedCommande] = useState(null);
   const [lignesCommande, setLignesCommande] = useState([]);
-  const [lignesSelectionnees, setLignesSelectionnees] = useState({});
+  const searchDebounce = useRef(null);
 
-  // Permissions
-  const canManage = user && ['admin', 'manager'].includes(user.role);
+  // Étape 2 : Détail du retour
+  const [motifRetour, setMotifRetour] = useState('defectueux');
+  const [typeResolution, setTypeResolution] = useState('remboursement_especes');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  // ============================================================
-  // CHARGEMENT DES DONNÉES
-  // ============================================================
+  // ========== MODALS ==========
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedRetour, setSelectedRetour] = useState(null);
+  const [openMenuId, setOpenMenuId] = useState(null);
 
-  useEffect(() => {
-    if (isAuthenticated && token) {
-      loadRetours();
-    }
-  }, [isAuthenticated, token]);
+  const canManage = user && ['admin', 'manager', 'caissier'].includes(user.role);
 
+  // ========== CHARGEMENT ==========
   const loadRetours = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await RetourClientService.getAllRetours(token);
+      const response = await RetourClientService.getAll(token, {
+        search: searchTerm || undefined,
+        statut: filterStatut || undefined,
+        limit: 100
+      });
       if (response.success) {
         setRetours(response.data || []);
       } else {
-        setError(response.message || 'Erreur lors du chargement des retours');
+        setError(response.message || 'Erreur de chargement');
       }
-    } catch (error) {
-      console.error('❌ LoadRetours error:', error);
-      setError(error.message || 'Erreur lors du chargement des retours');
+    } catch (err) {
+      console.error('❌ LoadRetours:', err);
+      setError(err.message || 'Erreur de chargement');
     } finally {
       setLoading(false);
     }
   };
 
-  // ============================================================
-  // GESTION DU FORMULAIRE
-  // ============================================================
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+  const loadStats = async () => {
+    try {
+      const response = await RetourClientService.getStats(token);
+      if (response.success) setStats(response.data);
+    } catch (err) {
+      console.error('❌ LoadStats:', err);
+    }
   };
 
-  const resetRetourForm = () => {
-    setFormData({
-      id_commande_vente: "",
-      id_facture: "",
-      date_retour: new Date().toISOString().split('T')[0],
-      nomclient: "",
-      telephone: "",
-      email: "",
-      adresse: "",
-      motif_retour: "",
-      notes: "",
-      lignes: []
-    });
-    setCommandeSearch("");
-    setCommandeTrouvee(null);
-    setSearchCommandeError(null);
-    setSelectedCommande(null);
-    setLignesCommande([]);
-    setLignesSelectionnees({});
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      loadRetours();
+      loadStats();
+    }
+  }, [isAuthenticated, token, filterStatut]);
+
+  // ========== ÉCOUTER LE PARAM URL (depuis Ventes.jsx) ==========
+  useEffect(() => {
+    const commandeParam = searchParams.get('commande');
+    if (commandeParam) {
+      handleOpenWizardAvecCommande(parseInt(commandeParam));
+    }
+  }, [searchParams]);
+
+  // ========== WIZARD : ouvrir avec une commande pré-sélectionnée ==========
+  const handleOpenWizardAvecCommande = async (idCommande) => {
+    setShowWizard(true);
+    setWizardStep(2);
+    setSearchCommande('');
+    setResultatsRecherche([]);
+
+    try {
+      const res = await CommandeVenteService.getCommandeById(token, idCommande);
+      if (res.success && res.data) {
+        chargerCommandeDansWizard(res.data);
+      } else {
+        showToast('Commande introuvable', 'error');
+        setShowWizard(false);
+      }
+    } catch (err) {
+      console.error('❌ LoadCommandeParam:', err);
+      showToast('Erreur lors du chargement de la commande', 'error');
+      setShowWizard(false);
+    }
   };
 
-  // ============================================================
-  // RECHERCHE COMMANDE PAR NUMÉRO
-  // ============================================================
-
-  const rechercherCommande = async (numero) => {
-    setCommandeSearch(numero);
-    setCommandeTrouvee(null);
-    setSearchCommandeError(null);
+  // ========== WIZARD : ouvrir vide ==========
+  const handleOpenWizard = () => {
+    setShowWizard(true);
+    setWizardStep(1);
+    setSearchCommande('');
+    setResultatsRecherche([]);
     setSelectedCommande(null);
     setLignesCommande([]);
-    setLignesSelectionnees({});
+    setMotifRetour('defectueux');
+    setTypeResolution('remboursement_especes');
+    setNotes('');
+  };
 
-    if (!numero || numero.trim().length < 3) {
+  // ========== WIZARD : recherche de commande ==========
+  const rechercherCommande = (texte) => {
+    setSearchCommande(texte);
+    setSelectedCommande(null);
+    setLignesCommande([]);
+
+    if (texte.trim().length < 2) {
+      setResultatsRecherche([]);
       return;
     }
 
-    setSearchingCommande(true);
+    setIsSearchingCommande(true);
 
-    try {
-      const response = await RetourClientService.searchCommandeByNumero(token, numero.trim());
-      
-      if (response.success && response.data) {
-        setCommandeTrouvee(response.data);
-      } else {
-        setSearchCommandeError('Aucune commande trouvée');
+    if (searchDebounce.current) clearTimeout(searchDebounce.current);
+
+    searchDebounce.current = setTimeout(async () => {
+      try {
+        const res = await RetourClientService.searchCommande(token, texte.trim());
+        if (res.success) {
+          setResultatsRecherche(res.data || []);
+        }
+      } catch (err) {
+        console.error('❌ Search commande:', err);
+        setResultatsRecherche([]);
+      } finally {
+        setIsSearchingCommande(false);
       }
-    } catch (error) {
-      console.error('❌ Erreur recherche commande:', error);
-      setSearchCommandeError(error.message || 'Erreur lors de la recherche');
-    } finally {
-      setSearchingCommande(false);
+    }, 350);
+  };
+
+  // ========== WIZARD : sélectionner une commande ==========
+  const selectionnerCommande = async (commande) => {
+    try {
+      const res = await CommandeVenteService.getCommandeById(token, commande.id_commande);
+      if (res.success && res.data) {
+        chargerCommandeDansWizard(res.data);
+        setWizardStep(2);
+      }
+    } catch (err) {
+      console.error('❌ SelectionnerCommande:', err);
+      showToast('Erreur lors du chargement', 'error');
     }
   };
 
-  const selectCommandeFromSearch = (commande) => {
-    setSelectedCommande(commande);
+  // ========== WIZARD : charger les données de la commande ==========
+  const chargerCommandeDansWizard = async (commandeComplete) => {
+    setSelectedCommande(commandeComplete);
 
-    setFormData({
-      ...formData,
-      id_commande_vente: commande.id_commande,
-      id_facture: commande.id_facture || '',
-      nomclient: commande.nomclient,
-      telephone: commande.telephone,
-      email: '',
-      adresse: '',
-      lignes: []
+    const lignes = (commandeComplete.lignes || []).map(l => {
+      const achete = parseFloat(l.quantite_totale_base) || 0;
+      const dejaRetourne = parseFloat(l.quantite_retournee_base) || 0;
+      const retournable = achete - dejaRetourne;
+
+      return {
+        id_produit: l.id_produit,
+        id_ligne_vente: l.id_ligne_vente,
+        produit_nom: l.produit_nom,
+        marque_nom: l.marque_nom,
+
+        // Unité d'origine (celle de la vente)
+        id_unite_vente_origine: l.id_unite_vente,
+        nom_unite_vente_origine: l.nom_unite_vente || 'Unité',
+        quantite_base_origine: parseFloat(l.quantite_base) || 1,
+        quantite_origine: parseFloat(l.quantite) || 0,
+        prix_vente_origine: parseFloat(l.prix_vente) || 0,
+
+        // Unité de base du produit (pour StockSelector)
+        unite_base_nom: l.unite_nom || 'Unité',
+        unite_base_symbole: l.unite_symbole || 'u',
+
+        // Quantités
+        quantite_achetee_base: achete,
+        quantite_deja_retournee_base: dejaRetourne,
+        quantite_retournable_base: retournable,
+
+        // Sélection utilisateur
+        quantite_a_retourner: 0,
+        unite_selectionnee: null,
+        unites_disponibles: [],
+        etat_produit: 'neuf'
+      };
     });
 
-    if (commande.lignes && commande.lignes.length > 0) {
-      const lignesInit = {};
-      commande.lignes.forEach(l => {
-        lignesInit[l.id_ligne_vente] = {
-          selected: false,
-          quantite: 0,
-          motif_retour: '',
-          etat_produit: 'neuf',
-          notes: '',
-          quantite_max_retournable: l.quantite_max_retournable || parseFloat(l.quantite)
+    // Charger les unités de vente pour chaque produit
+    for (const ligne of lignes) {
+      try {
+        const resUnites = await UniteVenteService.getByProduit(token, ligne.id_produit);
+        const unitesPerso = (resUnites.success && resUnites.data) ? resUnites.data : [];
+
+        const uniteBase = {
+          id_unite_vente: null,
+          nom: ligne.unite_base_nom,
+          quantite_base: 1,
+          is_base: true
         };
-      });
-      setLignesSelectionnees(lignesInit);
-      setLignesCommande(commande.lignes);
-    }
-  };
 
-  const changerCommande = () => {
-    setSelectedCommande(null);
-    setLignesCommande([]);
-    setLignesSelectionnees({});
-    setCommandeSearch("");
-    setCommandeTrouvee(null);
-    setSearchCommandeError(null);
-    setFormData({
-      ...formData,
-      id_commande_vente: "",
-      id_facture: "",
-      nomclient: "",
-      telephone: "",
-      lignes: []
-    });
-  };
+        const toutes = [uniteBase, ...unitesPerso];
 
-  // ============================================================
-  // GESTION DES LIGNES
-  // ============================================================
+        // Ajouter l'unité d'origine si elle n'y est pas déjà
+        const origineExiste = toutes.some(u =>
+          u.id_unite_vente === ligne.id_unite_vente_origine
+        );
+        if (!origineExiste && ligne.id_unite_vente_origine) {
+          toutes.push({
+            id_unite_vente: ligne.id_unite_vente_origine,
+            nom: ligne.nom_unite_vente_origine,
+            quantite_base: ligne.quantite_base_origine,
+            is_origine: true
+          });
+        }
 
-  const toggleLigneRetour = (idLigne) => {
-    const ligne = lignesSelectionnees[idLigne];
-    const ligneCommande = lignesCommande.find(l => l.id_ligne_vente === idLigne);
-    const maxRetournable = ligne?.quantite_max_retournable || 
-                           ligneCommande?.quantite_max_retournable || 
-                           parseFloat(ligneCommande?.quantite) || 1;
-    
-    setLignesSelectionnees({
-      ...lignesSelectionnees,
-      [idLigne]: {
-        ...ligne,
-        selected: !ligne.selected,
-        quantite: !ligne.selected ? Math.min(1, maxRetournable) : 0
-      }
-    });
-  };
+        ligne.unites_disponibles = toutes;
 
-  const updateLigneRetour = (idLigne, field, value) => {
-    const ligne = lignesSelectionnees[idLigne];
-    
-    if (field === 'quantite') {
-      const maxRetournable = ligne?.quantite_max_retournable || 
-                             lignesCommande.find(l => l.id_ligne_vente === idLigne)?.quantite_max_retournable || 
-                             1;
-      const quantiteNum = parseFloat(value) || 0;
-      
-      if (quantiteNum > maxRetournable) {
-        value = maxRetournable.toString();
-      }
-      if (quantiteNum < 1 && value !== '') {
-        value = '1';
+        // Par défaut : sélectionner l'unité d'origine
+        const origine = toutes.find(u =>
+          u.id_unite_vente === ligne.id_unite_vente_origine
+        ) || uniteBase;
+        ligne.unite_selectionnee = origine;
+
+      } catch (err) {
+        console.warn('⚠️ Impossible de charger les unités pour', ligne.produit_nom, err);
+        ligne.unites_disponibles = [{
+          id_unite_vente: null,
+          nom: ligne.unite_base_nom,
+          quantite_base: 1,
+          is_base: true
+        }];
+        ligne.unite_selectionnee = ligne.unites_disponibles[0];
       }
     }
 
-    setLignesSelectionnees({
-      ...lignesSelectionnees,
-      [idLigne]: {
-        ...lignesSelectionnees[idLigne],
-        [field]: value
+    setLignesCommande(lignes);
+  };
+
+  // ========== WIZARD : mettre à jour une ligne ==========
+  const updateLigne = (index, field, value) => {
+    setLignesCommande(prev => {
+      const copy = [...prev];
+      copy[index] = { ...copy[index], [field]: value };
+
+      if (field === 'unite_selectionnee') {
+        copy[index].quantite_a_retourner = 0;
       }
+
+      return copy;
     });
   };
 
-  const calculerMontantRetour = () => {
-    return Object.entries(lignesSelectionnees).reduce((total, [idLigne, data]) => {
-      if (!data.selected) return total;
-      const ligneCommande = lignesCommande.find(l => l.id_ligne_vente === parseInt(idLigne));
-      if (!ligneCommande) return total;
-      return total + (parseFloat(ligneCommande.prix_vente) * parseFloat(data.quantite || 0));
-    }, 0);
-  };
+  // ========== WIZARD : calcul du total à rembourser ==========
+  const totalRemboursement = useMemo(() => {
+    let total = 0;
+    for (const ligne of lignesCommande) {
+      const qte = parseFloat(ligne.quantite_a_retourner) || 0;
+      if (qte <= 0) continue;
 
-  // ============================================================
-  // ACTIONS CRUD
-  // ============================================================
+      const unite = ligne.unite_selectionnee;
+      if (!unite) continue;
 
-  const handleAdd = () => {
-    resetRetourForm();
-    setShowModal(true);
-  };
+      const qteBase = qte * (parseFloat(unite.quantite_base) || 1);
 
-  const handleView = async (retour) => {
-    setLoading(true);
-    try {
-      const response = await RetourClientService.getRetourById(token, retour.id_retour_client);
-      if (response.success && response.data) {
-        setSelectedRetour(response.data);
-        setShowDetailModal(true);
-      } else {
-        alert('Erreur lors du chargement des détails du retour');
-      }
-    } catch (error) {
-      console.error('❌ Error loading retour details:', error);
-      alert('Erreur lors du chargement des détails');
-    } finally {
-      setLoading(false);
+      const prixOrigineTotal = ligne.quantite_origine * ligne.prix_vente_origine;
+      const prixUnitaireBase = prixOrigineTotal / ligne.quantite_achetee_base;
+
+      total += qteBase * prixUnitaireBase;
     }
-  };
+    return total;
+  }, [lignesCommande]);
 
-  const handleSave = async () => {
+  // ========== WIZARD : vérifier validité ==========
+  const lignesValides = useMemo(() => {
+    return lignesCommande.filter(l => {
+      const qte = parseFloat(l.quantite_a_retourner) || 0;
+      if (qte <= 0) return false;
+      if (!l.unite_selectionnee) return false;
+      const qteBase = qte * (parseFloat(l.unite_selectionnee.quantite_base) || 1);
+      return qteBase <= l.quantite_retournable_base;
+    });
+  }, [lignesCommande]);
+
+  const peutValider = lignesValides.length > 0;
+
+  // ========== WIZARD : soumettre ==========
+  const handleSubmitRetour = async () => {
     if (!selectedCommande) {
-      alert("Veuillez rechercher et sélectionner une commande");
+      showToast('Aucune commande sélectionnée', 'warning');
       return;
     }
-
-    if (!formData.motif_retour) {
-      alert("Veuillez sélectionner un motif de retour");
-      return;
-    }
-
-    const lignesARetourner = Object.entries(lignesSelectionnees)
-      .filter(([_, data]) => data.selected && data.quantite > 0)
-      .map(([idLigne, data]) => {
-        const ligneCommande = lignesCommande.find(l => l.id_ligne_vente === parseInt(idLigne));
-        return {
-          id_produit: ligneCommande.id_produit,
-          id_ligne_commande_vente: parseInt(idLigne),
-          quantite: parseFloat(data.quantite),
-          prix_vente: parseFloat(ligneCommande.prix_vente),
-          remise: 0,
-          motif_retour: data.motif_retour || formData.motif_retour,
-          etat_produit: data.etat_produit || 'neuf',
-          notes: data.notes || null
-        };
-      });
-
-    if (lignesARetourner.length === 0) {
-      alert("Veuillez sélectionner au moins un produit à retourner");
+    if (!peutValider) {
+      showToast('Sélectionnez au moins un produit à retourner', 'warning');
       return;
     }
 
     setSaving(true);
-    setError(null);
 
     try {
-      const data = {
+      const payload = {
         id_commande_vente: selectedCommande.id_commande,
-        id_facture: selectedCommande.id_facture || null,
-        date_retour: new Date().toISOString().split('T')[0],
-        email: null,
-        adresse: null,
-        motif_retour: formData.motif_retour,
-        notes: formData.notes || null,
-        lignes: lignesARetourner
+        motif_retour: motifRetour,
+        type_resolution: typeResolution,
+        notes: notes.trim() || null,
+        lignes: lignesValides.map(l => ({
+          id_produit: l.id_produit,
+          id_unite_vente: l.unite_selectionnee.id_unite_vente,
+          nom_unite_vente: l.unite_selectionnee.nom,
+          quantite_base: l.unite_selectionnee.quantite_base,
+          quantite: parseFloat(l.quantite_a_retourner),
+          etat_produit: l.etat_produit
+        }))
       };
 
-      const response = await RetourClientService.createRetour(token, data);
+      const res = await RetourClientService.create(token, payload);
 
-      if (response.success) {
+      if (res.success) {
+        showToast(`Retour ${res.data.numero_retour} créé avec succès`, 'success');
+        setShowWizard(false);
         await loadRetours();
-        setShowModal(false);
-        resetRetourForm();
-        alert('✅ Retour client créé avec succès !');
+        await loadStats();
+        if (searchParams.get('commande')) {
+          navigate(`/${slug}/retours-clients`, { replace: true });
+        }
       } else {
-        setError(response.message || 'Erreur lors de la sauvegarde');
+        showToast(res.message || 'Erreur lors de la création', 'error');
       }
-    } catch (error) {
-      console.error('❌ Save error:', error);
-      setError(error.message || 'Erreur lors de la sauvegarde');
+    } catch (err) {
+      console.error('❌ Submit retour:', err);
+      showToast(err.message || 'Erreur lors de la création', 'error');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleChangeStatut = async (id, statut) => {
-    if (updatingStatut === id) return;
-    setUpdatingStatut(id);
-    setError(null);
+  // ========== VOIR DÉTAIL ==========
+  const handleView = async (retour) => {
+    setOpenMenuId(null);
+    try {
+      const res = await RetourClientService.getById(token, retour.id_retour_client);
+      if (res.success) {
+        setSelectedRetour(res.data);
+        setShowDetailModal(true);
+      }
+    } catch (err) {
+      console.error('❌ View retour:', err);
+      showToast('Erreur lors du chargement', 'error');
+    }
+  };
+
+  // ========== ANNULER ==========
+  const handleAnnuler = async (retour) => {
+    setOpenMenuId(null);
+    if (!window.confirm(`Annuler le retour ${retour.numero_retour} ?`)) return;
 
     try {
-      const response = await RetourClientService.updateStatut(token, id, statut);
-      if (response.success) {
+      const res = await RetourClientService.annuler(token, retour.id_retour_client);
+      if (res.success) {
+        showToast('Retour annulé', 'success');
         await loadRetours();
+        await loadStats();
       } else {
-        setError(response.message || 'Erreur lors du changement de statut');
+        showToast(res.message || 'Erreur', 'error');
       }
-    } catch (error) {
-      console.error('❌ Change statut error:', error);
-      setError(error.message || 'Erreur lors du changement de statut');
-    } finally {
-      setUpdatingStatut(null);
+    } catch (err) {
+      console.error('❌ Annuler:', err);
+      showToast(err.message || 'Erreur', 'error');
     }
   };
 
-  const confirmDelete = (retour) => {
-    setRetourToDelete(retour);
-    setShowDeleteModal(true);
-  };
-
-  const handleDelete = async () => {
-    if (!retourToDelete) return;
-
-    setDeleting(true);
-    setError(null);
-
-    try {
-      const response = await RetourClientService.deleteRetour(
-        token,
-        retourToDelete.id_retour_client
-      );
-
-      if (response.success) {
-        await loadRetours();
-        setShowDeleteModal(false);
-        setRetourToDelete(null);
-      } else {
-        setError(response.message || 'Erreur lors de la suppression');
-      }
-    } catch (error) {
-      console.error('❌ Delete error:', error);
-      setError(error.message || 'Erreur lors de la suppression');
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  const handleExport = async () => {
-    try {
-      const response = await RetourClientService.exportRetours(token);
-      if (response.success && response.data) {
-        const headers = ["ID", "Numéro", "Date", "Client", "Commande", "Motif", "Montant", "Statut", "Notes"];
-        const rows = response.data.map(r => [
-          r.id,
-          r.numero,
-          r.date,
-          r.client,
-          r.commande,
-          r.motif,
-          formatMontant(r.montant),
-          r.statut,
-          r.notes || ""
-        ]);
-        
-        let csv = headers.join(",") + "\n";
-        rows.forEach(row => {
-          csv += row.map(cell => `"${cell}"`).join(",") + "\n";
-        });
-        
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `retours_clients_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
-      }
-    } catch (error) {
-      console.error('❌ Export error:', error);
-      alert('Erreur lors de l\'exportation');
-    }
-  };
-
-  // ============================================================
-  // FONCTIONS UTILITAIRES
-  // ============================================================
-
-  const formatMontant = (value) => {
-    if (value === undefined || value === null || isNaN(value)) {
-      return '0';
-    }
-    const num = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : value;
-    if (isNaN(num)) return '0';
-    return Math.round(num).toLocaleString('fr-FR') + ' FCFA';
-  };
-
-  const getMotifLabel = (motif) => {
-    const motifs = {
-      'defectueux': 'Défectueux',
-      'non_conforme': 'Non conforme',
-      'mecontentement': 'Mécontentement',
-      'erreur_livraison': 'Erreur de livraison',
-      'echange': 'Échange',
-      'autre': 'Autre'
-    };
-    return motifs[motif] || motif;
-  };
-
-  const getMotifBadge = (motif) => {
-    const classes = {
-      'defectueux': 'motif-defectueux',
-      'non_conforme': 'motif-non_conforme',
-      'mecontentement': 'motif-mecontentement',
-      'erreur_livraison': 'motif-erreur_livraison',
-      'echange': 'motif-echange',
-      'autre': 'motif-autre'
-    };
-    return classes[motif] || 'motif-autre';
-  };
-
-  const getStats = () => {
-    const total = retours.length;
-    const enAttente = retours.filter(r => r.statut === 'en_attente').length;
-    const recu = retours.filter(r => r.statut === 'recu').length;
-    const controle = retours.filter(r => r.statut === 'controle').length;
-    const accepte = retours.filter(r => r.statut === 'accepte').length;
-    const refuse = retours.filter(r => r.statut === 'refuse').length;
-    const rembourse = retours.filter(r => r.statut === 'rembourse').length;
-    const echange = retours.filter(r => r.statut === 'echange').length;
-    const annule = retours.filter(r => r.statut === 'annule').length;
-    
-    const totalMontant = retours.reduce((sum, r) => {
-      const montant = r.montant_total !== undefined && r.montant_total !== null 
-        ? parseFloat(r.montant_total) 
-        : 0;
-      return sum + (isNaN(montant) ? 0 : montant);
-    }, 0);
-
-    return { total, enAttente, recu, controle, accepte, refuse, rembourse, echange, annule, totalMontant };
-  };
-
-  const stats = getStats();
-
-  const filteredRetours = retours.filter((retour) => {
-    const matchSearch = 
-      retour.numero_retour?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      retour.nomclient?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      retour.telephone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      retour.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      retour.notes?.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchStatut = filterStatut ? retour.statut === filterStatut : true;
-    const matchMotif = filterMotif ? retour.motif_retour === filterMotif : true;
-    
-    return matchSearch && matchStatut && matchMotif;
-  });
-
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredRetours.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredRetours.length / itemsPerPage);
-
-  // ============================================================
-  // RENDU DES COMPOSANTS
-  // ============================================================
-
-  const renderStatut = (statut) => {
+  // ========== STATUT BADGE ==========
+  const getStatutBadge = (statut) => {
     const configs = {
-      'en_attente': { label: 'En attente', className: 'status-en-attente', icon: Clock },
-      'recu': { label: 'Reçu', className: 'status-recu', icon: Package },
-      'controle': { label: 'Contrôle', className: 'status-controle', icon: AlertCircle },
-      'accepte': { label: 'Accepté', className: 'status-accepte', icon: CheckCircle },
-      'refuse': { label: 'Refusé', className: 'status-refuse', icon: Ban },
-      'rembourse': { label: 'Remboursé', className: 'status-rembourse', icon: Banknote},
-      'echange': { label: 'Échangé', className: 'status-echange', icon: RotateCcw },
-      'annule': { label: 'Annulé', className: 'status-annule', icon: Ban }
+      'en_attente': { label: 'En attente', cls: 'badge-en-attente' },
+      'recu': { label: 'Reçu', cls: 'badge-recu' },
+      'controle': { label: 'Contrôlé', cls: 'badge-controle' },
+      'accepte': { label: 'Accepté', cls: 'badge-accepte' },
+      'refuse': { label: 'Refusé', cls: 'badge-refuse' },
+      'rembourse': { label: 'Remboursé', cls: 'badge-rembourse' },
+      'echange': { label: 'Échangé', cls: 'badge-echange' },
+      'annule': { label: 'Annulé', cls: 'badge-annule' },
     };
-
-    const config = configs[statut] || configs['en_attente'];
-    const Icon = config.icon;
-
-    return (
-      <span className={`status-badge ${config.className}`}>
-        <Icon size={14} />
-        {config.label}
-      </span>
-    );
+    const c = configs[statut] || configs['en_attente'];
+    return <span className={`retour-badge ${c.cls}`}>{c.label}</span>;
   };
 
-  const renderMotif = (motif) => {
-    return (
-      <span className={`motif-badge ${getMotifBadge(motif)}`}>
-        {getMotifLabel(motif)}
-      </span>
+  // ========== PAGINATION ==========
+  const filteredRetours = useMemo(() => {
+    if (!searchTerm) return retours;
+    const s = searchTerm.toLowerCase();
+    return retours.filter(r =>
+      r.numero_retour?.toLowerCase().includes(s) ||
+      r.nomclient?.toLowerCase().includes(s) ||
+      r.telephone?.toLowerCase().includes(s) ||
+      r.numero_commande?.toLowerCase().includes(s)
     );
-  };
+  }, [retours, searchTerm]);
 
-  // Vue liste
-  const renderListView = () => (
-    <div className="retours-clients-table-container">
-      <table className="retours-clients-table">
-        <thead>
-          <tr>
-            <th>Numéro</th>
-            <th>Date</th>
-            <th>Client</th>
-            <th>Commande</th>
-            <th>Motif</th>
-            <th>Montant</th>
-            <th>Statut</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {currentItems.length === 0 ? (
-            <tr>
-              <td colSpan="8" className="empty-state">
-                <Package size={32} />
-                <p>Aucun retour client trouvé</p>
-              </td>
-            </tr>
-          ) : (
-            currentItems.map((retour) => (
-              <tr key={retour.id_retour_client}>
-                <td className="numero-cell">
-                  <span className="retour-numero">{retour.numero_retour}</span>
-                </td>
-                <td>{new Date(retour.date_retour).toLocaleDateString('fr-FR')}</td>
-                <td className="client-cell">
-                  <User size={14} />
-                  <span>{retour.nomclient || '-'}</span>
-                </td>
-                <td>{retour.numero_commande || '-'}</td>
-                <td>{renderMotif(retour.motif_retour)}</td>
-                <td className="montant-cell">
-                  <strong>{formatMontant(retour.montant_total)}</strong>
-                </td>
-                <td>{renderStatut(retour.statut)}</td>
-                <td className="actions-cell">
-                  <button
-                    className="action-btn btn-view"
-                    onClick={() => handleView(retour)}
-                    title="Voir"
-                  >
-                    <Eye size={16} />
-                  </button>
-                  {canManage && retour.statut === 'en_attente' && (
-                    <>
-                      <button
-                        className="action-btn btn-recu"
-                        onClick={() => handleChangeStatut(retour.id_retour_client, 'recu')}
-                        disabled={updatingStatut === retour.id_retour_client}
-                        title="Marquer comme reçu"
-                      >
-                        <Package size={16} />
-                      </button>
-                      <button
-                        className="action-btn btn-delete"
-                        onClick={() => confirmDelete(retour)}
-                        title="Supprimer"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </>
-                  )}
-                  {canManage && retour.statut === 'recu' && (
-                    <button
-                      className="action-btn btn-controle"
-                      onClick={() => handleChangeStatut(retour.id_retour_client, 'controle')}
-                      disabled={updatingStatut === retour.id_retour_client}
-                      title="Passer en contrôle"
-                    >
-                      <AlertCircle size={16} />
-                    </button>
-                  )}
-                  {canManage && retour.statut === 'controle' && (
-                    <>
-                      <button
-                        className="action-btn btn-accepte"
-                        onClick={() => handleChangeStatut(retour.id_retour_client, 'accepte')}
-                        disabled={updatingStatut === retour.id_retour_client}
-                        title="Accepter"
-                      >
-                        <CheckCircle size={16} />
-                      </button>
-                      <button
-                        className="action-btn btn-refuse"
-                        onClick={() => handleChangeStatut(retour.id_retour_client, 'refuse')}
-                        disabled={updatingStatut === retour.id_retour_client}
-                        title="Refuser"
-                      >
-                        <Ban size={16} />
-                      </button>
-                    </>
-                  )}
-                  {canManage && retour.statut === 'accepte' && (
-                    <>
-                      <button
-                        className="action-btn btn-rembourse"
-                        onClick={() => handleChangeStatut(retour.id_retour_client, 'rembourse')}
-                        disabled={updatingStatut === retour.id_retour_client}
-                        title="Rembourser"
-                      >
-                        <Banknote size={16} />
-                      </button>
-                      <button
-                        className="action-btn btn-echange"
-                        onClick={() => handleChangeStatut(retour.id_retour_client, 'echange')}
-                        disabled={updatingStatut === retour.id_retour_client}
-                        title="Échanger"
-                      >
-                        <RotateCcw size={16} />
-                      </button>
-                    </>
-                  )}
-                  {canManage && ['en_attente', 'recu', 'controle'].includes(retour.statut) && (
-                    <button
-                      className="action-btn btn-annuler"
-                      onClick={() => {
-                        if (window.confirm("Annuler ce retour ?")) {
-                          handleChangeStatut(retour.id_retour_client, 'annule');
-                        }
-                      }}
-                      disabled={updatingStatut === retour.id_retour_client}
-                      title="Annuler"
-                    >
-                      <Ban size={16} />
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
+  const totalPages = Math.ceil(filteredRetours.length / itemsPerPage);
+  const currentItems = filteredRetours.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
-  const renderGridView = () => (
-    <div className="retours-clients-grid">
-      {currentItems.length === 0 ? (
-        <div className="empty-state">
-          <ShoppingBag size={48} className="empty-icon" />
-          <p>Aucun retour client trouvé</p>
-        </div>
-      ) : (
-        currentItems.map((retour) => (
-          <div key={retour.id_retour_client} className="retour-client-card">
-            <div className="retour-client-card-header">
-              <div className="retour-info">
-                <span className="retour-numero">{retour.numero_retour}</span>
-                <span className="retour-date">
-                  <Calendar size={14} />
-                  {new Date(retour.date_retour).toLocaleDateString('fr-FR')}
-                </span>
-              </div>
-              <div className="retour-actions">
-                <button
-                  className="action-btn btn-view"
-                  onClick={() => handleView(retour)}
-                  title="Voir"
-                >
-                  <Eye size={16} />
-                </button>
-              </div>
-            </div>
-            <div className="retour-client-card-body">
-              <div className="client-info">
-                <User size={16} />
-                <span>{retour.nomclient || 'Client sans nom'}</span>
-              </div>
-              {retour.telephone && (
-                <div className="client-info">
-                  <Phone size={14} />
-                  <span>{retour.telephone}</span>
-                </div>
-              )}
-              {retour.email && (
-                <div className="client-info">
-                  <Mail size={14} />
-                  <span>{retour.email}</span>
-                </div>
-              )}
-              <div className="retour-motif">
-                {renderMotif(retour.motif_retour)}
-              </div>
-              <div className="retour-montant">
-                <Banknote size={16} />
-                <span>{formatMontant(retour.montant_total)}</span>
-              </div>
-              <div className="retour-lignes-count">
-                <Package size={14} />
-                <span>{retour.lignes?.length || 0} produit(s)</span>
-              </div>
-            </div>
-            <div className="retour-client-card-footer">
-              {renderStatut(retour.statut)}
-            </div>
-          </div>
-        ))
-      )}
-    </div>
-  );
-
-  // ============================================================
-  // RENDU PRINCIPAL
-  // ============================================================
-
+  // ========== RENDU ==========
   return (
-    <div className="retours-clients-container">
-      {/* En-tête */}
-      <div className="retours-clients-header">
+    <div className="retours-container">
+      {/* Toast */}
+      {toast && (
+        <div className={`retours-toast retours-toast-${toast.type}`}>
+          <span>{toast.message}</span>
+          <button onClick={() => setToast(null)}>
+            <X size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="retours-header">
         <div>
-          <h1 className="retours-clients-title">🔄 Retours Clients</h1>
-          <p className="retours-clients-subtitle">
-            {stats.total} retours au total
+          <h1 className="retours-title">
+            <RotateCcw size={26} />
+            Retours Clients
+          </h1>
+          <p className="retours-subtitle">
+            Gérez les retours de produits vendus
           </p>
         </div>
-        <div className="retours-clients-actions">
+        <div className="retours-actions">
           {canManage && (
-            <button className="btn btn-primary" onClick={handleAdd}>
+            <button className="btn btn-primary" onClick={handleOpenWizard}>
               <Plus size={18} />
-              <span>Nouveau Retour</span>
+              <span>Nouveau retour</span>
             </button>
           )}
-          <button className="btn btn-secondary" onClick={handleExport}>
-            <Download size={18} />
-            <span>Exporter</span>
-          </button>
-          <button 
-            className="btn btn-secondary" 
-            onClick={loadRetours} 
-            title="Rafraîchir"
+          <button
+            className="btn btn-secondary"
+            onClick={() => { loadRetours(); loadStats(); }}
             disabled={loading}
           >
             <RefreshCw size={18} className={loading ? 'spinning' : ''} />
@@ -819,197 +558,164 @@ const RetoursClients = () => {
         </div>
       </div>
 
-      {/* ==================== VUE D'ENSEMBLE (KPI) ==================== */}
-      <div className="retours-kpi-grid">
-        <div className="retour-kpi-card kpi-total">
-          <div className="kpi-icon">
-            <ShoppingBag size={22} />
+      {/* Stats */}
+      {stats && (
+        <div className="retours-stats">
+          <div className="stat-card">
+            <div className="stat-icon total"><RotateCcw size={20} /></div>
+            <div className="stat-info">
+              <span className="stat-label">Total</span>
+              <span className="stat-value">{stats.total}</span>
+            </div>
           </div>
-          <div className="kpi-content">
-            <span className="kpi-label">Total retours</span>
-            <span className="kpi-value">{stats.total}</span>
-            <span className="kpi-sub">{formatMontant(stats.totalMontant)}</span>
+          <div className="stat-card">
+            <div className="stat-icon accepte"><CheckCircle size={20} /></div>
+            <div className="stat-info">
+              <span className="stat-label">Acceptés</span>
+              <span className="stat-value">{stats.accepte}</span>
+            </div>
           </div>
-        </div>
-
-        <div className="retour-kpi-card kpi-encours">
-          <div className="kpi-icon">
-            <Clock size={22} />
+          <div className="stat-card">
+            <div className="stat-icon rembourse"><FileText size={20} /></div>
+            <div className="stat-info">
+              <span className="stat-label">Remboursés</span>
+              <span className="stat-value">{stats.rembourse}</span>
+            </div>
           </div>
-          <div className="kpi-content">
-            <span className="kpi-label">En cours</span>
-            <span className="kpi-value">
-              {stats.enAttente + stats.recu + stats.controle}
-            </span>
-            <span className="kpi-sub">à traiter</span>
-          </div>
-        </div>
-
-        <div className="retour-kpi-card kpi-traite">
-          <div className="kpi-icon">
-            <CheckCircle size={22} />
-          </div>
-          <div className="kpi-content">
-            <span className="kpi-label">Traités</span>
-            <span className="kpi-value">
-              {stats.accepte + stats.refuse + stats.rembourse + stats.echange}
-            </span>
-            <span className="kpi-sub">terminés</span>
+          <div className="stat-card">
+            <div className="stat-icon montant"><Package size={20} /></div>
+            <div className="stat-info">
+              <span className="stat-label">Montant total</span>
+              <span className="stat-value">{formatMontant(stats.montant_total)}</span>
+            </div>
           </div>
         </div>
-
-        <div className="retour-kpi-card kpi-annule">
-          <div className="kpi-icon">
-            <Ban size={22} />
-          </div>
-          <div className="kpi-content">
-            <span className="kpi-label">Annulés</span>
-            <span className="kpi-value">{stats.annule}</span>
-            <span className="kpi-sub">clôturés</span>
-          </div>
-        </div>
-      </div>
-
-      {/* ==================== DÉTAIL PAR STATUT ==================== */}
-      <div className="retours-detail-grid">
-        <div className="detail-stat">
-          <span className="detail-stat-label">En attente</span>
-          <span className="detail-stat-value">{stats.enAttente}</span>
-        </div>
-        <div className="detail-stat">
-          <span className="detail-stat-label">Reçus</span>
-          <span className="detail-stat-value">{stats.recu}</span>
-        </div>
-        <div className="detail-stat">
-          <span className="detail-stat-label">Contrôle</span>
-          <span className="detail-stat-value">{stats.controle}</span>
-        </div>
-        <div className="detail-stat">
-          <span className="detail-stat-label">Acceptés</span>
-          <span className="detail-stat-value text-success">{stats.accepte}</span>
-        </div>
-        <div className="detail-stat">
-          <span className="detail-stat-label">Refusés</span>
-          <span className="detail-stat-value text-danger">{stats.refuse}</span>
-        </div>
-        <div className="detail-stat">
-          <span className="detail-stat-label">Remboursés</span>
-          <span className="detail-stat-value">{stats.rembourse}</span>
-        </div>
-        <div className="detail-stat">
-          <span className="detail-stat-label">Échangés</span>
-          <span className="detail-stat-value">{stats.echange}</span>
-        </div>
-        <div className="detail-stat">
-          <span className="detail-stat-label">Annulés</span>
-          <span className="detail-stat-value text-muted">{stats.annule}</span>
-        </div>
-      </div>
+      )}
 
       {/* Filtres */}
-      <div className="retours-clients-filters">
+      <div className="retours-filters">
         <div className="search-box">
-          <Search size={20} className="search-icon" />
+          <Search size={18} className="search-icon" />
           <input
             type="text"
-            placeholder="Rechercher un retour client..."
+            placeholder="Rechercher un retour..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="search-input"
           />
           {searchTerm && (
             <button className="search-clear" onClick={() => setSearchTerm('')}>
-              <X size={16} />
+              <X size={14} />
             </button>
           )}
         </div>
-        <div className="filter-group">
-          <select
-            className="filter-select"
-            value={filterStatut}
-            onChange={(e) => setFilterStatut(e.target.value)}
-          >
-            <option value="">Tous les statuts</option>
-            <option value="en_attente">En attente</option>
-            <option value="recu">Reçu</option>
-            <option value="controle">Contrôle</option>
-            <option value="accepte">Accepté</option>
-            <option value="refuse">Refusé</option>
-            <option value="rembourse">Remboursé</option>
-            <option value="echange">Échangé</option>
-            <option value="annule">Annulé</option>
-          </select>
-        </div>
-        <div className="filter-group">
-          <select
-            className="filter-select"
-            value={filterMotif}
-            onChange={(e) => setFilterMotif(e.target.value)}
-          >
-            <option value="">Tous les motifs</option>
-            <option value="defectueux">Défectueux</option>
-            <option value="non_conforme">Non conforme</option>
-            <option value="mecontentement">Mécontentement</option>
-            <option value="erreur_livraison">Erreur de livraison</option>
-            <option value="echange">Échange</option>
-            <option value="autre">Autre</option>
-          </select>
-        </div>
-        <div className="view-toggle">
-          <button
-            className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
-            onClick={() => setViewMode('grid')}
-          >
-            <Grid size={18} />
-          </button>
-          <button
-            className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
-            onClick={() => setViewMode('list')}
-          >
-            <List size={18} />
-          </button>
-        </div>
+        <select
+          className="filter-select"
+          value={filterStatut}
+          onChange={(e) => setFilterStatut(e.target.value)}
+        >
+          <option value="">Tous les statuts</option>
+          <option value="accepte">Acceptés</option>
+          <option value="refuse">Refusés</option>
+          <option value="rembourse">Remboursés</option>
+          <option value="annule">Annulés</option>
+        </select>
       </div>
 
-      {/* Contenu */}
-      {loading && (
+      {/* Liste */}
+      {loading ? (
         <div className="loading-container">
           <div className="spinner"></div>
-          <p>Chargement des retours clients...</p>
+          <p>Chargement...</p>
         </div>
-      )}
-
-      {error && !loading && (
-        <div className="error-container">
-          <p className="error-message">{error}</p>
-          <button className="btn btn-secondary" onClick={loadRetours}>
-            Réessayer
-          </button>
+      ) : currentItems.length === 0 ? (
+        <div className="empty-state">
+          <RotateCcw size={48} />
+          <h3>Aucun retour</h3>
+          <p>Créez votre premier retour client</p>
+          {canManage && (
+            <button className="btn btn-primary" onClick={handleOpenWizard}>
+              <Plus size={18} /> Nouveau retour
+            </button>
+          )}
         </div>
-      )}
-
-      {!loading && !error && (
-        <>
-          {viewMode === 'grid' ? renderGridView() : renderListView()}
-        </>
+      ) : (
+        <div className="retours-table-wrapper">
+          <table className="retours-table">
+            <thead>
+              <tr>
+                <th>N° Retour</th>
+                <th>Date</th>
+                <th>Client</th>
+                <th>Commande</th>
+                <th>Produits</th>
+                <th>Montant</th>
+                <th>Statut</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {currentItems.map(r => (
+                <tr key={r.id_retour_client}>
+                  <td><strong>{r.numero_retour}</strong></td>
+                  <td>{formatDateFR(r.date_retour)}</td>
+                  <td>
+                    <div className="client-cell">
+                      <User size={14} />
+                      <span>{r.nomclient || '-'}</span>
+                    </div>
+                  </td>
+                  <td>{r.numero_commande || '-'}</td>
+                  <td>
+                    <span className="badge-lignes">{r.nb_lignes} produit(s)</span>
+                  </td>
+                  <td className="montant-cell">
+                    <strong>{formatMontant(r.montant_total)}</strong>
+                  </td>
+                  <td>{getStatutBadge(r.statut)}</td>
+                  <td className="actions-cell">
+                    <div>
+                      <button
+                        className="action-btn"
+                        onClick={() => setOpenMenuId(openMenuId === r.id_retour_client ? null : r.id_retour_client)}
+                      >
+                        <MoreVertical size={16} />
+                      </button>
+                      {openMenuId === r.id_retour_client && (
+                        <div className="dropdown-menu">
+                          <button onClick={() => handleView(r)}>
+                            <Eye size={14} /> Voir détails
+                          </button>
+                          {canManage && r.statut !== 'annule' && (
+                            <button className="danger" onClick={() => handleAnnuler(r)}>
+                              <Ban size={14} /> Annuler
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
       {/* Pagination */}
-      {!loading && !error && filteredRetours.length > itemsPerPage && (
-        <div className="retours-clients-pagination">
+      {totalPages > 1 && (
+        <div className="retours-pagination">
           <button
             className="pagination-btn"
-            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
             disabled={currentPage === 1}
           >
             <ChevronLeft size={18} />
           </button>
-          <span className="pagination-info">
-            Page {currentPage} sur {totalPages}
-          </span>
+          <span>Page {currentPage} sur {totalPages}</span>
           <button
             className="pagination-btn"
-            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
             disabled={currentPage === totalPages}
           >
             <ChevronRight size={18} />
@@ -1017,543 +723,464 @@ const RetoursClients = () => {
         </div>
       )}
 
-      {/* ============================================================
-          MODAL - NOUVEAU RETOUR CLIENT
-          ============================================================ */}
-      {showModal && (
-        <div className="modal-overlay" >
-          <div className="modal-content large vente-modal" onClick={(e) => e.stopPropagation()}>
-            
-            {/* HEADER */}
-            <div className="modal-header">
-              <div className="modal-header-left">
-                <div className="modal-header-icon retour">
+      {/* ========== WIZARD DE RETOUR ========== */}
+      {showWizard && (
+        <div className="modal-overlay">
+          <div className="wizard-modal" onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div className="wizard-header">
+              <div className="wizard-title-group">
+                <div className="wizard-icon">
                   <RotateCcw size={22} />
                 </div>
                 <div>
-                  <h2>Nouveau Retour Client</h2>
-                  <p className="modal-header-sub">Créer un retour à partir d'une commande</p>
+                  <h2>Nouveau retour</h2>
+                  <p>
+                    {wizardStep === 1
+                      ? 'Recherchez la commande d\'origine'
+                      : 'Sélectionnez les produits à retourner'}
+                  </p>
                 </div>
               </div>
-              <button className="modal-close" onClick={() => !saving && setShowModal(false)}>
-                <X size={24} />
+              <button className="modal-close" onClick={() => !saving && setShowWizard(false)}>
+                <X size={20} />
               </button>
             </div>
 
-            {/* BODY */}
-            <div className="modal-body">
-              {error && (
-                <div className="modal-error">
-                  <AlertTriangle size={18} />
-                  <p>{error}</p>
+            {/* Étapes */}
+            <div className="wizard-steps">
+              <div className={`wizard-step ${wizardStep === 1 ? 'active' : 'done'}`}>
+                <div className="step-num">{wizardStep > 1 ? <Check size={14} /> : '1'}</div>
+                <span>Commande</span>
+              </div>
+              <ChevronRight size={16} className="step-arrow" />
+              <div className={`wizard-step ${wizardStep === 2 ? 'active' : ''}`}>
+                <div className="step-num">2</div>
+                <span>Produits</span>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="wizard-body">
+              {/* ==================== ÉTAPE 1 ==================== */}
+              {wizardStep === 1 && (
+                <div className="wizard-step-1">
+                  <div className="search-commande-wrapper">
+                    <Search size={18} className="search-icon" />
+                    <input
+                      type="text"
+                      placeholder="N° de commande, téléphone client, n° facture..."
+                      value={searchCommande}
+                      onChange={(e) => rechercherCommande(e.target.value)}
+                      autoFocus
+                    />
+                    {isSearchingCommande && <Loader size={16} className="spinning" />}
+                  </div>
+
+                  <div className="search-hint">
+                    <Info size={14} />
+                    <span>Tapez au moins 2 caractères. Les commandes des 90 derniers jours sont éligibles.</span>
+                  </div>
+
+                  {searchCommande.length >= 2 && resultatsRecherche.length === 0 && !isSearchingCommande && (
+                    <div className="no-results">
+                      <AlertCircle size={32} />
+                      <p>Aucune commande trouvée</p>
+                    </div>
+                  )}
+
+                  {resultatsRecherche.length > 0 && (
+                    <div className="commandes-list">
+                      {resultatsRecherche.map(c => (
+                        <div
+                          key={c.id_commande}
+                          className="commande-item"
+                          onClick={() => selectionnerCommande(c)}
+                        >
+                          <div className="commande-header">
+                            <strong>{c.numero_commande}</strong>
+                            <span className="commande-date">
+                              {formatDateFR(c.date_commande)}
+                            </span>
+                          </div>
+                          <div className="commande-body">
+                            <div className="commande-client">
+                              <User size={14} />
+                              <span>{c.nomclient || 'Client inconnu'}</span>
+                            </div>
+                            {c.telephone && (
+                              <div className="commande-tel">
+                                <Phone size={14} />
+                                <span>{c.telephone}</span>
+                              </div>
+                            )}
+                          </div>
+                          <div className="commande-footer">
+                            <span className="commande-montant">
+                              {formatMontant(c.montant_total)}
+                            </span>
+                            <span className="commande-produits">
+                              {c.nb_lignes} produit(s)
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* ÉTAPE 1 : RECHERCHER LA COMMANDE */}
-              <div className="form-section step-section">
-                <div className="section-header">
-                  <div className="section-header-left">
-                    <div className="step-badge">1</div>
-                    <h4>Rechercher la commande</h4>
+              {/* ==================== ÉTAPE 2 ==================== */}
+              {wizardStep === 2 && selectedCommande && (
+                <div className="wizard-step-2">
+                  {/* Infos commande */}
+                  <div className="commande-recap-card">
+                    <div className="recap-row">
+                      <FileText size={14} />
+                      <strong>Commande {selectedCommande.numero_commande}</strong>
+                    </div>
+                    <div className="recap-row">
+                      <User size={14} />
+                      <span>{selectedCommande.nomclient || '-'}</span>
+                    </div>
+                    <div className="recap-row">
+                      <Calendar size={14} />
+                      <span>{formatDateFR(selectedCommande.date_commande)}</span>
+                    </div>
                   </div>
-                  <span className="section-badge required">Requis</span>
-                </div>
 
-                <div className="commande-search-wrapper">
-                  <div className="combobox-input-wrapper large">
-                    <SearchIcon size={20} className="combobox-icon" />
-                    <input
-                      type="text"
-                      className="combobox-input"
-                      placeholder="Entrez le numéro de commande (ex: CV-202609-0001)"
-                      value={commandeSearch}
-                      onChange={(e) => rechercherCommande(e.target.value)}
-                      disabled={saving || !!selectedCommande}
-                      autoComplete="off"
-                    />
-                    {searchingCommande && (
-                      <div className="combobox-spinner spinning">
-                        <RefreshCw size={18} />
+                  {/* Produits à retourner */}
+                  <div className="produits-section">
+                    <h3>Produits retournables</h3>
+
+                    {lignesCommande.length === 0 ? (
+                      <div className="empty-lignes">
+                        <Package size={32} />
+                        <p>Aucun produit retournable</p>
+                      </div>
+                    ) : (
+                      <div className="lignes-retour">
+                        {lignesCommande.map((ligne, index) => {
+                          if (ligne.quantite_retournable_base <= 0) {
+                            return (
+                              <div key={index} className="ligne-item disabled">
+                                <div className="ligne-info">
+                                  <strong>{ligne.produit_nom}</strong>
+                                  <span className="ligne-tag">Déjà totalement retourné</span>
+                                </div>
+                              </div>
+                            );
+                          }
+
+                          const qte = parseFloat(ligne.quantite_a_retourner) || 0;
+                          const unite = ligne.unite_selectionnee;
+                          const qteBase = unite ? qte * parseFloat(unite.quantite_base || 1) : 0;
+                          const invalid = qteBase > ligne.quantite_retournable_base;
+
+                          return (
+                            <div key={index} className={`ligne-item ${qte > 0 ? 'selected' : ''}`}>
+                              <div className="ligne-info">
+                                <strong>{ligne.produit_nom}</strong>
+                                {ligne.marque_nom && <span className="ligne-marque">{ligne.marque_nom}</span>}
+
+                                {/* ✅ Quantités en unités de vente lisibles */}
+                                <div className="ligne-details">
+                                  <div className="detail-row">
+                                    <span className="detail-label">Acheté :</span>
+                                    <div className="detail-value">
+                                      <QteAffichage
+                                        qteBase={ligne.quantite_achetee_base}
+                                        unitesVente={ligne.unites_disponibles}
+                                        uniteBase={{
+                                          nom: ligne.unite_base_nom,
+                                          symbole: ligne.unite_base_symbole
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {ligne.quantite_deja_retournee_base > 0 && (
+                                    <div className="detail-row">
+                                      <span className="detail-label">Déjà retourné :</span>
+                                      <div className="detail-value">
+                                        <QteAffichage
+                                          qteBase={ligne.quantite_deja_retournee_base}
+                                          unitesVente={ligne.unites_disponibles}
+                                          uniteBase={{
+                                            nom: ligne.unite_base_nom,
+                                            symbole: ligne.unite_base_symbole
+                                          }}
+                                        />
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <div className="detail-row highlight">
+                                    <span className="detail-label">Retournable :</span>
+                                    <div className="detail-value">
+                                      <QteAffichage
+                                        qteBase={ligne.quantite_retournable_base}
+                                        unitesVente={ligne.unites_disponibles}
+                                        uniteBase={{
+                                          nom: ligne.unite_base_nom,
+                                          symbole: ligne.unite_base_symbole
+                                        }}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="ligne-controls">
+                                <select
+                                  value={unite?.id_unite_vente ?? 'base'}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    const selected = ligne.unites_disponibles.find(u =>
+                                      (u.id_unite_vente === null ? 'base' : u.id_unite_vente) ===
+                                      (val === 'base' ? 'base' : parseInt(val))
+                                    );
+                                    updateLigne(index, 'unite_selectionnee', selected);
+                                  }}
+                                  className="unite-select"
+                                >
+                                  {ligne.unites_disponibles.map((u, i) => (
+                                    <option key={i} value={u.id_unite_vente ?? 'base'}>
+                                      {u.nom} {u.quantite_base > 1 && `(×${u.quantite_base})`}
+                                    </option>
+                                  ))}
+                                </select>
+
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={ligne.quantite_a_retourner || ''}
+                                  onChange={(e) => updateLigne(index, 'quantite_a_retourner', e.target.value)}
+                                  className={`qte-input ${invalid ? 'invalid' : ''}`}
+                                  placeholder="0"
+                                />
+
+                                {/* ✅ Preview quantité en unité lisible */}
+                                {qteBase > 0 && (
+                                  <div className={`qte-preview ${invalid ? 'invalid' : ''}`}>
+                                    <span>=</span>
+                                    <QteAffichage
+                                      qteBase={qteBase}
+                                      unitesVente={ligne.unites_disponibles}
+                                      uniteBase={{
+                                        nom: ligne.unite_base_nom,
+                                        symbole: ligne.unite_base_symbole
+                                      }}
+                                      isLow={invalid}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+
+                              {qte > 0 && (
+                                <div className="ligne-etat">
+                                  <label>État :</label>
+                                  <select
+                                    value={ligne.etat_produit}
+                                    onChange={(e) => updateLigne(index, 'etat_produit', e.target.value)}
+                                  >
+                                    {ETATS_PRODUIT.map(e => (
+                                      <option key={e.value} value={e.value}>{e.label}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              )}
+
+                              {invalid && (
+                                <div className="ligne-error">
+                                  <AlertTriangle size={14} />
+                                  <span>
+                                    Quantité dépasse le retournable (
+                                    <QteAffichage
+                                      qteBase={ligne.quantite_retournable_base}
+                                      unitesVente={ligne.unites_disponibles}
+                                      uniteBase={{
+                                        nom: ligne.unite_base_nom,
+                                        symbole: ligne.unite_base_symbole
+                                      }}
+                                    />
+                                    )
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
-                </div>
 
-                {searchCommandeError && (
-                  <div className="search-error">
-                    <AlertCircle size={16} />
-                    <span>{searchCommandeError}</span>
-                  </div>
-                )}
+                  {/* Motif + Résolution */}
+                  <div className="form-section">
+                    <div className="form-grid-2">
+                      <div className="form-group">
+                        <label>Motif du retour *</label>
+                        <select value={motifRetour} onChange={(e) => setMotifRetour(e.target.value)}>
+                          {MOTIFS.map(m => (
+                            <option key={m.value} value={m.value}>{m.label}</option>
+                          ))}
+                        </select>
+                      </div>
 
-                {commandeTrouvee && !selectedCommande && (
-                  <div className="commande-result-card">
-                    <div className="commande-result-header">
-                      <div>
-                        <strong>{commandeTrouvee.numero_commande}</strong>
-                        <span className="commande-result-date">
-                          <Calendar size={12} />
-                          {new Date(commandeTrouvee.date_commande).toLocaleDateString('fr-FR')}
-                        </span>
-                      </div>
-                      <span className={`status-badge status-${commandeTrouvee.statut === 'livree' ? 'livree' : 'expediee'}`}>
-                        {commandeTrouvee.statut === 'livree' ? 'Livrée' : 'Expédiée'}
-                      </span>
-                    </div>
-
-                    <div className="commande-result-info">
-                      <div className="commande-result-item">
-                        <User size={14} />
-                        <span>{commandeTrouvee.nomclient}</span>
-                      </div>
-                      <div className="commande-result-item">
-                        <Phone size={14} />
-                        <span>{commandeTrouvee.telephone}</span>
-                      </div>
-                      <div className="commande-result-item">
-                        <Banknote size={14} />
-                        <span>{formatMontant(commandeTrouvee.montant_total)}</span>
-                      </div>
-                      <div className="commande-result-item">
-                        <Package size={14} />
-                        <span>{commandeTrouvee.lignes?.length || 0} produit(s)</span>
+                      <div className="form-group">
+                        <label>Type de résolution *</label>
+                        <select value={typeResolution} onChange={(e) => setTypeResolution(e.target.value)}>
+                          {RESOLUTIONS.map(r => (
+                            <option key={r.value} value={r.value}>
+                              {r.icon} {r.label}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
 
-                    <button
-                      className="btn btn-primary btn-select-commande"
-                      onClick={() => selectCommandeFromSearch(commandeTrouvee)}
-                      disabled={saving}
-                    >
-                      <Check size={18} />
-                      <span>Sélectionner cette commande</span>
-                    </button>
-                  </div>
-                )}
-
-                {selectedCommande && (
-                  <div className="commande-selected-badge">
-                    <CheckCircle size={18} />
-                    <div>
-                      <strong>{selectedCommande.numero_commande}</strong>
-                      <span>{selectedCommande.nomclient} • {selectedCommande.telephone}</span>
+                    <div className="form-group">
+                      <label>Notes (optionnel)</label>
+                      <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        rows="2"
+                        placeholder="Commentaire interne..."
+                        maxLength={500}
+                      />
                     </div>
-                    <button
-                      className="btn-change-commande"
-                      onClick={changerCommande}
-                      disabled={saving}
-                    >
-                      <X size={14} />
-                      Changer
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* ÉTAPE 2 : PRODUITS À RETOURNER */}
-              {selectedCommande && (
-                <div className="form-section step-section">
-                  <div className="section-header">
-                    <div className="section-header-left">
-                      <div className="step-badge">2</div>
-                      <h4>Produits à retourner</h4>
-                    </div>
-                    <span className="section-badge">
-                      {Object.values(lignesSelectionnees).filter(l => l.selected).length} sélectionné(s)
-                    </span>
                   </div>
 
-                  <div className="form-group">
-                    <label>Motif global du retour *</label>
-                    <select
-                      name="motif_retour"
-                      value={formData.motif_retour}
-                      onChange={handleInputChange}
-                      className="form-select"
-                      disabled={saving}
-                    >
-                      <option value="">Sélectionner un motif</option>
-                      <option value="defectueux">Défectueux</option>
-                      <option value="non_conforme">Non conforme</option>
-                      <option value="mecontentement">Mécontentement</option>
-                      <option value="erreur_livraison">Erreur de livraison</option>
-                      <option value="echange">Échange</option>
-                      <option value="autre">Autre</option>
-                    </select>
-                  </div>
-
-                  {lignesCommande.length === 0 ? (
-                    <div className="empty-lignes">
-                      <Box size={32} />
-                      <p>Aucun produit dans cette commande</p>
-                    </div>
-                  ) : (
-                    <div className="lignes-selection-table">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th style={{ width: '40px' }}></th>
-                            <th>Produit</th>
-                            <th style={{ width: '100px' }}>Qté achetée</th>
-                            <th style={{ width: '100px' }}>Qté retour</th>
-                            <th style={{ width: '150px' }}>Motif</th>
-                            <th style={{ width: '110px' }}>État</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {lignesCommande.map((ligne) => {
-                            const selection = lignesSelectionnees[ligne.id_ligne_vente] || {};
-                            const maxRetournable = selection.quantite_max_retournable || 
-                                                   ligne.quantite_max_retournable || 
-                                                   parseFloat(ligne.quantite);
-                            const dejaRetourne = parseFloat(ligne.quantite_deja_retournee) || 0;
-                            const estEpuise = maxRetournable <= 0;
-                            
-                            return (
-                              <tr 
-                                key={ligne.id_ligne_vente}
-                                className={selection.selected ? 'selected' : ''}
-                              >
-                                <td>
-                                  <input
-                                    type="checkbox"
-                                    checked={selection.selected || false}
-                                    onChange={() => toggleLigneRetour(ligne.id_ligne_vente)}
-                                    disabled={saving || estEpuise}
-                                    className="checkbox-input"
-                                  />
-                                </td>
-                                <td>
-                                  <strong>{ligne.produit_nom}</strong>
-                                  {ligne.modele_nom && (
-                                    <span className="unite-label"> - {ligne.modele_nom}</span>
-                                  )}
-                                  <div className="ligne-prix">
-                                    {formatMontant(ligne.prix_vente)}
-                                  </div>
-                                  {dejaRetourne > 0 && (
-                                    <div className="ligne-deja-retournee">
-                                      Déjà retourné: {dejaRetourne}
-                                    </div>
-                                  )}
-                                  {estEpuise && (
-                                    <div className="ligne-deja-retournee">
-                                      ⚠️ Entièrement retourné
-                                    </div>
-                                  )}
-                                </td>
-                                <td>
-                                  <span className="quantite-achetee">
-                                    {ligne.quantite} {ligne.unite_symbole || ''}
-                                  </span>
-                                </td>
-                                <td>
-                                  <input
-                                    type="number"
-                                    value={selection.quantite || ''}
-                                    onChange={(e) => updateLigneRetour(
-                                      ligne.id_ligne_vente, 
-                                      'quantite', 
-                                      e.target.value
-                                    )}
-                                    min="1"
-                                    max={maxRetournable}
-                                    disabled={!selection.selected || saving || estEpuise}
-                                    className="input-quantite"
-                                    placeholder="0"
-                                  />
-                                  <div className="input-max-hint">
-                                    Max: {maxRetournable}
-                                  </div>
-                                </td>
-                                <td>
-                                  <select
-                                    value={selection.motif_retour || ''}
-                                    onChange={(e) => updateLigneRetour(
-                                      ligne.id_ligne_vente, 
-                                      'motif_retour', 
-                                      e.target.value
-                                    )}
-                                    disabled={!selection.selected || saving}
-                                    className="select-motif"
-                                  >
-                                    <option value="">Auto</option>
-                                    <option value="defectueux">Défectueux</option>
-                                    <option value="non_conforme">Non conforme</option>
-                                    <option value="mecontentement">Mécontentement</option>
-                                    <option value="erreur_livraison">Erreur livraison</option>
-                                    <option value="echange">Échange</option>
-                                    <option value="autre">Autre</option>
-                                  </select>
-                                </td>
-                                <td>
-                                  <select
-                                    value={selection.etat_produit || 'neuf'}
-                                    onChange={(e) => updateLigneRetour(
-                                      ligne.id_ligne_vente, 
-                                      'etat_produit', 
-                                      e.target.value
-                                    )}
-                                    disabled={!selection.selected || saving}
-                                    className="select-etat"
-                                  >
-                                    <option value="neuf">Neuf</option>
-                                    <option value="endommage">Endommagé</option>
-                                    <option value="usage">Usagé</option>
-                                    <option value="incomplet">Incomplet</option>
-                                  </select>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-
-                  <div className="form-group" style={{ marginTop: '16px' }}>
-                    <label>Notes (optionnel)</label>
-                    <textarea
-                      name="notes"
-                      value={formData.notes}
-                      onChange={handleInputChange}
-                      placeholder="Notes supplémentaires..."
-                      rows="2"
-                      disabled={saving}
-                      className="form-textarea"
-                    />
+                  {/* Total */}
+                  <div className="total-remboursement">
+                    <span>Montant total à rembourser</span>
+                    <strong>{formatMontant(totalRemboursement)}</strong>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* FOOTER */}
-            <div className="modal-footer vente-footer">
-              <div className="footer-summary">
-                <div className="summary-item">
-                  <span className="summary-label">Produits</span>
-                  <span className="summary-value">
-                    {Object.values(lignesSelectionnees).filter(l => l.selected).length}
+            {/* Footer */}
+            <div className="wizard-footer">
+              {wizardStep === 1 ? (
+                <>
+                  <button className="btn btn-secondary" onClick={() => setShowWizard(false)}>
+                    Annuler
+                  </button>
+                  <div className="footer-spacer" />
+                  <span className="footer-hint">
+                    Sélectionnez une commande pour continuer
                   </span>
-                </div>
-                <div className="summary-divider" />
-                <div className="summary-item total">
-                  <span className="summary-label">Montant du retour</span>
-                  <span className="summary-value-total">
-                    {formatMontant(calculerMontantRetour())}
-                  </span>
-                </div>
-              </div>
-
-              <div className="footer-actions">
-                <button 
-                  className="btn btn-secondary" 
-                  onClick={() => setShowModal(false)}
-                  disabled={saving}
-                >
-                  Annuler
-                </button>
-                <button 
-                  className="btn btn-primary" 
-                  onClick={handleSave}
-                  disabled={
-                    saving || 
-                    !selectedCommande || 
-                    !formData.motif_retour ||
-                    Object.values(lignesSelectionnees).filter(l => l.selected).length === 0
-                  }
-                >
-                  {saving ? (
-                    <>
-                      <span className="spinner-small"></span>
-                      <span>Enregistrement...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Check size={18} />
-                      <span>Créer le retour</span>
-                    </>
-                  )}
-                </button>
-              </div>
+                </>
+              ) : (
+                <>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => { setWizardStep(1); setSelectedCommande(null); setLignesCommande([]); }}
+                    disabled={saving}
+                  >
+                    <ChevronLeft size={16} />
+                    Retour
+                  </button>
+                  <div className="footer-spacer" />
+                  <button
+                    className="btn btn-primary"
+                    onClick={handleSubmitRetour}
+                    disabled={saving || !peutValider}
+                  >
+                    {saving ? (
+                      <>
+                        <Loader size={16} className="spinning" />
+                        Enregistrement...
+                      </>
+                    ) : (
+                      <>
+                        <Check size={16} />
+                        Valider le retour ({lignesValides.length})
+                      </>
+                    )}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* ============================================================
-          MODAL - DÉTAILS
-          ============================================================ */}
+      {/* ========== MODAL DÉTAIL ========== */}
       {showDetailModal && selectedRetour && (
         <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-content detail-modal" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>Détails du retour client</h2>
+              <h2>Retour {selectedRetour.numero_retour}</h2>
               <button className="modal-close" onClick={() => setShowDetailModal(false)}>
-                <X size={24} />
+                <X size={20} />
               </button>
             </div>
             <div className="modal-body">
-              <div className="detail-header">
-                <div className="detail-header-left">
-                  <div className="detail-icon"><ShoppingBag size={28} /></div>
-                  <div>
-                    <h3 className="detail-numero">{selectedRetour.numero_retour}</h3>
-                    <span className="detail-date">
-                      <Calendar size={14} />
-                      {new Date(selectedRetour.date_retour).toLocaleDateString('fr-FR')}
-                    </span>
-                  </div>
+              <div className="detail-info">
+                <div className="info-row">
+                  <span>Client</span>
+                  <strong>{selectedRetour.nomclient || '-'}</strong>
                 </div>
-                <div className="detail-header-right">
-                  {renderStatut(selectedRetour.statut)}
-                  {renderMotif(selectedRetour.motif_retour)}
+                <div className="info-row">
+                  <span>Commande</span>
+                  <strong>{selectedRetour.numero_commande || '-'}</strong>
                 </div>
-              </div>
-
-              <div className="detail-grid">
-                <div className="detail-section">
-                  <h4><User size={16} /> Client</h4>
-                  <div className="detail-item">
-                    <label>Nom</label>
-                    <span>{selectedRetour.nomclient || '-'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Téléphone</label>
-                    <span>{selectedRetour.telephone || '-'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Email</label>
-                    <span>{selectedRetour.email || '-'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Adresse</label>
-                    <span>{selectedRetour.adresse || '-'}</span>
-                  </div>
+                <div className="info-row">
+                  <span>Date</span>
+                  <strong>{formatDateFR(selectedRetour.date_retour)}</strong>
                 </div>
-                <div className="detail-section">
-                  <h4><FileText size={16} /> Informations</h4>
-                  <div className="detail-item">
-                    <label>Commande</label>
-                    <span>{selectedRetour.numero_commande || 'Sans commande'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Facture</label>
-                    <span>{selectedRetour.numero_facture || 'Sans facture'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Créé par</label>
-                    <span>{selectedRetour.utilisateur_nom || '-'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Montant total</label>
-                    <span className="montant-total">{formatMontant(selectedRetour.montant_total)}</span>
-                  </div>
-                  {selectedRetour.notes && (
-                    <div className="detail-item">
-                      <label>Notes</label>
-                      <span>{selectedRetour.notes}</span>
-                    </div>
-                  )}
+                <div className="info-row">
+                  <span>Motif</span>
+                  <strong>{MOTIFS.find(m => m.value === selectedRetour.motif_retour)?.label}</strong>
+                </div>
+                <div className="info-row">
+                  <span>Résolution</span>
+                  <strong>{RESOLUTIONS.find(r => r.value === selectedRetour.type_resolution)?.label}</strong>
+                </div>
+                <div className="info-row total">
+                  <span>Montant remboursé</span>
+                  <strong>{formatMontant(selectedRetour.montant_total)}</strong>
                 </div>
               </div>
 
-              {selectedRetour.lignes && selectedRetour.lignes.length > 0 && (
-                <div className="detail-lignes">
-                  <h4>📦 Produits retournés ({selectedRetour.lignes.length})</h4>
-                  <div className="detail-lignes-wrapper">
-                    <table className="detail-lignes-table">
-                      <thead>
-                        <tr>
-                          <th>Produit</th>
-                          <th>Quantité</th>
-                          <th>Prix unitaire</th>
-                          <th>Total</th>
-                          <th>Motif</th>
-                          <th>État</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedRetour.lignes.map((ligne, index) => (
-                          <tr key={index}>
-                            <td>
-                              <span className="produit-nom">{ligne.produit_nom}</span>
-                              {ligne.marque_nom && (
-                                <span className="produit-marque"> - {ligne.marque_nom}</span>
-                              )}
-                            </td>
-                            <td>{ligne.quantite} {ligne.unite_symbole || ''}</td>
-                            <td>{formatMontant(ligne.prix_vente)}</td>
-                            <td className="montant-cell">{formatMontant(ligne.montant_total || (ligne.quantite * ligne.prix_vente))}</td>
-                            <td>{renderMotif(ligne.motif_retour)}</td>
-                            <td>
-                              <span className={`etat-badge etat-${ligne.etat_produit || 'neuf'}`}>
-                                {ligne.etat_produit || 'Neuf'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <RetourClientPDFActions 
-              retourData={selectedRetour}
-              onClose={() => setShowDetailModal(false)}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================
-          MODAL - SUPPRESSION
-          ============================================================ */}
-      {showDeleteModal && (
-        <div className="modal-overlay" onClick={() => !deleting && setShowDeleteModal(false)}>
-          <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>🗑️ Confirmer la suppression</h2>
-              <button className="modal-close" onClick={() => !deleting && setShowDeleteModal(false)}>
-                <X size={24} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="delete-icon-wrapper">
-                <AlertTriangle size={48} color="#ef4444" />
-              </div>
-              <p>Êtes-vous sûr de vouloir supprimer ce retour client ?</p>
-              <p className="delete-item-name">
-                <strong>"{retourToDelete?.numero_retour}"</strong>
-              </p>
-              <p className="delete-item-detail">
-                Client : {retourToDelete?.nomclient || 'Client sans nom'}
-              </p>
-              <p className="delete-item-detail">
-                Date : {retourToDelete?.date_retour}
-              </p>
-              <p className="delete-warning">
-                ⚠️ Cette action est irréversible
-              </p>
+              <h3>Produits retournés</h3>
+              <table className="detail-lignes">
+                <thead>
+                  <tr>
+                    <th>Produit</th>
+                    <th>Unité</th>
+                    <th>Qté</th>
+                    <th>Prix</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(selectedRetour.lignes || []).map((l, i) => (
+                    <tr key={i}>
+                      <td>{l.produit_nom}</td>
+                      <td>
+                        <div className="unite-cell">
+                          <strong>{l.quantite} {l.nom_unite_vente}</strong>
+                          {l.quantite_base > 1 && (
+                            <small className="unite-detail">
+                              ({l.quantite_totale_base} unités)
+                            </small>
+                          )}
+                        </div>
+                      </td>
+                      <td>{l.quantite_totale_base}</td>
+                      <td>{formatMontant(l.prix_remboursement)}</td>
+                      <td>{formatMontant(l.montant_total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowDeleteModal(false)} disabled={deleting}>
-                Annuler
-              </button>
-              <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
-                {deleting ? (
-                  <>
-                    <span className="spinner-small"></span>
-                    <span>Suppression...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 size={18} />
-                    <span>Supprimer</span>
-                  </>
-                )}
+              <button className="btn btn-secondary" onClick={() => setShowDetailModal(false)}>
+                Fermer
               </button>
             </div>
           </div>

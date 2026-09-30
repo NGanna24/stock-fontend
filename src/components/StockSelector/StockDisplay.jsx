@@ -14,7 +14,7 @@ import "./StockSelector.css";
  * @param {number} stockBase       - Stock total en unité de base
  * @param {object} uniteCible      - Unité cible { nom, quantite_base, symbole }
  * @param {object} uniteBase       - Unité de base { nom, symbole } (quantite_base=1)
- * @returns {{ qtePrincipale, unitePrincipale, qteReste, uniteReste, forceBase }}
+ * @returns {{ qtePrincipale, unitePrincipale, qteReste, uniteReste }}
  */
 function decomposerStock(stockBase, uniteCible, uniteBase) {
     const stock = parseFloat(stockBase) || 0;
@@ -27,32 +27,17 @@ function decomposerStock(stockBase, uniteCible, uniteBase) {
             unitePrincipale: uniteBase?.nom || uniteCible?.nom || "Unité",
             qteReste: 0,
             uniteReste: null,
-            forceBase: false,
         };
     }
 
     const qtePrincipale = Math.floor(stock / qbCible);
     const resteBase = stock - qtePrincipale * qbCible;
 
-    // ✅ RÈGLE : Si 0 unité principale mais un reste > 0,
-    // on force l'affichage en unité de base
-    // (ex: 1 bidon au lieu de "0 Carton + 1 Bidon")
-    if (qtePrincipale === 0 && resteBase > 0) {
-        return {
-            qtePrincipale: resteBase,
-            unitePrincipale: uniteBase?.nom || "Unité",
-            qteReste: 0,
-            uniteReste: null,
-            forceBase: true,
-        };
-    }
-
     return {
         qtePrincipale,
         unitePrincipale: uniteCible.nom,
         qteReste: resteBase,
         uniteReste: uniteBase?.nom || "Unité",
-        forceBase: false,
     };
 }
 
@@ -165,7 +150,6 @@ const StockSelector = ({
     }, [unitesDisponibles, selectedUniteId]);
 
     // Décomposition du stock selon l'unité choisie
-    // ✅ Contient maintenant la logique "si 0 unité principale, forcer base"
     const decomposition = useMemo(() => {
         return decomposerStock(stockBase, selectedUnite, uniteBase);
     }, [stockBase, selectedUnite, uniteBase]);
@@ -262,11 +246,7 @@ const StockSelector = ({
     // ============================================================
     // Rendu principal
     // ============================================================
-    const { qtePrincipale, unitePrincipale, qteReste, uniteReste, forceBase } = decomposition;
-
-    // ✅ Si on force l'affichage en base, on n'affiche PAS le dropdown
-    //    (pas logique de proposer "Carton" quand on a 1 bidon)
-    const afficherDropdown = hasMultipleUnites && !forceBase;
+    const { qtePrincipale, unitePrincipale, qteReste, uniteReste } = decomposition;
 
     return (
         <div
@@ -277,7 +257,7 @@ const StockSelector = ({
             <div className="stock-main-row">
                 <span className="stock-qte">{qtePrincipale}</span>
 
-                {afficherDropdown ? (
+                {hasMultipleUnites ? (
                     <>
                         <span ref={triggerRef} className="stock-unite-trigger-wrapper">
                             <button
@@ -310,7 +290,7 @@ const StockSelector = ({
 
             {/* Dropdown en portal */}
             {open &&
-                afficherDropdown &&
+                hasMultipleUnites &&
                 createPortal(
                     <div
                         ref={menuRef}

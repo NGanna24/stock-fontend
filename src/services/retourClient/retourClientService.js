@@ -1,121 +1,159 @@
-// services/retourClient/retourClientService.js
+// services/retourClientService.js
 import API_URL from '../../config/api';
 import axios from 'axios';
 
 class RetourClientService {
-
-    // ==================== RECHERCHE ====================
-
     /**
-     * ✅ NOUVELLE MÉTHODE : Rechercher une commande par numéro
-     * GET /api/retours-clients/search-commande?numero=CV-202609-0001
+     * ============================================================
+     * Rechercher une commande pour faire un retour
+     * ============================================================
      */
-    static async searchCommandeByNumero(token, numero) {
+    static async searchCommande(token, q, jours = 90) {
         try {
             const response = await axios.get(
-                API_URL.RETOUR_CLIENT.SEARCH_COMMANDE,
+                API_URL.RETOUR_CLIENT.SEARCH_COMMANDE(q, jours),
                 {
-                    params: { numero },
-                    headers: { 'Authorization': `Bearer ${token}` }
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
                 }
             );
             return response.data;
         } catch (error) {
+            console.error('❌ SearchCommande retour error:', error);
             throw this.handleError(error);
         }
     }
 
-    // ==================== CRUD ====================
-
-    static async getAllRetours(token, params = {}) {
+    /**
+     * ============================================================
+     * Récupérer tous les retours (avec filtres)
+     * ============================================================
+     */
+    static async getAll(token, params = {}) {
         try {
             const response = await axios.get(API_URL.RETOUR_CLIENT.GET_ALL, {
-                headers: { 'Authorization': `Bearer ${token}` },
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
                 params
             });
             return response.data;
         } catch (error) {
+            console.error('❌ GetAll retours error:', error);
             throw this.handleError(error);
         }
     }
 
-    static async getRetourById(token, id) {
+    /**
+     * ============================================================
+     * Récupérer un retour par ID
+     * ============================================================
+     */
+    static async getById(token, id) {
         try {
-            const response = await axios.get(API_URL.RETOUR_CLIENT.GET_BY_ID(id), {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            return response.data;
-        } catch (error) {
-            throw this.handleError(error);
-        }
-    }
-
-    static async createRetour(token, data) {
-        try {
-            const response = await axios.post(API_URL.RETOUR_CLIENT.CREATE, data, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            return response.data;
-        } catch (error) {
-            throw this.handleError(error);
-        }
-    }
-
-    static async updateStatut(token, id, statut) {
-        try {
-            const response = await axios.patch(
-                API_URL.RETOUR_CLIENT.UPDATE_STATUT(id),
-                { statut },
-                { headers: { 'Authorization': `Bearer ${token}` } }
+            const response = await axios.get(
+                API_URL.RETOUR_CLIENT.GET_BY_ID(id),
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
             );
             return response.data;
         } catch (error) {
+            console.error('❌ GetById retour error:', error);
             throw this.handleError(error);
         }
     }
 
-    static async deleteRetour(token, id) {
+    /**
+     * ============================================================
+     * Créer un retour
+     * ============================================================
+     */
+    static async create(token, data) {
         try {
-            const response = await axios.delete(API_URL.RETOUR_CLIENT.DELETE(id), {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await axios.post(
+                API_URL.RETOUR_CLIENT.CREATE,
+                data,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
             return response.data;
         } catch (error) {
+            console.error('❌ Create retour error:', error);
             throw this.handleError(error);
         }
     }
 
-    // ==================== STATS & EXPORT ====================
+    /**
+     * ============================================================
+     * Annuler un retour
+     * ============================================================
+     */
+    static async annuler(token, id) {
+        try {
+            const response = await axios.patch(
+                API_URL.RETOUR_CLIENT.ANNULER(id),
+                {},
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+            return response.data;
+        } catch (error) {
+            console.error('❌ Annuler retour error:', error);
+            throw this.handleError(error);
+        }
+    }
 
+    /**
+     * ============================================================
+     * Statistiques
+     * ============================================================
+     */
     static async getStats(token) {
         try {
-            const response = await axios.get(API_URL.RETOUR_CLIENT.GET_STATS, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+            const response = await axios.get(
+                API_URL.RETOUR_CLIENT.GET_STATS,
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
             return response.data;
         } catch (error) {
+            console.error('❌ GetStats retours error:', error);
             throw this.handleError(error);
         }
     }
 
-    static async exportRetours(token) {
-        try {
-            const response = await axios.get(API_URL.RETOUR_CLIENT.EXPORT, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            return response.data;
-        } catch (error) {
-            throw this.handleError(error);
-        }
-    }
-
-    // ==================== GESTION DES ERREURS ====================
-
+    /**
+     * ============================================================
+     * Gestion centralisée des erreurs
+     * ============================================================
+     */
     static handleError(error) {
         if (error.response) {
-            return new Error(error.response.data?.message || 'Erreur serveur');
+            const message = error.response.data?.message
+                || error.response.statusText
+                || 'Erreur serveur';
+            return new Error(message);
         } else if (error.request) {
-            return new Error('Impossible de contacter le serveur');
+            return new Error('Impossible de contacter le serveur.');
         } else {
             return new Error(error.message || 'Erreur inattendue');
         }
