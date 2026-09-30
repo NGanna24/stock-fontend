@@ -1,6 +1,5 @@
 /* pages/RetoursClients/RetoursClients.css
    ⚠️ TOUS les styles sont scopés sous .retours-container
-   pour éviter les conflits avec les autres pages.
 */
 
 /* ============================================================
@@ -15,7 +14,7 @@
 }
 
 /* ============================================================
-   TOAST (fixed — hors container)
+   TOAST
    ============================================================ */
 .retours-toast {
   position: fixed;
@@ -77,7 +76,7 @@
 .retours-container .retours-actions { display: flex; gap: 10px; }
 
 /* ============================================================
-   BOUTONS (scopés au container)
+   BOUTONS
    ============================================================ */
 .retours-container .btn {
   display: inline-flex;
@@ -240,7 +239,6 @@
   border-bottom: 1px solid #e2e8f0;
 }
 
-/* Largeurs fixes des colonnes */
 .retours-container .retours-table th:nth-child(1) { width: 14%; }
 .retours-container .retours-table th:nth-child(2) { width: 11%; }
 .retours-container .retours-table th:nth-child(3) { width: 15%; }
@@ -260,31 +258,19 @@
   white-space: nowrap;
 }
 
-.retours-container .retours-table tbody tr {
-  position: relative;
-}
-
+.retours-container .retours-table tbody tr { position: relative; }
 .retours-container .retours-table tbody tr:hover { background: #f8fafc; }
 .retours-container .retours-table tbody tr:last-child td { border-bottom: none; }
 
-/* Alignements colonnes spécifiques */
 .retours-container .retours-table td:nth-child(6) {
   text-align: right;
   font-weight: 700;
   color: #0f172a;
   font-variant-numeric: tabular-nums;
 }
+.retours-container .retours-table td:nth-child(7) { text-align: center; }
+.retours-container .retours-table td:nth-child(8) { text-align: right; overflow: visible; }
 
-.retours-container .retours-table td:nth-child(7) {
-  text-align: center;
-}
-
-.retours-container .retours-table td:nth-child(8) {
-  text-align: right;
-  overflow: visible;
-}
-
-/* Cellules spéciales */
 .retours-container .client-cell {
   display: flex;
   align-items: center;
@@ -335,23 +321,20 @@
 .retours-container .badge-annule { background: #f1f5f9; color: #64748b; }
 
 /* ============================================================
-   ACTIONS MENU (menu 3 points)
+   ACTIONS MENU
    ============================================================ */
 .retours-container .actions-cell {
   text-align: right;
   position: relative;
 }
-
 .retours-container .actions-cell.has-open-menu {
   overflow: visible !important;
   z-index: 9998;
 }
-
 .retours-container .actions-dropdown {
   position: relative;
   display: inline-block;
 }
-
 .retours-container .action-btn {
   width: 32px;
   height: 32px;
@@ -381,7 +364,6 @@
   z-index: 9999;
   animation: retours-fadeIn 0.15s ease;
 }
-
 .retours-container .dropdown-menu button {
   display: flex;
   align-items: center;
@@ -461,7 +443,7 @@
 .retours-container .pagination-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
 /* ============================================================
-   MODAL (fixed — hors container)
+   MODAL OVERLAY
    ============================================================ */
 .modal-overlay {
   position: fixed;
@@ -495,9 +477,7 @@
   to { transform: translateY(0) scale(1); opacity: 1; }
 }
 
-.wizard-modal-large {
-  max-width: 1100px !important;
-}
+.wizard-modal-large { max-width: 1100px !important; }
 
 /* ============================================================
    WIZARD HEADER
@@ -598,17 +578,13 @@
 .wizard-modal .step-arrow { color: #94a3b8; }
 
 /* ============================================================
-   WIZARD BODY
+   WIZARD BODY / FOOTER
    ============================================================ */
 .wizard-modal .wizard-body {
   flex: 1;
   overflow-y: auto;
   padding: 20px 24px;
 }
-
-/* ============================================================
-   WIZARD FOOTER
-   ============================================================ */
 .wizard-modal .wizard-footer {
   display: flex;
   align-items: center;
@@ -655,7 +631,6 @@
   font-size: 12px;
   color: #94a3b8;
 }
-
 .wizard-modal .no-results {
   display: flex;
   flex-direction: column;
@@ -664,7 +639,6 @@
   gap: 12px;
   color: #94a3b8;
 }
-
 .wizard-modal .commandes-list {
   display: flex;
   flex-direction: column;
@@ -744,7 +718,6 @@
   color: #0f172a;
   margin: 0 0 12px;
 }
-
 .wizard-modal .empty-lignes {
   text-align: center;
   padding: 40px 20px;
@@ -752,7 +725,243 @@
 }
 
 /* ============================================================
-   FORM (dans le wizard)
+   LIGNES DE RETOUR (le bloc de chaque produit)
+   ============================================================ */
+.wizard-modal .lignes-retour {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wizard-modal .ligne-item {
+  background: white;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: all 0.15s;
+}
+
+.wizard-modal .ligne-item.selected {
+  border-color: #2563eb;
+  background: linear-gradient(to right, #f0f7ff 0%, #ffffff 40%);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.06);
+}
+
+.wizard-modal .ligne-item.disabled {
+  opacity: 0.6;
+  background: #f8fafc;
+}
+
+.wizard-modal .ligne-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.wizard-modal .ligne-info strong {
+  font-size: 15px;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.wizard-modal .ligne-marque {
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.wizard-modal .ligne-tag {
+  display: inline-block;
+  padding: 3px 10px;
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 4px;
+  align-self: flex-start;
+}
+
+/* ============================================================
+   LIGNE DÉTAILS (Acheté / Déjà retourné / Retournable)
+   ============================================================ */
+.wizard-modal .ligne-details {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+}
+
+.wizard-modal .ligne-details .detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12.5px;
+}
+
+.wizard-modal .ligne-details .detail-label {
+  color: #94a3b8;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+}
+
+.wizard-modal .ligne-details .detail-value {
+  color: #0f172a;
+  font-weight: 700;
+  text-align: right;
+}
+
+.wizard-modal .ligne-details .detail-row.highlight .detail-label {
+  color: #059669;
+}
+
+.wizard-modal .ligne-details .detail-row.highlight .detail-value {
+  color: #059669;
+  font-size: 14px;
+}
+
+/* ============================================================
+   CONTROLS (unité + quantité + preview)
+   ============================================================ */
+.wizard-modal .ligne-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.wizard-modal .unite-select {
+  padding: 9px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  background: white;
+  cursor: pointer;
+  font-family: inherit;
+  color: #0f172a;
+  transition: all 0.15s;
+}
+.wizard-modal .unite-select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.wizard-modal .qte-input {
+  width: 90px;
+  padding: 9px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  font-family: inherit;
+  color: #0f172a;
+  background: white;
+  transition: all 0.15s;
+}
+.wizard-modal .qte-input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+.wizard-modal .qte-input.invalid {
+  border-color: #ef4444;
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+/* Preview quantité (= X unités) */
+.wizard-modal .qte-preview {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #059669;
+  white-space: nowrap;
+}
+.wizard-modal .qte-preview.invalid {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #ef4444;
+}
+
+/* ============================================================
+   ÉTAT DU PRODUIT
+   ============================================================ */
+.wizard-modal .ligne-etat {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px dashed #e2e8f0;
+}
+.wizard-modal .ligne-etat label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.wizard-modal .ligne-etat select {
+  padding: 7px 12px;
+  border: 1.5px solid #e2e8f0;
+  border-radius: 7px;
+  font-size: 12.5px;
+  font-family: inherit;
+  background: white;
+  cursor: pointer;
+  color: #0f172a;
+}
+.wizard-modal .ligne-etat select:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* ============================================================
+   ERREUR LIGNE
+   ============================================================ */
+.wizard-modal .ligne-error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #991b1b;
+}
+.wizard-modal .ligne-error svg { flex-shrink: 0; }
+
+/* ============================================================
+   QTE AFFICHAGE (StockSelector dans les détails)
+   ============================================================ */
+.wizard-modal .qte-vide {
+  color: #94a3b8;
+  font-style: italic;
+  font-size: 12px;
+}
+
+/* ============================================================
+   FORM SECTION (motif + résolution)
    ============================================================ */
 .wizard-modal .form-section {
   margin-top: 20px;
@@ -772,17 +981,18 @@
 }
 .wizard-modal .form-group label {
   font-size: 12.5px;
-  font-weight: 600;
+  font-weight: 700;
   color: #475569;
 }
 .wizard-modal .form-group select,
 .wizard-modal .form-group textarea {
-  padding: 9px 12px;
+  padding: 10px 12px;
   border: 1.5px solid #e2e8f0;
   border-radius: 8px;
   font-size: 13px;
   font-family: inherit;
   background: white;
+  color: #0f172a;
 }
 .wizard-modal .form-group select:focus,
 .wizard-modal .form-group textarea:focus {
@@ -805,8 +1015,15 @@
   border-radius: 12px;
   color: white;
 }
-.wizard-modal .total-remboursement span { font-size: 13px; opacity: 0.9; font-weight: 600; }
-.wizard-modal .total-remboursement strong { font-size: 20px; font-weight: 700; }
+.wizard-modal .total-remboursement span {
+  font-size: 13px;
+  opacity: 0.95;
+  font-weight: 600;
+}
+.wizard-modal .total-remboursement strong {
+  font-size: 22px;
+  font-weight: 800;
+}
 
 /* ============================================================
    MODAL DÉTAIL
@@ -827,7 +1044,6 @@
   padding: 16px 24px;
   border-top: 1px solid #e2e8f0;
 }
-
 .modal-content .detail-info {
   display: flex;
   flex-direction: column;
@@ -853,11 +1069,6 @@
 }
 .modal-content .info-row.total strong { color: #10b981; font-size: 17px; }
 
-.modal-content .detail-modal h3 {
-  font-size: 14px;
-  color: #0f172a;
-  margin: 20px 0 10px;
-}
 .modal-content .detail-lignes {
   width: 100%;
   border-collapse: collapse;
@@ -876,261 +1087,23 @@
   padding: 10px;
   border-bottom: 1px solid #e2e8f0;
 }
-
-/* ============================================================
-   TABLEAU RETOUR — Wizard étape 2
-   ============================================================ */
-.wizard-modal .retour-table-wrapper {
-  background: white;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 12px;
-  overflow: hidden;
-  margin-top: 12px;
-}
-
-.wizard-modal .retour-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-}
-
-.wizard-modal .retour-table thead {
-  background: #f8fafc;
-}
-
-.wizard-modal .retour-table th {
-  padding: 12px 14px;
-  text-align: left;
-  font-size: 10.5px;
-  font-weight: 700;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  border-bottom: 1px solid #e2e8f0;
-  white-space: nowrap;
-}
-
-.wizard-modal .retour-table th.col-qte,
-.wizard-modal .retour-table th.col-etat {
-  text-align: center;
-}
-
-.wizard-modal .retour-table td {
-  padding: 12px 14px;
-  border-bottom: 1px solid #f1f5f9;
-  vertical-align: middle;
-}
-
-.wizard-modal .retour-table tbody tr:last-child td {
-  border-bottom: none;
-}
-
-.wizard-modal .retour-table tr.row-disabled {
-  background: #f8fafc;
-  opacity: 0.65;
-}
-
-.wizard-modal .retour-table tr.row-selected {
-  background: linear-gradient(to right, #f0f7ff 0%, transparent 60%);
-}
-
-.wizard-modal .retour-table tr.row-selected td:first-child {
-  border-left: 3px solid #2563eb;
-  padding-left: 11px;
-}
-
-.wizard-modal .retour-table tr.row-invalid {
-  background: #fef2f2;
-}
-
-.wizard-modal .retour-table tr.row-invalid td:first-child {
-  border-left: 3px solid #ef4444;
-  padding-left: 11px;
-}
-
-.wizard-modal .retour-table .produit-cell {
+.modal-content .unite-cell {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  min-width: 180px;
 }
-
-.wizard-modal .retour-table .produit-cell strong {
-  font-size: 13.5px;
-  color: #0f172a;
-  font-weight: 600;
-  line-height: 1.2;
-}
-
-.wizard-modal .retour-table .produit-cell small {
-  font-size: 11px;
-  color: #94a3b8;
-  font-style: italic;
-}
-
-.wizard-modal .retour-table .col-info {
-  white-space: nowrap;
-  min-width: 110px;
-}
-
-.wizard-modal .retour-table .info-value {
-  display: block;
-  font-size: 13px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.wizard-modal .retour-table .info-value.info-success {
-  color: #059669;
-}
-
-.wizard-modal .retour-table .info-value.info-warning {
-  color: #d97706;
-}
-
-.wizard-modal .retour-table .info-sous {
-  display: block;
+.modal-content .unite-detail {
   font-size: 10.5px;
   color: #94a3b8;
-  font-weight: 500;
-  margin-top: 1px;
-}
-
-.wizard-modal .retour-table .info-empty {
-  color: #94a3b8;
   font-style: italic;
-}
-
-.wizard-modal .retour-table .info-tag-disabled {
-  display: inline-block;
-  padding: 3px 10px;
-  background: #f1f5f9;
-  color: #64748b;
-  border-radius: 12px;
-  font-size: 11px;
-  font-weight: 600;
-}
-
-.wizard-modal .retour-table .col-qte {
-  min-width: 180px;
-}
-
-.wizard-modal .retour-table .qte-cell {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  justify-content: center;
-}
-
-.wizard-modal .retour-table .qte-input {
-  width: 70px;
-  padding: 7px 8px;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 7px;
-  font-size: 13px;
-  font-weight: 700;
-  text-align: center;
-  font-family: inherit;
-  color: #0f172a;
-  background: white;
-  transition: all 0.15s;
-}
-
-.wizard-modal .retour-table .qte-input:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.wizard-modal .retour-table .qte-input.invalid {
-  border-color: #ef4444;
-  background: #fef2f2;
-  color: #ef4444;
-}
-
-.wizard-modal .retour-table .unite-select {
-  padding: 7px 8px;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 600;
-  background: white;
-  cursor: pointer;
-  font-family: inherit;
-  color: #0f172a;
-  max-width: 110px;
-}
-
-.wizard-modal .retour-table .unite-select:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.wizard-modal .retour-table .qte-disabled {
-  color: #94a3b8;
-  font-style: italic;
-  display: block;
-  text-align: center;
-}
-
-.wizard-modal .retour-table .col-etat {
-  min-width: 110px;
-  text-align: center;
-}
-
-.wizard-modal .retour-table .etat-select {
-  padding: 7px 8px;
-  border: 1.5px solid #e2e8f0;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 600;
-  background: white;
-  cursor: pointer;
-  font-family: inherit;
-  color: #0f172a;
-  width: 100%;
-  max-width: 130px;
-}
-
-.wizard-modal .retour-table .etat-select:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
-}
-
-.wizard-modal .retour-table .etat-disabled {
-  color: #94a3b8;
-  font-style: italic;
-}
-
-.wizard-modal .table-error-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 12px;
-  padding: 10px 14px;
-  background: #fef2f2;
-  color: #991b1b;
-  border-radius: 8px;
-  font-size: 12.5px;
-  font-weight: 600;
-}
-
-.wizard-modal .table-error-banner svg {
-  flex-shrink: 0;
 }
 
 /* ============================================================
    RESPONSIVE
    ============================================================ */
 @media (max-width: 1024px) {
-  .retours-container {
-    padding: 16px;
-  }
-  .retours-container .retours-stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  .retours-container { padding: 16px; }
+  .retours-container .retours-stats { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {
@@ -1142,20 +1115,15 @@
   .retours-container .retours-actions .btn { flex: 1; justify-content: center; }
   .wizard-modal { max-width: 100%; }
 
-  /* Table : scroll horizontal sur mobile */
-  .retours-container .retours-table-wrapper {
-    overflow-x: auto;
-  }
-  .retours-container .retours-table {
-    min-width: 900px;
-  }
-}
+  .retours-container .retours-table-wrapper { overflow-x: auto; }
+  .retours-container .retours-table { min-width: 900px; }
 
-@media (max-width: 900px) {
-  .wizard-modal .retour-table-wrapper {
-    overflow-x: auto;
+  .wizard-modal .ligne-controls {
+    flex-direction: column;
+    align-items: stretch;
   }
-  .wizard-modal .retour-table {
-    min-width: 750px;
+  .wizard-modal .unite-select,
+  .wizard-modal .qte-input {
+    width: 100%;
   }
 }

@@ -49,9 +49,9 @@ const MOTIFS = [
 ];
 
 const RESOLUTIONS = [
-  { value: 'remboursement_especes', label: 'Remboursement espèces', icon: "💵" },
-  { value: 'avoir', label: 'Avoir / Crédit', icon: "📝" },
-  { value: 'echange', label: 'Échange', icon: "🔄" },
+  { value: 'remboursement_especes', label: 'Remboursement espèces', icon: "" },
+  { value: 'avoir', label: 'Avoir / Crédit', icon: "" },
+  { value: 'echange', label: 'Échange', icon: "" },
 ];
 
 const ETATS_PRODUIT = [
@@ -674,7 +674,7 @@ const RetoursClients = () => {
                   </td>
                   <td>{getStatutBadge(r.statut)}</td>
                   <td className="actions-cell">
-                    <div>
+                    <div >
                       <button
                         className="action-btn"
                         onClick={() => setOpenMenuId(openMenuId === r.id_retour_client ? null : r.id_retour_client)}
