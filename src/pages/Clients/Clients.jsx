@@ -202,7 +202,7 @@ const Clients = () => {
             {/* Filtres */}
             <div className="clients-filters">
                 <div className="search-box">
-                    <Search size={20} className="search-icon" />
+                    <Search size={20} className="" />
                     <input
                         type="text"
                         placeholder="Rechercher un client (nom ou téléphone)..."

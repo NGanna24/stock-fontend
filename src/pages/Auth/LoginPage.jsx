@@ -2,10 +2,10 @@
 import React, { useState } from 'react';
 import { useUser } from '../../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { 
-    Phone, 
-    Lock, 
-    Eye, 
+import {
+    Phone,
+    Lock,
+    Eye,
     EyeOff,
     ArrowRight,
     AlertCircle,
@@ -16,7 +16,7 @@ import './LoginPages.css';
 function LoginPage() {
     const { login, loading, error } = useUser();
     const navigate = useNavigate();
-    
+
     const [credentials, setCredentials] = useState({
         telephone: '',
         password: ''
@@ -25,30 +25,90 @@ function LoginPage() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
+
+        // ==================== 🔍 LOGS DÉBUT ====================
+        console.group('🔐 [LOGIN] Tentative de connexion');
+        console.log('📤 Données envoyées :', {
+            telephone: credentials.telephone,
+            telephoneJSON: JSON.stringify(credentials.telephone),
+            telephoneLength: credentials.telephone.length,
+            password: credentials.password ? '***' + credentials.password.slice(-2) : '(vide)',
+            passwordLength: credentials.password.length,
+        });
+        console.log('🌐 Environnement :', {
+            hostname: window.location.hostname,
+            origin: window.location.origin,
+            pathname: window.location.pathname,
+            isLocal: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1',
+        });
+        console.log('🕒 Timestamp :', new Date().toISOString());
+        // =========================================================
+
+        const startTime = performance.now();
         const result = await login(credentials);
-        
+        const duration = Math.round(performance.now() - startTime);
+
+        // ==================== 🔍 LOGS RÉSULTAT ====================
+        console.log(`⏱️ Durée de la requête : ${duration}ms`);
+        console.log('📥 Résultat brut du login :', result);
+        console.log('   result.success :', result?.success);
+        console.log('   result.data :', result?.data);
+        console.log('   result.data.user :', result?.data?.user);
+        console.log('   result.data.user.slug :', result?.data?.user?.slug);
+        console.log('   result.data.token :', result?.data?.token ? '***présent***' : '(absent)');
+        console.log('   result.error :', result?.error);
+        console.log('   result.message :', result?.message);
+        // =========================================================
+
         if (result.success && result.data?.user?.slug) {
-            // ✅ Rediriger vers le dashboard avec le slug
+            console.log('✅ Succès → redirection vers :', `/${result.data.user.slug}/dashboard`);
+            console.groupEnd();
             navigate(`/${result.data.user.slug}/dashboard`);
         } else if (result.success) {
+            console.log('⚠️ Succès mais pas de slug → redirection vers /dashboard');
+            console.groupEnd();
             navigate('/dashboard');
+        } else {
+            console.error('❌ Échec du login');
+            console.error('   Raison :', result?.error || result?.message || 'Inconnue');
+            console.groupEnd();
         }
     };
 
     const handleChange = (e) => {
+        const { name, value } = e.target;
+
+        // ==================== 🔍 LOG SAISIE ====================
+        console.log(`✏️ Champ "${name}" :`, {
+            valeur: name === 'password' ? '***' : value,
+            longueur: value.length,
+            type: typeof value,
+        });
+        // ======================================================
+
         setCredentials({
             ...credentials,
-            [e.target.name]: e.target.value
+            [name]: value
         });
     };
+
+    // ==================== 🔍 LOG ERREUR CONTEXTE ====================
+    React.useEffect(() => {
+        if (error) {
+            console.group('🚨 [LOGIN] Erreur remontée par AuthContext');
+            console.error('   error :', error);
+            console.error('   typeof :', typeof error);
+            console.groupEnd();
+        }
+    }, [error]);
+    // =============================================================
 
     return (
         <div className="auth-page-split">
             {/* Partie gauche - Formulaire */}
             <div className="auth-form-section">
                 <div className="auth-form-container">
-                   
+
 
                     {/* En-tête */}
                     <div className="auth-header-split">
@@ -109,8 +169,8 @@ function LoginPage() {
                         </div>
 
                         {/* Bouton de connexion */}
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             className={`auth-button-split ${loading ? 'loading' : ''}`}
                             disabled={loading}
                         >
@@ -131,7 +191,7 @@ function LoginPage() {
                     {/* Lien vers inscription */}
                     <div className="auth-footer-split">
                         <p>
-                            Pas encore de compte ? 
+                            Pas encore de compte ?
                             <Link to="/register" className="auth-link-split">
                                 S'inscrire
                             </Link>
@@ -143,7 +203,7 @@ function LoginPage() {
             {/* Partie droite - Information */}
             <div className="auth-info-section">
                 <div className="auth-info-content">
-                   
+
                     <h2>Gérez votre stock en toute simplicité</h2>
                     <p className="info-subtitle">
                         Connectez-vous pour accéder à votre tableau de bord

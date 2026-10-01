@@ -92,6 +92,7 @@ function AppContent() {
         <BrowserRouter>
             <Routes>
                 {/* ==================== ROUTES PUBLIQUES ==================== */}
+                
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
 
