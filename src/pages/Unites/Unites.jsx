@@ -462,7 +462,7 @@ const Unites = () => {
       {/* Filtres et recherche */}
       <div className="unites-filters">
         <div className="search-box">
-          <Search size={20} className="search-icon" />
+          <Search size={20}/>
           <input
             type="text"
             placeholder="Rechercher une unité..."
@@ -578,7 +578,7 @@ const Unites = () => {
                   name="nom"
                   value={formData.nom}
                   onChange={handleInputChange}
-                  placeholder="Ex: Kilogramme, Litre, Pièce"
+                  placeholder="Ex:Pièce, bidon, metre, litre..."
                   disabled={saving}
                   maxLength={50}
                 />

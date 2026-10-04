@@ -609,7 +609,7 @@ const Achats = () => {
       {/* Filtres et recherche */}
       <div className="achats-filters">
         <div className="search-box">
-          <Search size={20} className="search-icon" />
+          <Search size={20} />
           <input
             type="text"
             placeholder="Rechercher une commande..."

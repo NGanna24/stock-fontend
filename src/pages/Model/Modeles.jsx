@@ -429,7 +429,7 @@ const Modeles = () => {
       {/* Filtres et recherche */}
       <div className="modeles-filters">
         <div className="search-box">
-          <Search size={20} className="search-icon" />
+          <Search size={20}  />
           <input
             type="text"
             placeholder="Rechercher un modèle..."
@@ -545,7 +545,7 @@ const Modeles = () => {
                   name="nom"
                   value={formData.nom}
                   onChange={handleInputChange}
-                  placeholder="Entrez le nom du modèle (ex: Galaxy S24, iPhone 15)"
+                  placeholder="Entrez le nom du modèle ..."
                   disabled={saving}
                   maxLength={100}
                 />

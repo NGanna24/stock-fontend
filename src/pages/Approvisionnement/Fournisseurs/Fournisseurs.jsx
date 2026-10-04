@@ -715,7 +715,7 @@ const Fournisseurs = () => {
       {/* Filtres et recherche */}
       <div className="fournisseurs-filters">
         <div className="search-box">
-          <Search size={20} className="search-icon" />
+          <Search size={20} />
           <input
             type="text"
             placeholder="Rechercher un fournisseur (nom, email, téléphone, ville...)"

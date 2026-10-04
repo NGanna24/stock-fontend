@@ -1,4 +1,4 @@
-/* components/Dashboard/Sidebar/Sidebar.css */
+/* components/Dashboard/Sidebar/Sidebar.css — Refonte Miyo */
 
 /* ============================================================
    RESET LOCAL
@@ -7,18 +7,30 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  font-family: Inter, system-ui, -apple-system, sans-serif;
+  font-family: 'Instrument Sans', Inter, system-ui, -apple-system, sans-serif;
 }
 
-
 /* ============================================================
-   CONTAINER PRINCIPAL
+   CONTAINER PRINCIPAL — Couleurs Miyo
    ============================================================ */
 .sidebar {
+  /* Variables locales */
+  --sb-bg: #3D2E1F;
+  --sb-bg-hover: #4A3826;
+  --sb-bg-active: #8B5A2B;
+  --sb-bg-active-hover: #6B4520;
+  --sb-border: rgba(245, 213, 168, 0.12);
+  --sb-text: #F5E6D3;
+  --sb-text-dim: #B5A08A;
+  --sb-text-muted: #8A7560;
+  --sb-accent: #F5D5A8;
+  --sb-accent-dark: #8B5A2B;
+  --sb-cream: #FFF8EE;
+
   width: 290px;
   height: 100vh;
-  background: #111827;
-  color: #fff;
+  background: linear-gradient(180deg, #3D2E1F 0%, #2D2114 100%);
+  color: var(--sb-text);
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
@@ -27,7 +39,28 @@
   position: sticky;
   top: 0;
   flex-shrink: 0;
-  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  border-right: 1px solid var(--sb-border);
+  position: relative;
+}
+
+/* Décoration : petit halo en haut */
+.sidebar::before {
+  content: '';
+  position: absolute;
+  top: -100px;
+  right: -100px;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(245, 213, 168, 0.08), transparent 70%);
+  border-radius: 50%;
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.sidebar > * {
+  position: relative;
+  z-index: 1;
 }
 
 .sidebar.collapsed {
@@ -39,7 +72,7 @@
    ============================================================ */
 .logo {
   padding: 20px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid var(--sb-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -52,26 +85,10 @@
   overflow: hidden;
 }
 
-.logo-content h2 {
-  font-size: 24px;
-  color: #995F2F;
-  font-weight: 700;
-  letter-spacing: -0.5px;
-  white-space: nowrap;
-}
-
-.logo-content span {
-  color: #9ca3af;
-  font-size: 13px;
-  display: block;
-  margin-top: 2px;
-  white-space: nowrap;
-}
-
 .collapse-btn {
   background: transparent;
   border: none;
-  color: #9ca3af;
+  color: var(--sb-text-muted);
   cursor: pointer;
   padding: 8px;
   border-radius: 8px;
@@ -83,13 +100,98 @@
 }
 
 .collapse-btn:hover {
-  background: #1f2937;
-  color: #fff;
+  background: rgba(245, 213, 168, 0.1);
+  color: var(--sb-cream);
 }
 
 .sidebar.collapsed .logo {
   justify-content: center;
   padding: 20px 0;
+}
+
+/* ============================================================
+   LOGO MIYO DANS LA SIDEBAR
+   ============================================================ */
+.logo-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+  padding: 4px;
+  border-radius: 12px;
+  transition: background 0.2s ease;
+}
+
+.logo-brand:hover {
+  cursor: pointer;
+  background: rgba(245, 213, 168, 0.06);
+}
+
+.logo-miyo-image {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  object-fit: contain;
+  flex-shrink: 0;
+  transition: all 0.2s ease;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.logo-brand:hover .logo-miyo-image {
+  transform: scale(1.05);
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.logo-text h2 {
+  font-family: 'Bricolage Grotesque', Inter, sans-serif;
+  font-size: 22px;
+  background: linear-gradient(135deg, #F5D5A8, #FFF8EE);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.logo-text span {
+  color: var(--sb-text-muted);
+  font-size: 12px;
+  display: block;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+
+/* Logo en mode réduit */
+.logo-miyo-image-collapsed {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  object-fit: contain;
+  transition: all 0.2s ease;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.logo-miyo-image-collapsed:hover {
+  transform: scale(1.05);
+  filter: drop-shadow(0 0 12px rgba(245, 213, 168, 0.4));
+}
+
+.sidebar.collapsed .logo {
+  justify-content: center;
+  padding: 16px 0;
 }
 
 /* ============================================================
@@ -100,84 +202,6 @@
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
-}
-/* ============================================================
-   LOGO MIYO DANS LA SIDEBAR
-   ============================================================ */
-
-.logo-brand {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-    flex: 1;
-}
-
-.logo-miyo-image {
-    width: 42px;
-    height: 42px;
-    border-radius: 10px;
-    object-fit: contain;
-    flex-shrink: 0;
-    /* background: white; */
-    /* padding: 3px; */
-    /* border: 2px solid rgba(59, 130, 246, 0.2); */
-    transition: all 0.2s ease;
-}
-
-.logo-miyo-image:hover {
-    border-color: #995F2F;
-    transform: scale(1.05);
-}
-
-.logo-text {
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    flex: 1;
-}
-
-.logo-text h2 {
-    font-size: 22px;
-    color: #995F2F;
-    font-weight: 700;
-    letter-spacing: -0.5px;
-    white-space: nowrap;
-    margin: 0;
-    line-height: 1.2;
-}
-
-.logo-text span {
-    color: #9ca3af;
-    font-size: 12px;
-    display: block;
-    margin-top: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-/* Logo en mode réduit */
-.logo-miyo-image-collapsed {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    object-fit: contain;
-    /* background: white; */
-    padding: 4px;
-    /* border: 2px solid rgba(59, 130, 246, 0.2); */
-    transition: all 0.2s ease;
-}
-
-.logo-miyo-image-collapsed:hover { 
-    border-color: #995F2F;
-    transform: scale(1.05);
-}
-
-/* Mode réduit : le logo est centré */
-.sidebar.collapsed .logo {
-    justify-content: center;
-    padding: 16px 0;
 }
 
 /* ============================================================
@@ -200,7 +224,7 @@
 .section-header-static .section-title {
   font-size: 11px;
   font-weight: 700;
-  color: #6b7280;
+  color: var(--sb-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -216,7 +240,7 @@
   background: none;
   border: none;
   cursor: pointer;
-  color: #6b7280;
+  color: var(--sb-text-muted);
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
@@ -227,11 +251,11 @@
 }
 
 .section-header:hover {
-  color: #9ca3af;
+  color: var(--sb-text-dim);
 }
 
 .section-header.has-active {
-  color: #60a5fa; 
+  color: var(--sb-accent);
 }
 
 .section-header .section-title {
@@ -269,7 +293,7 @@
   width: 100%;
   border: none;
   background: none;
-  color: #d1d5db;
+  color: var(--sb-text);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -286,18 +310,31 @@
 }
 
 .menu-item:hover {
-  background: #1f2937;
-  color: #fff;
+  background: var(--sb-bg-hover);
+  color: var(--sb-cream);
 }
 
 .menu-item.active {
-  background: #2563eb;
-  color: #fff;
-  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+  background: linear-gradient(135deg, var(--sb-accent-dark), #A87548);
+  color: var(--sb-cream);
+  box-shadow: 0 4px 12px rgba(139, 90, 43, 0.4);
+  font-weight: 600;
+}
+
+.menu-item.active::before {
+  content: '';
+  position: absolute;
+  left: -12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 60%;
+  background: var(--sb-accent);
+  border-radius: 0 3px 3px 0;
 }
 
 .menu-item.active:hover {
-  background: #1d4ed8;
+  background: linear-gradient(135deg, var(--sb-bg-active-hover), var(--sb-accent-dark));
 }
 
 .menu-left {
@@ -310,6 +347,11 @@
 
 .menu-left svg {
   flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+.menu-item:hover .menu-left svg {
+  transform: scale(1.05);
 }
 
 .menu-left span {
@@ -366,6 +408,10 @@
   min-height: 44px;
 }
 
+.sidebar.collapsed .menu-item.active::before {
+  display: none;
+}
+
 .sidebar.collapsed .menu-left {
   gap: 0;
   justify-content: center;
@@ -394,14 +440,15 @@
   left: calc(100% + 12px);
   top: 50%;
   transform: translateY(-50%);
-  background: #1f2937;
-  color: #fff;
+  background: #2D2114;
+  color: var(--sb-cream);
   padding: 8px 14px;
   border-radius: 8px;
   font-size: 13px;
   font-weight: 500;
   white-space: nowrap;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--sb-border);
   z-index: 1001;
   pointer-events: none;
   animation: fadeInTooltip 0.15s ease;
@@ -423,9 +470,9 @@
    ============================================================ */
 .sidebar-footer {
   padding: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: 1px solid var(--sb-border);
   flex-shrink: 0;
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.25);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -435,7 +482,7 @@
 .logout-item {
   background: none;
   border: none;
-  color: #9ca3af;
+  color: var(--sb-text-dim);
   display: flex;
   align-items: center;
   justify-content: flex-start;
@@ -447,11 +494,12 @@
   font-weight: 500;
   font-family: inherit;
   width: 100%;
+  position: relative;
 }
 
 .logout-item:hover {
-  background: rgba(239, 68, 68, 0.1);
-  color: #ef4444;
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
 }
 
 .sidebar.collapsed .logout-item {
@@ -463,6 +511,25 @@
   display: none;
 }
 
+.sidebar.collapsed .logout-item[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  left: calc(100% + 12px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: #2D2114;
+  color: #fca5a5;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  z-index: 1001;
+  pointer-events: none;
+}
+
 /* Info utilisateur */
 .user-info {
   display: flex;
@@ -471,8 +538,6 @@
   padding: 8px 6px;
   min-width: 0;
 }
-
-
 
 .user-details {
   flex: 1;
@@ -483,7 +548,7 @@
 .user-name {
   font-size: 13px;
   font-weight: 600;
-  color: #fff;
+  color: var(--sb-cream);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -491,7 +556,7 @@
 
 .user-role {
   font-size: 11px;
-  color: #9ca3af;
+  color: var(--sb-text-muted);
   display: block;
   white-space: nowrap;
   overflow: hidden;
@@ -513,13 +578,13 @@
 
 .sidebar::-webkit-scrollbar-thumb,
 .sidebar-nav::-webkit-scrollbar-thumb {
-  background: #374151;
+  background: rgba(245, 213, 168, 0.15);
   border-radius: 10px;
 }
 
 .sidebar::-webkit-scrollbar-thumb:hover,
 .sidebar-nav::-webkit-scrollbar-thumb:hover {
-  background: #4b5563;
+  background: rgba(245, 213, 168, 0.3);
 }
 
 /* ============================================================

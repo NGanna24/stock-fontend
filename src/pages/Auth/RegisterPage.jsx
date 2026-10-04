@@ -8,18 +8,15 @@ import {
     Lock, 
     Eye, 
     EyeOff,
-
     ArrowRight,
     CheckCircle,
     AlertCircle,
-    Loader2,
-    Mail,
-    Shield,
-    Sparkles
+    Loader2
 } from 'lucide-react';
 import './RegisterPages.css';
 
 function RegisterPage() {
+    const logoMiyo = '/logo/logo-miyo.png';
     const { register, loading, error } = useUser();
     const navigate = useNavigate();
     
@@ -79,7 +76,7 @@ function RegisterPage() {
         const result = await register(formData);
         
         if (result.success) {
-            setSuccessMessage('🎉 Inscription réussie !');
+            setSuccessMessage('Inscription réussie !');
             setTimeout(() => {
                 navigate('/dashboard');
             }, 1500);
@@ -99,16 +96,24 @@ function RegisterPage() {
 
     return (
         <div className="auth-page-split">
-            {/* Partie gauche - Formulaire */}
+            {/* ============================================ */}
+            {/* PARTIE GAUCHE - FORMULAIRE                   */}
+            {/* ============================================ */}
             <div className="auth-form-section">
                 <div className="auth-form-container">
-                    {/* Logo */}
-                  
+
+                    {/* Petit badge Miyo */}
+                    <div className="auth-brand">
+                        <div className="auth-brand-logo">
+                            <img src={logoMiyo} alt="Miyo" />
+                        </div>
+                        <span className="auth-brand-name">Miyo Stock</span>
+                    </div>
 
                     {/* En-tête */}
                     <div className="auth-header-split">
                         <h2>Créer un compte</h2>
-                        <p>ou utilisez votre email pour l'inscription :</p>
+                        <p>Rejoignez la nouvelle génération de gestion de stock.</p>
                     </div>
 
                     {/* Messages */}
@@ -189,7 +194,7 @@ function RegisterPage() {
                                 <input
                                     type={showPassword ? 'text' : 'password'}
                                     name="password"
-                                    placeholder="Mot de passe (4 chiffres)"
+                                    placeholder="Code PIN (4 chiffres)"
                                     value={formData.password}
                                     onChange={handleChange}
                                     onBlur={handleBlur}
@@ -248,38 +253,38 @@ function RegisterPage() {
                 </div>
             </div>
 
-            {/* Partie droite - Informations */}
+            {/* ============================================ */}
+            {/* PARTIE DROITE - PANNEAU PRODUIT              */}
+            {/* ============================================ */}
             <div className="auth-info-section">
                 <div className="auth-info-content">
-                   
-                    
-                    <h2>Pour rester connecté avec nous</h2>
-                    <p className="info-subtitle">connectez-vous avec vos informations personnelles</p>
 
-                    <div className="info-features">
-                        <div className="info-feature">
-                            <Shield size={20} />
-                            <div>
-                                <h4>Connexion sécurisée</h4>
-                                <p>Vos données sont protégées avec une sécurité de niveau entreprise</p>
-                            </div>
-                        </div>
-                        <div className="info-feature">
-                            <Mail size={20} />
-                            <div>
-                                <h4>Notifications par email</h4>
-                                <p>Restez informé avec des notifications en temps réel</p>
-                            </div>
-                        </div>
+                    {/* Logo Miyo (le singe) — agrandi */}
+                    <div className="auth-info-logo">
+                        <img src={logoMiyo} alt="Miyo Stock" />
                     </div>
 
+                    {/* Titre */}
+                    <div className="auth-info-title">
+                        <h2>
+                            Gérez votre stock <br />
+                            <span className="highlight">sans effort.</span>
+                        </h2>
+                        <p className="info-subtitle">
+                            Une plateforme moderne pour suivre vos produits, vos ventes et vos
+                            approvisionnements en temps réel.
+                        </p>
+                    </div>
+
+                    {/* Bouton login */}
                     <Link to="/login" className="info-login-btn">
                         SE CONNECTER
                         <ArrowRight size={18} />
                     </Link>
 
+                    {/* Footer */}
                     <div className="info-footer">
-                        <p>© 2026 miyo. Tous droits réservés.</p>
+                        <p>© 2026 Miyo Stock. Tous droits réservés.</p>
                     </div>
                 </div>
             </div>

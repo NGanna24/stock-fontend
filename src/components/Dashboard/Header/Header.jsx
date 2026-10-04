@@ -6,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import AlerteService from "../../../services/alerteService";
 import MagasinService from "../../../services/magasinService";
 import SearchService from "../../../services/searchService";
+import ConfirmModal from "../../ConfirmModal/ConfirmModal";
 
 import {
     Search,
@@ -27,16 +28,16 @@ import {
     X,
     ArrowRight,
 } from "lucide-react";
+
 const isLocal =
-  typeof window !== "undefined" &&
-  (window.location.hostname === "localhost" ||
-   window.location.hostname === "127.0.0.1" ||
-   window.location.hostname.startsWith("192.168."));
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1" ||
+        window.location.hostname.startsWith("192.168."));
 
 const API_BASE_URL = isLocal
-  ? "http://192.168.187.1:8080"
-  : "https://miyo.n-double.com";
-
+    ? "http://192.168.187.1:8080"
+    : "https://miyo.n-double.com";
 
 // ============ HELPERS ============
 const formatMontant = (v) => {
@@ -57,10 +58,14 @@ const Header = () => {
     const [notificationsCount, setNotificationsCount] = useState(0);
     const [darkMode, setDarkMode] = useState(false);
 
-    // ✅ État magasin
+    // État magasin
     const [magasin, setMagasin] = useState(null);
 
-    // ✅ ÉTATS RECHERCHE DYNAMIQUE
+    // État modal déconnexion
+    const [showLogoutModal, setShowLogoutModal] = useState(false);
+    const [loggingOut, setLoggingOut] = useState(false);
+
+    // États recherche dynamique
     const [searchTerm, setSearchTerm] = useState("");
     const [searchResults, setSearchResults] = useState(null);
     const [searchLoading, setSearchLoading] = useState(false);
@@ -78,44 +83,24 @@ const Header = () => {
     const userTelephone = user?.telephone || "";
 
     // ==================== CHARGEMENT MAGASIN ====================
-useEffect(() => {
-    const loadMagasin = async () => {
-        console.log('═══════════════════════════════════════');
-        console.log('🏪 [LOG M1] Chargement magasin...');
+    useEffect(() => {
+        const loadMagasin = async () => {
+            const token = localStorage.getItem('token');
+            if (!token || !user?.slug) return;
 
-        const token = localStorage.getItem('token');
-        console.log('   token présent:', !!token);
-        console.log('   user.slug:', user?.slug);
-
-        if (!token || !user?.slug) {
-            console.log('   ⚠️ SKIP : token ou slug manquant');
-            return;
-        }
-
-        try {
-            const res = await MagasinService.getMonMagasin(token);
-            console.log('📥 [LOG M2] Réponse getMonMagasin:');
-            console.log('   res complet:', res);
-            console.log('   res.success:', res?.success);
-            console.log('   res.magasin:', res?.magasin);
-            console.log('   res.data:', res?.data);
-            console.log('   res.magasin?.logo_url:', res?.magasin?.logo_url);
-            console.log('   res.data?.logo_url:', res?.data?.logo_url);
-
-            if (res.success) {
-                const mag = res.magasin || res.data;
-                console.log('   ✅ setMagasin avec:', mag);
-                setMagasin(mag);
-            } else {
-                console.log('   ❌ res.success = false');
+            try {
+                const res = await MagasinService.getMonMagasin(token);
+                if (res.success) {
+                    const mag = res.magasin || res.data;
+                    setMagasin(mag);
+                }
+            } catch (e) {
+                console.error('❌ Erreur chargement magasin:', e);
             }
-        } catch (e) {
-            console.error('❌ [LOG M2] Erreur chargement magasin:', e);
-            console.error('   Stack:', e.stack);
-        }
-    };
-    loadMagasin();
-}, [user?.slug]);
+        };
+        loadMagasin();
+    }, [user?.slug]);
+
     // ==================== CHARGEMENT ALERTES ====================
     useEffect(() => {
         const loadAlertesCount = async () => {
@@ -172,7 +157,6 @@ useEffect(() => {
         }
     }, []);
 
-    // Debounce la recherche
     useEffect(() => {
         if (searchDebounce.current) clearTimeout(searchDebounce.current);
 
@@ -194,7 +178,6 @@ useEffect(() => {
         };
     }, [searchTerm, performSearch]);
 
-    // Fermer au clic extérieur
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (searchRef.current && !searchRef.current.contains(e.target)) {
@@ -330,9 +313,23 @@ useEffect(() => {
         localStorage.setItem('darkMode', newValue.toString());
     };
 
-    const handleLogout = async () => {
-        await logout();
-        navigate('/login');
+    // ==================== DÉCONNEXION ====================
+    const handleLogoutClick = () => {
+        setShowLogoutModal(true);
+        setShowDropdown(false);
+    };
+
+    const handleLogoutConfirm = async () => {
+        setLoggingOut(true);
+        try {
+            await logout();
+            navigate('/login');
+        } catch (err) {
+            console.error('Erreur déconnexion:', err);
+        } finally {
+            setLoggingOut(false);
+            setShowLogoutModal(false);
+        }
     };
 
     // ==================== HELPERS ====================
@@ -368,7 +365,7 @@ useEffect(() => {
         setShowDropdown(!showDropdown);
     };
 
-    // ==================== RENDER DU DROPDOWN DE RECHERCHE ====================
+    // ==================== RENDER DROPDOWN RECHERCHE ====================
     const renderSearchDropdown = () => {
         if (!searchOpen) return null;
 
@@ -382,7 +379,6 @@ useEffect(() => {
         };
         const totalResults = Object.values(counts).reduce((a, b) => a + b, 0);
 
-        // Chargement
         if (searchLoading && !searchResults) {
             return (
                 <div className="search-dropdown">
@@ -394,7 +390,6 @@ useEffect(() => {
             );
         }
 
-        // Aucun résultat
         if (!searchLoading && totalResults === 0) {
             return (
                 <div className="search-dropdown">
@@ -407,7 +402,6 @@ useEffect(() => {
             );
         }
 
-        // Résultats
         let flatIndex = -1;
 
         return (
@@ -667,185 +661,199 @@ useEffect(() => {
     };
 
     return (
-        <header className="header">
-            <div className="headerleft">
-                {/* SEARCH BOX AVEC DROPDOWN */}
-                <div className="search-box" ref={searchRef}>
-                    
-                    <input
-                        ref={inputRef}
-                        type="text"
-                        placeholder="Rechercher un produit, un client, une facture..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        onFocus={() => {
-                            if (searchTerm.trim().length >= 2) setSearchOpen(true);
-                        }}
-                        onKeyDown={handleKeyDown}
-                    />
-                    {searchLoading && (
-                        <Loader size={16} className="search-loading-icon spinning" />
-                    )}
-                    {searchTerm && !searchLoading && (
-                        <button
-                            className="search-clear"
-                            onClick={clearSearch}
-                            aria-label="Effacer"
-                        >
-                            <X size={14} />
-                        </button>
-                    )}
-                    {renderSearchDropdown()}
-                </div>
-            </div>
-
-            <div className="header-right">
-                {/* ICÔNE 1 : Alertes de stock */}
-                <button
-                    className="icon-btn"
-                    onClick={goToAlertes}
-                    title={`${alertesCount} alerte(s) de stock`}
-                    aria-label="Alertes de stock"
-                >
-                    <TriangleAlert size={20} />
-                    {alertesCount > 0 && (
-                        <span className="badge red">{alertesCount}</span>
-                    )}
-                </button>
-
-                <button
-                    className="icon-btn"
-                    onClick={goToNotifications}
-                    title={`${notificationsCount} notification(s)`}
-                    aria-label="Notifications"
-                >
-                    <Bell size={20} />
-                    {notificationsCount > 0 && (
-                        <span className="badge">{notificationsCount}</span>
-                    )}
-                </button>
-
-                <button
-                    className="icon-btn"
-                    onClick={toggleDarkMode}
-                    title={darkMode ? "Mode clair" : "Mode sombre"}
-                    aria-label="Basculer le thème"
-                >
-                    {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-                </button>
-
-                <button
-                    className="icon-btn"
-                    onClick={goToSettings}
-                    title="Paramètres"
-                    aria-label="Paramètres"
-                >
-                    <Settings size={20} />
-                </button>
-
-                {/* PROFIL */}
-                <div className="profile-container">
-                    <div className="profile" onClick={toggleDropdown}>
-                        {/* ✅ LOGO DU MAGASIN */}
-                        <div className="profile-logo">
-                            {getLogoUrl() ? (
-                                <img
-                                    src={getLogoUrl()}
-                                    alt={magasin?.nom_commercial || 'Logo'}
-                                    onLoad={() => console.log('✅ [LOG L4] IMG chargée')}
-                                    onError={(e) => {
-                                        console.error('❌ [LOG L4] Erreur IMG:', e.target.src);
-                                        e.target.style.display = 'none';
-                                        if (e.target.nextSibling) {
-                                            e.target.nextSibling.style.display = 'flex';
-                                        }
-                                    }}
-                                />
-                            ) : null}
-                            <span
-                                className="profile-logo-initials"
-                                style={{ display: getLogoUrl() ? 'none' : 'flex' }}
-                            >
-                                {getMagasinInitiales()}
-                            </span>
-                        </div>
-
-                        <div className="profile-info">
-                            <h4>{magasin?.nom_commercial || userFullname}</h4>
-                            <p>{getRoleLabel(userRole)}</p>
-                        </div>
-
-                        <ChevronDown
-                            size={18}
-                            className={`dropdown-arrow ${showDropdown ? 'rotated' : ''}`}
+        <>
+            <header className="header">
+                <div className="headerleft">
+                    {/* SEARCH BOX AVEC DROPDOWN */}
+                    <div className="search-box" ref={searchRef}>
+                        <Search size={18} />
+                        <input
+                            ref={inputRef}
+                            type="text"
+                            placeholder="Rechercher un produit, un client, une facture..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                            onFocus={() => {
+                                if (searchTerm.trim().length >= 2) setSearchOpen(true);
+                            }}
+                            onKeyDown={handleKeyDown}
                         />
+                        {searchLoading && (
+                            <Loader size={16} className="search-loading-icon spinning" />
+                        )}
+                        {searchTerm && !searchLoading && (
+                            <button
+                                className="search-clear"
+                                onClick={clearSearch}
+                                aria-label="Effacer"
+                            >
+                                <X size={14} />
+                            </button>
+                        )}
+                        {renderSearchDropdown()}
                     </div>
+                </div>
 
-                    {showDropdown && (
-                        <div className="profile-dropdown">
-                            <div className="dropdown-header">
-                                <div className="dropdown-logo">
-                                    {getLogoUrl() ? (
-                                        <img
-                                            src={getLogoUrl()}
-                                            alt={magasin?.nom_commercial || 'Logo'}
-                                            onError={(e) => {
-                                                e.target.style.display = 'none';
+                <div className="header-right">
+                    {/* ICÔNE 1 : Alertes de stock */}
+                    <button
+                        className="icon-btn"
+                        onClick={goToAlertes}
+                        title={`${alertesCount} alerte(s) de stock`}
+                        aria-label="Alertes de stock"
+                    >
+                        <TriangleAlert size={20} />
+                        {alertesCount > 0 && (
+                            <span className="badge red">{alertesCount}</span>
+                        )}
+                    </button>
+
+                    <button
+                        className="icon-btn"
+                        onClick={goToNotifications}
+                        title={`${notificationsCount} notification(s)`}
+                        aria-label="Notifications"
+                    >
+                        <Bell size={20} />
+                        {notificationsCount > 0 && (
+                            <span className="badge">{notificationsCount}</span>
+                        )}
+                    </button>
+
+                    <button
+                        className="icon-btn"
+                        onClick={toggleDarkMode}
+                        title={darkMode ? "Mode clair" : "Mode sombre"}
+                        aria-label="Basculer le thème"
+                    >
+                        {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+                    </button>
+
+                    <button
+                        className="icon-btn"
+                        onClick={goToSettings}
+                        title="Paramètres"
+                        aria-label="Paramètres"
+                    >
+                        <Settings size={20} />
+                    </button>
+
+                    {/* PROFIL */}
+                    <div className="profile-container">
+                        <div className="profile" onClick={toggleDropdown}>
+                            <div className="profile-logo">
+                                {getLogoUrl() ? (
+                                    <img
+                                        src={getLogoUrl()}
+                                        alt={magasin?.nom_commercial || 'Logo'}
+                                        onError={(e) => {
+                                            e.target.style.display = 'none';
+                                            if (e.target.nextSibling) {
                                                 e.target.nextSibling.style.display = 'flex';
-                                            }}
-                                        />
-                                    ) : null}
-                                    <span
-                                        className="dropdown-logo-initials"
-                                        style={{ display: getLogoUrl() ? 'none' : 'flex' }}
-                                    >
-                                        {getMagasinInitiales()}
-                                    </span>
-                                </div>
-
-                                <div className="dropdown-user-info">
-                                    <h4>{magasin?.nom_commercial || 'Mon magasin'}</h4>
-                                    <p>{userFullname}</p>
-                                    <small>{getRoleLabel(userRole)} • {userTelephone}</small>
-                                </div>
+                                            }
+                                        }}
+                                    />
+                                ) : null}
+                                <span
+                                    className="profile-logo-initials"
+                                    style={{ display: getLogoUrl() ? 'none' : 'flex' }}
+                                >
+                                    {getMagasinInitiales()}
+                                </span>
                             </div>
 
-                            <div className="dropdown-divider"></div>
+                            <div className="profile-info">
+                                <h4>{magasin?.nom_commercial || userFullname}</h4>
+                                <p>{getRoleLabel(userRole)}</p>
+                            </div>
 
-                            <button className="dropdown-item" onClick={goToProfile}>
-                                <User size={18} />
-                                <span>Mon profil</span>
-                            </button>
-
-                            <button className="dropdown-item" onClick={goToSettings}>
-                                <Settings size={18} />
-                                <span>Paramètres</span>
-                            </button>
-
-                            <button className="dropdown-item" onClick={goToDashboard}>
-                                <Warehouse size={18} />
-                                <span>Tableau de bord</span>
-                            </button>
-
-                            <button className="dropdown-item" onClick={goToAlertes}>
-                                <TriangleAlert size={18} />
-                                <span>Alertes de stock</span>
-                                {alertesCount > 0 && (
-                                    <span className="dropdown-badge">{alertesCount}</span>
-                                )}
-                            </button>
-
-                            <div className="dropdown-divider"></div>
-
-                            <button className="dropdown-item logout" onClick={handleLogout}>
-                                <LogOut size={18} />
-                                <span>Déconnexion</span>
-                            </button>
+                            <ChevronDown
+                                size={18}
+                                className={`dropdown-arrow ${showDropdown ? 'rotated' : ''}`}
+                            />
                         </div>
-                    )}
+
+                        {showDropdown && (
+                            <div className="profile-dropdown">
+                                <div className="dropdown-header">
+                                    <div className="dropdown-logo">
+                                        {getLogoUrl() ? (
+                                            <img
+                                                src={getLogoUrl()}
+                                                alt={magasin?.nom_commercial || 'Logo'}
+                                                onError={(e) => {
+                                                    e.target.style.display = 'none';
+                                                    e.target.nextSibling.style.display = 'flex';
+                                                }}
+                                            />
+                                        ) : null}
+                                        <span
+                                            className="dropdown-logo-initials"
+                                            style={{ display: getLogoUrl() ? 'none' : 'flex' }}
+                                        >
+                                            {getMagasinInitiales()}
+                                        </span>
+                                    </div>
+
+                                    <div className="dropdown-user-info">
+                                        <h4>{magasin?.nom_commercial || 'Mon magasin'}</h4>
+                                        <p>{userFullname}</p>
+                                        <small>{getRoleLabel(userRole)} • {userTelephone}</small>
+                                    </div>
+                                </div>
+
+                                <div className="dropdown-divider"></div>
+
+                                <button className="dropdown-item" onClick={goToProfile}>
+                                    <User size={18} />
+                                    <span>Mon profil</span>
+                                </button>
+
+                                <button className="dropdown-item" onClick={goToSettings}>
+                                    <Settings size={18} />
+                                    <span>Paramètres</span>
+                                </button>
+
+                                <button className="dropdown-item" onClick={goToDashboard}>
+                                    <Warehouse size={18} />
+                                    <span>Tableau de bord</span>
+                                </button>
+
+                                <button className="dropdown-item" onClick={goToAlertes}>
+                                    <TriangleAlert size={18} />
+                                    <span>Alertes de stock</span>
+                                    {alertesCount > 0 && (
+                                        <span className="dropdown-badge">{alertesCount}</span>
+                                    )}
+                                </button>
+
+                                <div className="dropdown-divider"></div>
+
+                                <button className="dropdown-item logout" onClick={handleLogoutClick}>
+                                    <LogOut size={18} />
+                                    <span>Déconnexion</span>
+                                </button>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
-        </header>
+            </header>
+
+            {/* ============================================================
+                MODAL DE DÉCONNEXION
+                ============================================================ */}
+            <ConfirmModal
+                isOpen={showLogoutModal}
+                onClose={() => !loggingOut && setShowLogoutModal(false)}
+                onConfirm={handleLogoutConfirm}
+                title="Se déconnecter ?"
+                message="Vous allez être redirigé vers la page de connexion. Toute modification non enregistrée sera perdue."
+                type="warning"
+                confirmLabel="Se déconnecter"
+                cancelLabel="Annuler"
+                loading={loggingOut}
+            />
+        </>
     );
 };
 

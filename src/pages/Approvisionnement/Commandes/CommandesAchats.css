@@ -239,7 +239,337 @@
 }
 
 /* ============================================================
-   STATISTIQUES
+   ═══════════════════════════════════════════════════════════
+   BLOC DE PILOTAGE — Remplace les 7 cartes de stats
+   ═══════════════════════════════════════════════════════════
+   ============================================================ */
+
+/* ---------- Bandeau principal (2 KPIs héros) ---------- */
+.pilot-hero {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.pilot-hero-card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 22px 26px;
+  overflow: hidden;
+  transition: var(--transition);
+}
+
+
+
+.pilot-hero-card:hover {
+  border-color: #cbd5e1;
+  box-shadow: var(--shadow-md);
+}
+
+.pilot-hero-card--amount {
+  --accent-bar: linear-gradient(90deg, #6366f1, #8b5cf6);
+}
+
+.pilot-hero-card--rate {
+  --accent-bar: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.pilot-hero-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 10px;
+}
+
+.pilot-hero-label svg {
+  color: var(--accent-bar, var(--primary));
+  opacity: 0.8;
+}
+
+.pilot-hero-value {
+  font-size: clamp(24px, 3vw, 32px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.05;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pilot-hero-value--muted {
+  color: var(--text-muted);
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.pilot-hero-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex-wrap: wrap;
+}
+
+.pilot-hero-meta strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+/* Barre de progression dans la carte taux */
+.pilot-rate-track {
+  margin-top: 14px;
+  height: 8px;
+  background: var(--bg);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.pilot-rate-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #10b981, #34d399);
+  border-radius: 999px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+}
+
+.pilot-rate-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+  animation: pilot-shine 2.4s ease-in-out infinite;
+}
+
+@keyframes pilot-shine {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.pilot-rate-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ---------- Barre de répartition par statut ---------- */
+.pilot-breakdown {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 22px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-sm);
+}
+
+.pilot-breakdown-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.pilot-breakdown-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.pilot-breakdown-title svg {
+  color: var(--primary);
+}
+
+.pilot-breakdown-title-count {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 10px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+
+.pilot-breakdown-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 12px;
+  background: #fef2f2;
+  color: var(--danger);
+  border: none;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.pilot-breakdown-clear:hover {
+  background: #fee2e2;
+}
+
+/* Barre segmentée */
+.pilot-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg);
+  margin-bottom: 16px;
+  gap: 2px;
+  padding: 2px;
+}
+
+.pilot-bar-segment {
+  height: 100%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  min-width: 4px;
+  border-radius: 999px;
+}
+
+.pilot-bar-segment:hover {
+  filter: brightness(1.08);
+  transform: scaleY(1.2);
+}
+
+.pilot-bar-segment.is-active {
+  filter: brightness(1.05);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px currentColor;
+}
+
+.pilot-bar-segment--pending   { background: #f59e0b; color: #f59e0b; }
+.pilot-bar-segment--sent      { background: #3b82f6; color: #3b82f6; }
+.pilot-bar-segment--partial   { background: #8b5cf6; color: #8b5cf6; }
+.pilot-bar-segment--received  { background: #10b981; color: #10b981; }
+.pilot-bar-segment--cancelled { background: #ef4444; color: #ef4444; }
+
+/* Légende interactive */
+.pilot-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pilot-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: var(--transition);
+  font-family: inherit;
+  font-size: 13px;
+}
+
+.pilot-legend-item:hover {
+  background: var(--bg);
+  border-color: #cbd5e1;
+}
+
+.pilot-legend-item.is-active {
+  background: var(--bg);
+  border-color: var(--text-primary);
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.06);
+}
+
+.pilot-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+.pilot-legend-dot--pending   { background: #f59e0b; }
+.pilot-legend-dot--sent      { background: #3b82f6; }
+.pilot-legend-dot--partial   { background: #8b5cf6; }
+.pilot-legend-dot--received  { background: #10b981; }
+.pilot-legend-dot--cancelled { background: #ef4444; }
+
+.pilot-legend-label {
+  font-weight: 500;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.pilot-legend-item.is-active .pilot-legend-label {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.pilot-legend-count {
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.pilot-legend-percent {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 900px) {
+  .pilot-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .pilot-hero-card {
+    padding: 18px 20px;
+  }
+}
+
+@media (max-width: 600px) {
+  .pilot-breakdown {
+    padding: 14px 16px;
+  }
+
+  .pilot-legend {
+    gap: 6px;
+  }
+
+  .pilot-legend-item {
+    padding: 6px 10px;
+    font-size: 12.5px;
+  }
+
+  .pilot-legend-percent {
+    display: none;
+  }
+
+  .pilot-hero-value {
+    font-size: 22px;
+  }
+}
+
+/* ============================================================
+   STATISTIQUES (anciennes — conservées pour compatibilité)
    ============================================================ */
 .commandes-stats {
   display: grid;
@@ -474,25 +804,18 @@
 
 /* ============================================================
    VUE LISTE — TABLEAU
-   ✅ Le scroll horizontal est géré par .commandes-table-scroll
-   ✅ Le menu 3 points passe par un PORTAL (voir .dropdown-portal-menu)
    ============================================================ */
 .commandes-table-scroll {
-  /* ✅ Wrapper scrollable qui NE COUPE PAS les menus en portal */
   overflow-x: auto;
   overflow-y: visible;
   margin-bottom: 20px;
-  /* ✅ Important : le portal sort de ce contexte, donc pas de clipping */
 }
 
 .commandes-table-container {
   background: var(--surface);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
-  /* ❌ PLUS d'overflow-x: auto ici (c'était le bug) */
-  /* ❌ PLUS de overflow: visible non plus */
   position: relative;
-  /* ✅ On laisse le contenu respirer */
 }
 
 .commandes-table {
@@ -564,7 +887,6 @@
   padding: 8px 12px;
   white-space: nowrap;
   width: 80px;
-  /* ✅ z-index géré par le portal — pas besoin ici */
 }
 
 .actions-menu-wrapper {
@@ -613,7 +935,7 @@
 }
 
 /* ============================================================
-   DROPDOWN PORTAL (nouveau menu 3 points - jamais coupé)
+   DROPDOWN PORTAL
    ============================================================ */
 .dropdown-trigger-wrapper {
   display: inline-block;
@@ -631,11 +953,9 @@
 }
 
 .dropdown-portal-menu.placement-top {
-  /* menu ouvert au-dessus du bouton */
   transform-origin: bottom right;
 }
 .dropdown-portal-menu.placement-bottom {
-  /* menu ouvert en dessous du bouton */
   transform-origin: top right;
 }
 
@@ -684,8 +1004,7 @@
 }
 
 /* ============================================================
-   ANCIEN DROPDOWN (conservé pour compatibilité / fallback)
-   ✅ z-index élevé pour éviter les coupures si jamais utilisé
+   ANCIEN DROPDOWN (fallback)
    ============================================================ */
 .actions-dropdown {
   position: absolute;
@@ -1015,7 +1334,7 @@
 }
 
 /* ============================================================
-   MODAL (commun à la page)
+   MODAL (commun)
    ============================================================ */
 .modal-overlay {
   position: fixed;

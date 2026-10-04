@@ -24,7 +24,7 @@ export const ROLE_PERMISSIONS = {
         'produits',
     ],
 
-    magasinier: [
+    magasinier: [ 
         'dashboard', 'alertes',
         // Catalogue & stock
         'produits', 'categories', 'marques', 'modeles', 'unites', 'mouvements', 'inventaires',

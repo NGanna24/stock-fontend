@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
 import API_URL from '../config/api';
+import { getErrorMessage } from '../utils/errorMessages';
 
 // 1. Créer le Context
 const AuthContext = createContext();
@@ -11,15 +12,15 @@ export function AuthContextProvider({ children }) {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
-    const [isInitialized, setIsInitialized] = useState(false); // ✅ AJOUTÉ
+    const [isInitialized, setIsInitialized] = useState(false);
 
     // Vérifier si l'utilisateur est déjà connecté au chargement
     useEffect(() => {
-        const initializeAuth = () => { 
+        const initializeAuth = () => {
             try {
                 const token = localStorage.getItem('token');
                 const userData = localStorage.getItem('user');
-                
+
                 if (token && userData) {
                     try {
                         const parsedUser = JSON.parse(userData);
@@ -31,9 +32,9 @@ export function AuthContextProvider({ children }) {
                     }
                 }
             } catch (error) {
-                console.error('❌ Erreur lors de l\'initialisation:', error);
+                console.error("❌ Erreur lors de l'initialisation:", error);
             } finally {
-                setIsInitialized(true); // ✅ MARQUER COMME INITIALISÉ
+                setIsInitialized(true);
             }
         };
 
@@ -44,26 +45,26 @@ export function AuthContextProvider({ children }) {
     const login = async (credentials) => {
         setLoading(true);
         setError(null);
-        
+
         try {
             const response = await axios.post(API_URL.AUTH.LOGIN, credentials);
-            
+
             console.log('Connexion réussie:', response.data);
-            
+
             if (response.data.token) {
                 localStorage.setItem('token', response.data.token);
                 localStorage.setItem('user', JSON.stringify(response.data.user));
                 setUser(response.data.user);
             }
-            
+
             return { success: true, data: response.data };
-            
+
         } catch (err) {
             console.error('❌ Erreur de connexion:', err);
-            const errorMessage = err.response?.data?.message || err.message || 'Erreur de connexion';
+            const errorMessage = getErrorMessage(err);
             setError(errorMessage);
             return { success: false, error: errorMessage };
-            
+
         } finally {
             setLoading(false);
         }
@@ -71,28 +72,28 @@ export function AuthContextProvider({ children }) {
 
     // ==================== FONCTION D'INSCRIPTION ====================
     const register = async (userData) => {
-        setLoading(true); 
+        setLoading(true);
         setError(null);
-        
+
         try {
             const response = await axios.post(API_URL.AUTH.REGISTER, userData);
-            
+
             console.log('✅ Inscription réussie:', response.data);
-            
+
             if (response.data.token) {
                 localStorage.setItem('token', response.data.token);
                 localStorage.setItem('user', JSON.stringify(response.data.user));
                 setUser(response.data.user);
             }
-            
+
             return { success: true, data: response.data };
-            
+
         } catch (err) {
-            console.error('❌ Erreur d\'inscription:', err);
-            const errorMessage = err.response?.data?.message || err.message || 'Erreur d\'inscription';
+            console.error("❌ Erreur d'inscription:", err);
+            const errorMessage = getErrorMessage(err);
             setError(errorMessage);
             return { success: false, error: errorMessage };
-            
+
         } finally {
             setLoading(false);
         }
@@ -101,10 +102,10 @@ export function AuthContextProvider({ children }) {
     // ==================== FONCTION DE DÉCONNEXION ====================
     const logout = async () => {
         setLoading(true);
-        
+
         try {
             const token = localStorage.getItem('token');
-            
+
             if (token) {
                 await axios.post(
                     API_URL.AUTH.LOGOUT,
@@ -116,8 +117,9 @@ export function AuthContextProvider({ children }) {
                     }
                 );
             }
-            
+
         } catch (err) {
+            // On log l'erreur mais on ne bloque pas la déconnexion côté client
             console.error('❌ Erreur lors de la déconnexion:', err);
         } finally {
             localStorage.removeItem('token');
@@ -131,33 +133,33 @@ export function AuthContextProvider({ children }) {
     const getProfile = async () => {
         setLoading(true);
         setError(null);
-        
+
         try {
             const token = localStorage.getItem('token');
-            
+
             if (!token) {
                 throw new Error('Non authentifié');
             }
-            
+
             const response = await axios.get(API_URL.AUTH.PROFILE, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
             });
-            
+
             if (response.data && response.data.user) {
                 setUser(response.data.user);
                 localStorage.setItem('user', JSON.stringify(response.data.user));
             }
-            
+
             return { success: true, data: response.data };
-            
+
         } catch (err) {
             console.error('❌ Erreur de récupération du profil:', err);
-            const errorMessage = err.response?.data?.message || err.message || 'Erreur de profil';
+            const errorMessage = getErrorMessage(err);
             setError(errorMessage);
             return { success: false, error: errorMessage };
-            
+
         } finally {
             setLoading(false);
         }
@@ -167,34 +169,34 @@ export function AuthContextProvider({ children }) {
     const updateProfile = async (userData) => {
         setLoading(true);
         setError(null);
-        
+
         try {
             const token = localStorage.getItem('token');
-            
+
             if (!token) {
                 throw new Error('Non authentifié');
             }
-            
+
             const response = await axios.put(API_URL.AUTH.PROFILE, userData, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
                 }
             });
-            
+
             if (response.data && response.data.user) {
                 setUser(response.data.user);
                 localStorage.setItem('user', JSON.stringify(response.data.user));
             }
-            
+
             return { success: true, data: response.data };
-            
+
         } catch (err) {
             console.error('❌ Erreur de mise à jour du profil:', err);
-            const errorMessage = err.response?.data?.message || err.message || 'Erreur de mise à jour';
+            const errorMessage = getErrorMessage(err);
             setError(errorMessage);
             return { success: false, error: errorMessage };
-            
+
         } finally {
             setLoading(false);
         }
@@ -204,14 +206,14 @@ export function AuthContextProvider({ children }) {
     const changePassword = async (oldPassword, newPassword) => {
         setLoading(true);
         setError(null);
-        
+
         try {
             const token = localStorage.getItem('token');
-            
+
             if (!token) {
                 throw new Error('Non authentifié');
             }
-            
+
             const response = await axios.put(
                 API_URL.AUTH.CHANGE_PASSWORD,
                 { oldPassword, newPassword },
@@ -222,15 +224,15 @@ export function AuthContextProvider({ children }) {
                     }
                 }
             );
-            
+
             return { success: true, data: response.data };
-            
+
         } catch (err) {
             console.error('❌ Erreur de changement de mot de passe:', err);
-            const errorMessage = err.response?.data?.message || err.message || 'Erreur de changement';
+            const errorMessage = getErrorMessage(err);
             setError(errorMessage);
             return { success: false, error: errorMessage };
-            
+
         } finally {
             setLoading(false);
         }
@@ -244,7 +246,7 @@ export function AuthContextProvider({ children }) {
         error,
         setError,
         isAuthenticated: !!user,
-        isInitialized, // ✅ AJOUTÉ
+        isInitialized,
         login,
         register,
         logout,
@@ -263,10 +265,10 @@ export function AuthContextProvider({ children }) {
 // 3. Hook personnalisé pour utiliser le Context
 export function useUser() {
     const context = useContext(AuthContext);
-    
+
     if (!context) {
         throw new Error("useUser doit être utilisé à l'intérieur d'un AuthContextProvider");
     }
-    
+
     return context;
 }

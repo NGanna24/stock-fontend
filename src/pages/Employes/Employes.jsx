@@ -352,7 +352,7 @@ const Employes = () => {
             {/* ==================== FILTRES ==================== */}
             <div className="employes-filters">
                 <div className="search-box">
-                    <Search size={18} className="search-icon" />
+                    <Search size={18}/>
                     <input
                         type="text"
                         placeholder="Rechercher par nom ou téléphone..."
@@ -518,7 +518,7 @@ const Employes = () => {
 
             {/* ==================== MODAL CRÉATION / ÉDITION ==================== */}
             {showModal && (
-                <div className="modal-overlay" onClick={closeModal}>
+                <div className="modal-overlay">
                     <div className="modal-content" onClick={(e) => e.stopPropagation()}>
                         <div className="modal-header">
                             <h2>{editingId ? 'Modifier l\'employé' : 'Ajouter un employé'}</h2>

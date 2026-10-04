@@ -8,7 +8,7 @@ const ConfirmModal = ({
     isOpen,
     onClose,
     onConfirm,
-    title,
+    title, 
     message,
     details,
     type = 'warning',       // 'warning' | 'danger' | 'success' | 'info'

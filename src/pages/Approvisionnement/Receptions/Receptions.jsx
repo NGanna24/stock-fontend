@@ -5,7 +5,7 @@ import {
   RefreshCw, Grid, List, Package, Banknote, Calendar, Clock,
   AlertCircle, CheckCircle, Ban, FileText, Building, Truck,
   ClipboardList, CheckSquare, Square, AlertTriangle, Trash2,
-  ShoppingBag, Box, CheckCheck, Info, ChevronDown
+  ShoppingBag, ChevronDown
 } from "lucide-react";
 import ReceptionService from "../../../services/receptionService";
 import CommandeAchatService from "../../../services/commandeAchatService";
@@ -19,7 +19,7 @@ const Receptions = () => {
   const { user, isAuthenticated } = useUser();
   const token = localStorage.getItem('token');
 
-  // États principaux
+  // ============ ÉTATS PRINCIPAUX ============
   const [receptions, setReceptions] = useState([]);
   const [commandesDisponibles, setCommandesDisponibles] = useState([]);
   const [fournisseurs, setFournisseurs] = useState([]);
@@ -34,7 +34,7 @@ const Receptions = () => {
   const [filterStatut, setFilterStatut] = useState("");
   const [toastMessage, setToastMessage] = useState(null);
 
-  // Modals
+  // ============ MODALS ============
   const [showModal, setShowModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -44,23 +44,22 @@ const Receptions = () => {
   const [deleting, setDeleting] = useState(false);
   const [updatingStatut, setUpdatingStatut] = useState(null);
 
-  // Formulaire
+  // ============ FORMULAIRE ============
   const [formData, setFormData] = useState({
     id_commande_achat: "",
     lignes: []
   });
-
   const [toutValide, setToutValide] = useState(false);
   const [commandeSelectionnee, setCommandeSelectionnee] = useState(null);
 
-  // ============ ÉTATS DU SÉLECTEUR DE COMMANDE ============
+  // ============ SÉLECTEUR DE COMMANDE ============
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerSearch, setPickerSearch] = useState("");
   const [pickerHighlighted, setPickerHighlighted] = useState(0);
   const pickerRef = useRef(null);
   const pickerInputRef = useRef(null);
 
-  // Modal de confirmation générique
+  // ============ MODAL DE CONFIRMATION GÉNÉRIQUE ============
   const [confirmModal, setConfirmModal] = useState({
     isOpen: false,
     title: '',
@@ -192,17 +191,14 @@ const Receptions = () => {
     if (!term) {
       // Par défaut : TOP 10 des plus urgentes (anciennes d'abord)
       const sorted = [...commandesDisponibles].sort((a, b) => {
-        // Partiellement reçues en premier
         const aPartiel = a.statut === 'partiellement_recue' ? 0 : 1;
         const bPartiel = b.statut === 'partiellement_recue' ? 0 : 1;
         if (aPartiel !== bPartiel) return aPartiel - bPartiel;
-        // Puis par date croissante (les plus anciennes = urgentes)
         return new Date(a.date_commande) - new Date(b.date_commande);
       });
       return sorted.slice(0, 10);
     }
 
-    // Sinon filtre
     return commandesDisponibles
       .filter(c =>
         c.numero_commande?.toLowerCase().includes(term) ||
@@ -233,86 +229,81 @@ const Receptions = () => {
     }
   }, [formData.id_commande_achat, commandesDisponibles]);
 
-const chargerDetailsCommande = async (idCommande) => {
+  const chargerDetailsCommande = async (idCommande) => {
     setLoading(true);
     try {
-        const response = await CommandeAchatService.getCommandeById(token, idCommande);
-        if (response.success && response.data) {
-            const commande = response.data;
+      const response = await CommandeAchatService.getCommandeById(token, idCommande);
+      if (response.success && response.data) {
+        const commande = response.data;
 
-            const lignesReception = (commande.lignes || []).map(l => {
-                const qteBase = parseFloat(l.quantite_base) || 1;
+        const lignesReception = (commande.lignes || []).map(l => {
+          const qteBase = parseFloat(l.quantite_base) || 1;
 
-                // ✅ On utilise le reste à recevoir renvoyé par le back
-                const resteUV = l.reste_a_recevoir !== undefined
-                    ? parseFloat(l.reste_a_recevoir) || 0
-                    : parseFloat(l.quantite) || 0;
+          // On utilise le reste à recevoir renvoyé par le back
+          const resteUV = l.reste_a_recevoir !== undefined
+            ? parseFloat(l.reste_a_recevoir) || 0
+            : parseFloat(l.quantite) || 0;
 
-                const dejaRecueUV = l.quantite_deja_recue !== undefined
-                    ? parseFloat(l.quantite_deja_recue) || 0
-                    : 0;
+          const dejaRecueUV = l.quantite_deja_recue !== undefined
+            ? parseFloat(l.quantite_deja_recue) || 0
+            : 0;
 
-                const totalCommandeUV = parseFloat(l.quantite) || 0;
+          const totalCommandeUV = parseFloat(l.quantite) || 0;
 
-                const prixAchatUV = l.prix_achat !== null && l.prix_achat !== undefined
-                    ? parseFloat(l.prix_achat)
-                    : null;
+          const prixAchatUV = l.prix_achat !== null && l.prix_achat !== undefined
+            ? parseFloat(l.prix_achat)
+            : null;
 
-                return {
-                    id_produit: l.id_produit,
-                    id_ligne_achat: l.id_ligne_achat || null,
-                    produit_nom: l.produit_nom || 'Produit inconnu',
-                    produit_reference: l.reference || '',
-                    id_unite_vente: l.id_unite_vente || null,
-                    nom_unite_vente: l.nom_unite_vente || l.unite_vente_nom || 'Unité',
-                    quantite_base: qteBase,
+          return {
+            id_produit: l.id_produit,
+            id_ligne_achat: l.id_ligne_achat || null,
+            produit_nom: l.produit_nom || 'Produit inconnu',
+            produit_reference: l.reference || '',
+            id_unite_vente: l.id_unite_vente || null,
+            nom_unite_vente: l.nom_unite_vente || l.unite_vente_nom || 'Unité',
+            quantite_base: qteBase,
 
-                    // ✅ reste à recevoir (utilisé dans l'UI)
-                    quantite_commandee: resteUV,
+            // reste à recevoir (utilisé dans l'UI)
+            quantite_commandee: resteUV,
 
-                    // ℹ️ infos affichées en bonus
-                    quantite_totale_commandee: totalCommandeUV,
-                    quantite_deja_recue: dejaRecueUV,
+            // infos affichées en bonus
+            quantite_totale_commandee: totalCommandeUV,
+            quantite_deja_recue: dejaRecueUV,
 
-                    quantite_totale_base_commandee: totalCommandeUV * qteBase,
-                    quantite_recue: resteUV,
-                    quantite_totale_base: resteUV * qteBase,
-                    ecart: 0,
-                    prix_achat_unite_vente: prixAchatUV,
-                    unite: l.nom_unite_vente || l.unite_symbole || '',
-                    valide: true,
-                    etat_marchandise: 'bon',
-                    num_lot: '',
-                    date_peremption: '',
-                    notes: ''
-                };
-            });
+            quantite_totale_base_commandee: totalCommandeUV * qteBase,
+            quantite_recue: resteUV,
+            quantite_totale_base: resteUV * qteBase,
+            ecart: 0,
+            prix_achat_unite_vente: prixAchatUV,
+            unite: l.nom_unite_vente || l.unite_symbole || '',
+            valide: true,
+            etat_marchandise: 'bon',
+            num_lot: '',
+            date_peremption: '',
+            notes: ''
+          };
+        });
 
-            // ✅ Cas : commande déjà totalement reçue
-            const rienARecevoir = lignesReception.length === 0
-                || lignesReception.every(l => l.quantite_commandee <= 0);
+        // Cas : commande déjà totalement reçue
+        const rienARecevoir = lignesReception.length === 0
+          || lignesReception.every(l => l.quantite_commandee <= 0);
 
-            if (rienARecevoir) {
-                setError('Cette commande a déjà été entièrement reçue.');
-                setFormData(prev => ({ ...prev, lignes: [] }));
-                setToutValide(false);
-                return;
-            }
-
-            setFormData(prev => ({ ...prev, lignes: lignesReception }));
-            setToutValide(lignesReception.every(l => l.valide === true));
+        if (rienARecevoir) {
+          setError('Cette commande a déjà été entièrement reçue.');
+          setFormData(prev => ({ ...prev, lignes: [] }));
+          setToutValide(false);
+          return;
         }
-    } catch (error) {
-        console.error('❌ Erreur lors du chargement des détails:', error);
-        setError('Impossible de charger les détails de la commande');
-    } finally {
-        setLoading(false);
-    }
-};
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+        setFormData(prev => ({ ...prev, lignes: lignesReception }));
+        setToutValide(lignesReception.every(l => l.valide === true));
+      }
+    } catch (error) {
+      console.error('❌ Erreur lors du chargement des détails:', error);
+      setError('Impossible de charger les détails de la commande');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const toggleValiderLigne = (index) => {
@@ -337,23 +328,23 @@ const chargerDetailsCommande = async (idCommande) => {
     setToutValide(nouvellesLignes.every(l => l.valide === true));
   };
 
-const validerTout = () => {
+  const validerTout = () => {
     const nouvellesLignes = formData.lignes.map(l => {
-        // ✅ Ne pas écraser les lignes déjà validées
-        if (l.valide === true) return l;
+      // Ne pas écraser les lignes déjà validées
+      if (l.valide === true) return l;
 
-        const qteBase = l.quantite_base || 1;
-        return {
-            ...l,
-            valide: true,
-            quantite_recue: l.quantite_commandee,
-            quantite_totale_base: l.quantite_commandee * qteBase,
-            ecart: 0
-        };
+      const qteBase = l.quantite_base || 1;
+      return {
+        ...l,
+        valide: true,
+        quantite_recue: l.quantite_commandee,
+        quantite_totale_base: l.quantite_commandee * qteBase,
+        ecart: 0
+      };
     });
     setFormData({ ...formData, lignes: nouvellesLignes });
     setToutValide(true);
-};
+  };
 
   const deselectionnerTout = () => {
     const nouvellesLignes = formData.lignes.map(l => ({
@@ -377,17 +368,8 @@ const validerTout = () => {
     nouvellesLignes[index].quantite_totale_base = qteRecue * qteBase;
     nouvellesLignes[index].ecart = qteCommandee - qteRecue;
 
-    if (qteRecue > 0) {
-      nouvellesLignes[index].valide = true;
-    } else {
-      nouvellesLignes[index].valide = false;
-    }
-
-    if (qteRecue < qteCommandee) {
-      nouvellesLignes[index].etat_marchandise = 'partiel';
-    } else {
-      nouvellesLignes[index].etat_marchandise = 'bon';
-    }
+    nouvellesLignes[index].valide = qteRecue > 0;
+    nouvellesLignes[index].etat_marchandise = qteRecue < qteCommandee ? 'partiel' : 'bon';
 
     setFormData({ ...formData, lignes: nouvellesLignes });
     setToutValide(nouvellesLignes.every(l => l.valide === true));
@@ -406,21 +388,9 @@ const validerTout = () => {
     setFormData({ ...formData, lignes: nouvellesLignes });
   };
 
-  const handleLotChange = (index, value) => {
-    const nouvellesLignes = [...formData.lignes];
-    nouvellesLignes[index].num_lot = value;
-    setFormData({ ...formData, lignes: nouvellesLignes });
-  };
-
   const handlePeremptionChange = (index, value) => {
     const nouvellesLignes = [...formData.lignes];
     nouvellesLignes[index].date_peremption = value;
-    setFormData({ ...formData, lignes: nouvellesLignes });
-  };
-
-  const handleNotesChange = (index, value) => {
-    const nouvellesLignes = [...formData.lignes];
-    nouvellesLignes[index].notes = value;
     setFormData({ ...formData, lignes: nouvellesLignes });
   };
 
@@ -435,14 +405,14 @@ const validerTout = () => {
     setTimeout(() => pickerInputRef.current?.focus(), 50);
   };
 
-const handlePickerSelect = (commande) => {
+  const handlePickerSelect = (commande) => {
     setFormData(prev => ({
-        ...prev,
-        id_commande_achat: commande.id_commande_achat  // number
+      ...prev,
+      id_commande_achat: commande.id_commande_achat
     }));
     setPickerOpen(false);
     setPickerSearch("");
-};
+  };
 
   const handlePickerClear = () => {
     setFormData(prev => ({ ...prev, id_commande_achat: "", lignes: [] }));
@@ -530,18 +500,18 @@ const handlePickerSelect = (commande) => {
       const surplus = lignesAvecEcart.filter(l => l.ecart < 0);
 
       openConfirm({
-        title: '⚠️ Écarts détectés',
+        title: 'Écarts détectés',
         message: `${lignesAvecEcart.length} ligne(s) présente(nt) un écart avec la commande initiale.`,
         details: (
           <>
             {manquants.length > 0 && (
               <div className="detail-section">
-                <span className="detail-label">📉 Manquants</span>
+                <span className="detail-label">Manquants</span>
                 <ul>
                   {manquants.map((l, i) => (
                     <li key={i}>
                       <strong>{l.produit_nom}</strong> : commandé <strong>{l.quantite_commandee} {l.nom_unite_vente}</strong>, reçu <strong>{l.quantite_recue} {l.nom_unite_vente}</strong>
-                      <span style={{ color: '#ef4444', marginLeft: '6px' }}>
+                      <span style={{ color: '#b42318', marginLeft: '6px' }}>
                         (-{l.ecart} {l.nom_unite_vente})
                       </span>
                     </li>
@@ -551,12 +521,12 @@ const handlePickerSelect = (commande) => {
             )}
             {surplus.length > 0 && (
               <div className="detail-section">
-                <span className="detail-label">📈 Surplus</span>
+                <span className="detail-label">Surplus</span>
                 <ul>
                   {surplus.map((l, i) => (
                     <li key={i}>
                       <strong>{l.produit_nom}</strong> : commandé <strong>{l.quantite_commandee} {l.nom_unite_vente}</strong>, reçu <strong>{l.quantite_recue} {l.nom_unite_vente}</strong>
-                      <span style={{ color: '#2563eb', marginLeft: '6px' }}>
+                      <span style={{ color: '#175cd3', marginLeft: '6px' }}>
                         (+{Math.abs(l.ecart)} {l.nom_unite_vente})
                       </span>
                     </li>
@@ -564,8 +534,8 @@ const handlePickerSelect = (commande) => {
                 </ul>
               </div>
             )}
-            <p style={{ marginTop: '10px', fontSize: '12px', color: '#64748b' }}>
-              La commande sera marquée <strong>"partiellement reçue"</strong> si des manquants existent.
+            <p style={{ marginTop: '10px', fontSize: '12px', color: '#5b6672' }}>
+              La commande sera marquée <strong>« partiellement reçue »</strong> si des manquants existent.
             </p>
           </>
         ),
@@ -635,7 +605,7 @@ const handlePickerSelect = (commande) => {
         setFormData({ id_commande_achat: "", lignes: [] });
         setToutValide(false);
         setCommandeSelectionnee(null);
-        showToast('✓ Réception enregistrée avec succès !');
+        showToast('Réception enregistrée avec succès');
       } else {
         setError(response.message || 'Erreur lors de la sauvegarde');
       }
@@ -668,7 +638,7 @@ const handlePickerSelect = (commande) => {
         await loadCommandesDisponibles();
         setShowDeleteModal(false);
         setReceptionToDelete(null);
-        showToast('🗑️ Réception supprimée avec succès');
+        showToast('Réception supprimée');
       } else {
         setError(response.message || 'Erreur lors de la suppression');
       }
@@ -690,7 +660,7 @@ const handlePickerSelect = (commande) => {
       if (response.success) {
         await loadReceptions();
         await loadCommandesDisponibles();
-        showToast('✓ Statut mis à jour avec succès');
+        showToast('Statut mis à jour');
       } else {
         setError(response.message || 'Erreur lors du changement de statut');
       }
@@ -724,7 +694,7 @@ const handlePickerSelect = (commande) => {
         link.download = `receptions_${new Date().toISOString().split('T')[0]}.csv`;
         link.click();
         URL.revokeObjectURL(url);
-        showToast('📊 Exportation terminée');
+        showToast('Export terminé');
       }
     } catch (error) {
       console.error('❌ Export error:', error);
@@ -776,66 +746,81 @@ const handlePickerSelect = (commande) => {
   const currentItems = filteredReceptions.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredReceptions.length / itemsPerPage);
 
+  const formatDate = (d) => (d ? new Date(d).toLocaleDateString('fr-FR') : '-');
+
   // ============================================================
   // RENDU STATUT
   // ============================================================
   const renderStatut = (statut) => {
     const configs = {
-      'en_attente': { label: 'En attente', className: 'status-en-attente', icon: Clock },
-      'partielle': { label: 'Partielle', className: 'status-partiel', icon: AlertCircle },
-      'complete': { label: 'Complète', className: 'status-recue', icon: CheckCircle },
-      'annulee': { label: 'Annulée', className: 'status-annulee', icon: Ban }
+      'en_attente': { label: 'En attente', key: 'en-attente' },
+      'partielle': { label: 'Partielle', key: 'partielle' },
+      'complete': { label: 'Complète', key: 'complete' },
+      'annulee': { label: 'Annulée', key: 'annulee' }
     };
-
     const config = configs[statut] || configs['en_attente'];
-    const Icon = config.icon;
 
     return (
-      <span className={`status-badge ${config.className}`}>
-        <Icon size={14} />
+      <span className={`rc-status rc-status--${config.key}`}>
+        <span className="rc-status-dot" />
         {config.label}
       </span>
     );
   };
 
+  const renderEcart = (ecart, uniteLabel) => {
+    if (ecart > 0) {
+      return (
+        <span className="rc-ecart rc-ecart--manque">
+          −{ecart} <small>{uniteLabel}</small>
+        </span>
+      );
+    }
+    if (ecart < 0) {
+      return (
+        <span className="rc-ecart rc-ecart--surplus">
+          +{Math.abs(ecart)} <small>{uniteLabel}</small>
+        </span>
+      );
+    }
+    return (
+      <span className="rc-ecart rc-ecart--ok">
+        <Check size={13} /> Conforme
+      </span>
+    );
+  };
+
   // ============================================================
-  // PICKER DE COMMANDE (Recherche dynamique)
+  // PICKER DE COMMANDE
   // ============================================================
   const renderCommandePicker = () => {
     const isSelected = !!commandeSelectionnee;
 
     return (
-      <div className="commande-picker" ref={pickerRef}>
-        <label className="picker-label">
+      <div className="rc-picker" ref={pickerRef}>
+        <label className="rc-field-label">
           <ShoppingBag size={14} />
-          Commande d'achat *
+          Commande d'achat
         </label>
 
         {isSelected ? (
-          <div className="picker-selected">
-            <div className="picker-selected-main">
-              <div className="picker-selected-icon">
-                <FileText size={20} />
-              </div>
-              <div className="picker-selected-info">
-                <span className="picker-selected-num">
-                  {commandeSelectionnee.numero_commande}
-                </span>
-                <span className="picker-selected-meta">
-                  <Building size={12} />
-                  {commandeSelectionnee.fournisseur_nom}
-                  <span className="picker-sep">·</span>
-                  <Calendar size={12} />
-                  {formatDateCommande(commandeSelectionnee.date_commande)}
-                  <span className="picker-sep">·</span>
-                  <Banknote size={12} />
-                  {formatMontant(commandeSelectionnee.montant_total)}
-                </span>
-              </div>
+          <div className="rc-picker-selected">
+            <div className="rc-picker-selected-icon">
+              <FileText size={18} />
+            </div>
+            <div className="rc-picker-selected-info">
+              <span className="rc-picker-selected-num">
+                {commandeSelectionnee.numero_commande}
+              </span>
+              <span className="rc-picker-selected-meta">
+                <span><Building size={12} /> {commandeSelectionnee.fournisseur_nom}</span>
+                <span><Calendar size={12} /> {formatDateCommande(commandeSelectionnee.date_commande)}</span>
+                <span><Banknote size={12} /> {formatMontant(commandeSelectionnee.montant_total)}</span>
+              </span>
             </div>
             <button
               type="button"
-              className="picker-change-btn"
+              className="rc-btn rc-btn--outline rc-btn--sm"
               onClick={handlePickerClear}
               disabled={saving}
             >
@@ -843,13 +828,13 @@ const handlePickerSelect = (commande) => {
             </button>
           </div>
         ) : (
-          <div className="picker-input-wrapper">
-            <Search size={18} className="picker-search-icon" />
+          <div className="rc-picker-input-wrap">
+            <Search size={17} className="rc-picker-icon" />
             <input
               ref={pickerInputRef}
               type="text"
-              className="picker-input"
-              placeholder="Rechercher une commande (n°, fournisseur, date...)"
+              className="rc-picker-input"
+              placeholder="Rechercher par numéro, fournisseur ou date"
               value={pickerSearch}
               onChange={(e) => {
                 setPickerSearch(e.target.value);
@@ -861,74 +846,60 @@ const handlePickerSelect = (commande) => {
               disabled={saving || loadingCommandes}
             />
             {loadingCommandes ? (
-              <span className="spinner-small picker-spinner" />
+              <span className="rc-spinner rc-spinner--sm rc-picker-end" />
             ) : (
               <ChevronDown
-                size={18}
-                className={`picker-chevron ${pickerOpen ? 'open' : ''}`}
+                size={17}
+                className={`rc-picker-end rc-picker-chevron ${pickerOpen ? 'is-open' : ''}`}
               />
             )}
           </div>
         )}
 
         {pickerOpen && !isSelected && (
-          <div className="picker-dropdown">
-            <div className="picker-dropdown-header">
+          <div className="rc-picker-dropdown">
+            <div className="rc-picker-dropdown-head">
               {isDefaultList ? (
                 <>
                   <Clock size={14} />
-                  <span>
-                    Commandes en attente — les {filteredCommandes.length} plus urgentes
-                  </span>
+                  <span>Les {filteredCommandes.length} commandes les plus urgentes</span>
                 </>
               ) : (
                 <>
                   <Search size={14} />
-                  <span>
-                    {filteredCommandes.length} résultat(s) pour « {pickerSearch} »
-                  </span>
+                  <span>{filteredCommandes.length} résultat(s) pour « {pickerSearch} »</span>
                 </>
               )}
             </div>
 
-            <div className="picker-dropdown-list">
+            <div className="rc-picker-list">
               {filteredCommandes.length === 0 ? (
-                <div className="picker-empty">
-                  <Search size={28} />
+                <div className="rc-picker-empty">
+                  <Search size={26} />
                   <p>Aucune commande trouvée</p>
-                  <small>Essayez un autre numéro ou fournisseur</small>
+                  <small>Essayez un autre numéro ou un autre fournisseur</small>
                 </div>
               ) : (
                 filteredCommandes.map((c, idx) => {
-                  const isHighlighted = idx === pickerHighlighted;
                   const isPartiel = c.statut === 'partiellement_recue';
                   return (
                     <div
                       key={c.id_commande_achat}
-                      className={`picker-item ${isHighlighted ? 'highlighted' : ''}`}
+                      className={`rc-picker-item ${idx === pickerHighlighted ? 'is-highlighted' : ''}`}
                       onClick={() => handlePickerSelect(c)}
                       onMouseEnter={() => setPickerHighlighted(idx)}
                     >
-                      <div className="picker-item-left">
-                        <span className={`picker-item-status ${isPartiel ? 'partiel' : 'attente'}`}>
-                          {isPartiel ? <AlertCircle size={12} /> : <Clock size={12} />}
+                      <div className="rc-picker-item-main">
+                        <span className="rc-picker-item-num">{c.numero_commande}</span>
+                        <span className={`rc-chip ${isPartiel ? 'rc-chip--info' : 'rc-chip--warn'}`}>
                           {isPartiel ? 'Partielle' : 'En attente'}
                         </span>
-                        <span className="picker-item-num">
-                          {c.numero_commande}
-                        </span>
                       </div>
-                      <div className="picker-item-right">
-                        <span className="picker-item-fournisseur">
-                          <Building size={12} />
-                          {c.fournisseur_nom}
-                        </span>
-                        <span className="picker-item-date">
-                          <Calendar size={12} />
-                          {formatDateCommande(c.date_commande)}
-                          <span className="picker-item-jours">
-                            {formatJoursEcoules(c.date_commande)}
-                          </span>
+                      <div className="rc-picker-item-side">
+                        <span><Building size={12} /> {c.fournisseur_nom}</span>
+                        <span>
+                          <Calendar size={12} /> {formatDateCommande(c.date_commande)}
+                          <em className="rc-age">{formatJoursEcoules(c.date_commande)}</em>
                         </span>
                       </div>
                     </div>
@@ -938,10 +909,8 @@ const handlePickerSelect = (commande) => {
             </div>
 
             {filteredCommandes.length > 0 && (
-              <div className="picker-dropdown-footer">
-                <span className="picker-hint">
-                  ↑↓ pour naviguer · ⏎ pour sélectionner · Échap pour fermer
-                </span>
+              <div className="rc-picker-foot">
+                ↑↓ naviguer · Entrée sélectionner · Échap fermer
               </div>
             )}
           </div>
@@ -951,14 +920,14 @@ const handlePickerSelect = (commande) => {
   };
 
   // ============================================================
-  // RENDU LIGNES RÉCEPTION (SANS Récap, SANS Prix optionnel)
+  // LIGNES DE RÉCEPTION
   // ============================================================
   const renderLignesReception = () => {
     if (formData.lignes.length === 0) {
       return (
-        <div className="empty-lignes">
-          <ClipboardList size={48} />
-          <p>Aucun produit dans cette commande</p>
+        <div className="rc-empty">
+          <ClipboardList size={40} />
+          <p>Aucun produit à recevoir dans cette commande</p>
         </div>
       );
     }
@@ -969,155 +938,134 @@ const handlePickerSelect = (commande) => {
     const nbLignesAvecEcart = formData.lignes.filter(l => l.ecart !== 0).length;
 
     return (
-      <div className="lignes-reception-container">
-
-        <div className="lignes-reception-header">
-          <div className="lignes-info">
-            <span className="lignes-count">
+      <div className="rc-lines">
+        <div className="rc-lines-head">
+          <div className="rc-lines-summary">
+            <span className="rc-lines-count">
               <Package size={16} />
               {totalLignes} produit(s) à recevoir
             </span>
-            <span className={`lignes-status ${toutValide ? 'status-ok' : 'status-warning'}`}>
-              {toutValide ? (
-                <><CheckCircle size={14} /> Tous validés</>
-              ) : (
-                <><AlertCircle size={14} /> {lignesValides} validé(s)</>
-              )}
+            <span className={`rc-chip ${toutValide ? 'rc-chip--ok' : 'rc-chip--warn'}`}>
+              {toutValide ? <CheckCircle size={13} /> : <AlertCircle size={13} />}
+              {toutValide ? 'Tous validés' : `${lignesValides} validé(s)`}
             </span>
             {nbLignesAvecEcart > 0 && (
-              <span className="lignes-status status-warning">
-                <AlertTriangle size={14} /> {nbLignesAvecEcart} écart(s)
+              <span className="rc-chip rc-chip--warn">
+                <AlertTriangle size={13} /> {nbLignesAvecEcart} écart(s)
               </span>
             )}
-            <div className="validation-progress">
-              <span className="progress-label">{pourcentage}%</span>
-              <div className="validation-progress-bar">
-                <div className="fill" style={{ width: `${pourcentage}%` }} />
+            <div className="rc-progress" aria-label={`${pourcentage}% validé`}>
+              <div className="rc-progress-bar">
+                <div className="rc-progress-fill" style={{ width: `${pourcentage}%` }} />
               </div>
+              <span>{pourcentage}%</span>
             </div>
           </div>
-          <div className="lignes-actions-buttons">
+          <div className="rc-lines-actions">
             <button
               type="button"
-              className="btn btn-success btn-sm"
+              className="rc-btn rc-btn--primary rc-btn--sm"
               onClick={validerTout}
               disabled={saving || formData.lignes.length === 0 || toutValide}
             >
-              <CheckSquare size={16} />
+              <CheckSquare size={15} />
               Valider tout
             </button>
             <button
               type="button"
-              className="btn btn-secondary btn-sm"
+              className="rc-btn rc-btn--ghost rc-btn--sm"
               onClick={deselectionnerTout}
               disabled={saving || formData.lignes.length === 0 || lignesValides === 0}
             >
-              <Square size={16} />
+              <Square size={15} />
               Tout désélectionner
             </button>
           </div>
         </div>
 
-        <div className="lignes-table-wrapper">
-          <table className="lignes-reception-table">
+        <div className="rc-scroll">
+          <table className="rc-lines-table">
             <thead>
               <tr>
-                <th className="col-check"></th>
-                <th className="col-produit">Produit</th>
-                <th className="col-qte">Commandé</th>
-                <th className="col-recu">Reçu</th>
-                <th className="col-ecart">Écart</th>
-                <th className="col-prix">Prix d'achat</th>
-                <th className="col-etat">État</th>
-                <th className="col-date">Péremption</th>
+                <th className="c-check"></th>
+                <th className="c-produit">Produit</th>
+                <th className="c-qte">Commandé</th>
+                <th className="c-recu">Reçu</th>
+                <th className="c-ecart">Écart</th>
+                <th className="c-prix">Prix d'achat</th>
+                <th className="c-etat">État</th>
+                <th className="c-date">Péremption</th>
               </tr>
             </thead>
             <tbody>
               {formData.lignes.map((ligne, index) => {
                 const estValide = ligne.valide === true;
-                const qteBase = ligne.quantite_base || 1;
                 const uniteLabel = ligne.nom_unite_vente || 'Unité';
 
                 return (
-                  <tr key={index} className={estValide ? 'ligne-valide' : 'ligne-invalide'}>
-                    <td className="col-check">
+                  <tr key={index} className={estValide ? 'is-valid' : 'is-invalid'}>
+                    <td className="c-check">
                       <button
                         type="button"
-                        className="btn-check-ligne"
+                        className="rc-check"
                         onClick={() => toggleValiderLigne(index)}
                         disabled={saving}
                         title={estValide ? 'Désélectionner' : 'Valider cette ligne'}
+                        aria-pressed={estValide}
                       >
-                        {estValide
-                          ? <CheckSquare size={20} color="#10b981" />
-                          : <Square size={20} color="#9ca3af" />}
+                        {estValide ? <CheckSquare size={20} /> : <Square size={20} />}
                       </button>
                     </td>
-                    <td className="col-produit">
-                      <div className="produit-cell">
+                    <td className="c-produit">
+                      <div className="rc-product">
                         <strong>{ligne.produit_nom}</strong>
                         {ligne.produit_reference && (
-                          <span className="ref-label">({ligne.produit_reference})</span>
+                          <span>Réf. {ligne.produit_reference}</span>
                         )}
                       </div>
                     </td>
-               
-                    <td className="col-qte">
-                      <span className="qte-display">
+                    <td className="c-qte">
+                      <div className="rc-qty">
                         <strong>{ligne.quantite_commandee}</strong>
-                        <span className="qte-unite">{uniteLabel}</span>
-                      </span>
+                        <span>{uniteLabel}</span>
+                        {ligne.quantite_deja_recue > 0 && (
+                          <small>déjà reçu : {ligne.quantite_deja_recue}</small>
+                        )}
+                      </div>
                     </td>
-                    <td className="col-recu">
-                      <div className="qte-input-group">
+                    <td className="c-recu">
+                      <div className={`rc-input-group ${!estValide ? 'is-invalid' : ''}`}>
                         <input
                           type="number"
                           value={ligne.quantite_recue || ''}
                           onChange={(e) => handleQuantiteRecueChange(index, e.target.value)}
-                          className={`qte-input ${!estValide ? 'input-invalide' : ''}`}
                           min="0"
                           step="1"
                           disabled={saving}
                           placeholder="0"
                         />
-                        <span className="qte-input-suffix">{uniteLabel}</span>
+                        <span>{uniteLabel}</span>
                       </div>
                     </td>
-                    <td className="col-ecart">
-                      {ligne.ecart > 0 && (
-                        <span className="ecart-badge warning">
-                          <strong>-{ligne.ecart}</strong> {uniteLabel}
-                        </span>
-                      )}
-                      {ligne.ecart < 0 && (
-                        <span className="ecart-badge info">
-                          <strong>+{Math.abs(ligne.ecart)}</strong> {uniteLabel}
-                        </span>
-                      )}
-                      {ligne.ecart === 0 && (
-                        <span className="ecart-badge success">✓ Conforme</span>
-                      )}
-                    </td>
-                    <td className="col-prix">
-                      <div className="prix-input-group">
+                    <td className="c-ecart">{renderEcart(ligne.ecart, uniteLabel)}</td>
+                    <td className="c-prix">
+                      <div className="rc-input-group">
                         <input
                           type="number"
                           value={ligne.prix_achat_unite_vente ?? ''}
                           onChange={(e) => handlePrixAchatChange(index, e.target.value)}
-                          className="prix-input"
                           placeholder="0"
                           min="0"
                           step="0.01"
                           disabled={saving}
                         />
-                        {/* <span className="prix-input-suffix">FCFA</span> */}
                       </div>
                     </td>
-                    <td className="col-etat">
+                    <td className="c-etat">
                       <select
                         value={ligne.etat_marchandise || 'bon'}
                         onChange={(e) => handleEtatChange(index, e.target.value)}
-                        className={`etat-select etat-${ligne.etat_marchandise || 'bon'}`}
+                        className={`rc-select rc-select--etat etat-${ligne.etat_marchandise || 'bon'}`}
                         disabled={saving}
                       >
                         <option value="bon">Bon</option>
@@ -1126,126 +1074,117 @@ const handlePickerSelect = (commande) => {
                         <option value="partiel">Partiel</option>
                       </select>
                     </td>
-
-                    <td className="col-date">
+                    <td className="c-date">
                       <input
                         type="date"
                         value={ligne.date_peremption || ''}
                         onChange={(e) => handlePeremptionChange(index, e.target.value)}
-                        className="cell-input"
+                        className="rc-input"
                         disabled={saving}
                       />
                     </td>
-
                   </tr>
                 );
               })}
             </tbody>
-            <tfoot>
-              <tr className="lignes-total-row">
-                <td colSpan="11">
-                  <div className="total-stats">
-                    <div className="total-stats-left">
-                      <span>
-                        <strong>Lignes validées :</strong>
-                        <span className="text-success"> {lignesValides}</span>
-                        <span className="text-muted"> / {totalLignes}</span>
-                      </span>
-                      <span className="text-muted" style={{ fontSize: '13px' }}>
-                        ({pourcentage}% complété)
-                      </span>
-                    </div>
-                    <div className="total-stats-right">
-                      {toutValide ? (
-                        <span className="badge-success">
-                          <CheckCircle size={16} /> Toutes les lignes sont validées
-                        </span>
-                      ) : (
-                        <span className="badge-warning">
-                          <AlertCircle size={16} /> Certaines lignes ne sont pas validées
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            </tfoot>
           </table>
+        </div>
+
+        <div className="rc-lines-foot">
+          <span>
+            <strong>{lignesValides}</strong> / {totalLignes} lignes validées
+          </span>
+          <span className={toutValide ? 'rc-foot-ok' : 'rc-foot-warn'}>
+            {toutValide ? <CheckCircle size={15} /> : <AlertCircle size={15} />}
+            {toutValide ? 'Toutes les lignes sont validées' : 'Certaines lignes ne sont pas validées'}
+          </span>
         </div>
       </div>
     );
   };
 
   // ============================================================
+  // ACTIONS DE LIGNE (liste & grille)
+  // ============================================================
+  const renderRowActions = (reception) => (
+    <>
+      <button
+        className="rc-icon-btn"
+        onClick={() => handleView(reception)}
+        title="Voir les détails"
+        aria-label="Voir les détails"
+      >
+        <Eye size={16} />
+      </button>
+      {canManage && reception.statut === 'en_attente' && (
+        <button
+          className="rc-icon-btn rc-icon-btn--ok"
+          onClick={() => handleChangeStatut(reception.id_reception, 'complete')}
+          disabled={updatingStatut === reception.id_reception}
+          title="Valider la réception"
+          aria-label="Valider la réception"
+        >
+          <Check size={16} />
+        </button>
+      )}
+      {canManage && reception.statut !== 'complete' && reception.statut !== 'annulee' && (
+        <button
+          className="rc-icon-btn rc-icon-btn--danger"
+          onClick={() => confirmDelete(reception)}
+          title="Supprimer"
+          aria-label="Supprimer"
+        >
+          <Trash2 size={16} />
+        </button>
+      )}
+    </>
+  );
+
+  // ============================================================
   // VUES LISTE & GRILLE
   // ============================================================
   const renderListView = () => (
-    <div className="receptions-table-container">
-      <table className="receptions-table">
+    <div className="rc-table-wrap rc-scroll">
+      <table className="rc-table">
         <thead>
           <tr>
             <th>Numéro</th>
             <th>Date</th>
             <th>Fournisseur</th>
             <th>Commande</th>
-            <th>Montant</th>
-            <th>Produits</th>
+            <th className="is-num">Montant</th>
+            <th className="is-num">Produits</th>
             <th>Statut</th>
-            <th>Actions</th>
+            <th className="is-end">Actions</th>
           </tr>
         </thead>
         <tbody>
           {currentItems.length === 0 ? (
             <tr>
-              <td colSpan="8" className="empty-state">
-                <Package size={32} className="empty-icon" />
-                <p>Aucune réception trouvée</p>
+              <td colSpan="8">
+                <div className="rc-empty">
+                  <Package size={36} />
+                  <p>Aucune réception trouvée</p>
+                </div>
               </td>
             </tr>
           ) : (
             currentItems.map((reception) => (
               <tr key={reception.id_reception}>
-                <td className="numero-cell">
-                  <span className="reception-numero">{reception.numero_reception}</span>
-                </td>
-                <td>{new Date(reception.date_reception).toLocaleDateString('fr-FR')}</td>
-                <td className="fournisseur-cell">
-                  <Building size={14} />
-                  <span>{reception.fournisseur_nom || '-'}</span>
+                <td><span className="rc-num">{reception.numero_reception}</span></td>
+                <td>{formatDate(reception.date_reception)}</td>
+                <td>
+                  <span className="rc-with-icon">
+                    <Building size={14} />
+                    {reception.fournisseur_nom || '-'}
+                  </span>
                 </td>
                 <td>{reception.numero_commande || '-'}</td>
-                <td className="montant-cell">
-                  <strong>{formatMontant(reception.montant_total)}</strong>
-                </td>
-                <td>{reception.lignes?.length || 0}</td>
+                <td className="is-num"><strong>{formatMontant(reception.montant_total)}</strong></td>
+                <td className="is-num">{reception.lignes?.length || 0}</td>
                 <td>{renderStatut(reception.statut)}</td>
-                <td className="actions-cell">
-                  <button
-                    className="action-btn btn-view"
-                    onClick={() => handleView(reception)}
-                    title="Voir les détails"
-                  >
-                    <Eye size={16} />
-                  </button>
-                  {canManage && reception.statut === 'en_attente' && (
-                    <button
-                      className="action-btn btn-success"
-                      onClick={() => handleChangeStatut(reception.id_reception, 'complete')}
-                      disabled={updatingStatut === reception.id_reception}
-                      title="Valider la réception"
-                    >
-                      <Check size={16} />
-                    </button>
-                  )}
-                  {canManage && reception.statut !== 'complete' && reception.statut !== 'annulee' && (
-                    <button
-                      className="action-btn btn-delete"
-                      onClick={() => confirmDelete(reception)}
-                      title="Supprimer"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  )}
+                <td className="is-end">
+                  <div className="rc-row-actions">{renderRowActions(reception)}</div>
                 </td>
               </tr>
             ))
@@ -1256,76 +1195,46 @@ const handlePickerSelect = (commande) => {
   );
 
   const renderGridView = () => (
-    <div className="receptions-grid">
+    <div className="rc-grid">
       {currentItems.length === 0 ? (
-        <div className="empty-state">
-          <Package size={48} className="empty-icon" />
+        <div className="rc-empty rc-empty--wide">
+          <Package size={40} />
           <p>Aucune réception trouvée</p>
         </div>
       ) : (
         currentItems.map((reception) => (
-          <div key={reception.id_reception} className="reception-card">
-            <div className="reception-card-header">
-              <div className="reception-info">
-                <span className="reception-numero">{reception.numero_reception}</span>
-                <span className="reception-date">
-                  <Calendar size={14} />
-                  {new Date(reception.date_reception).toLocaleDateString('fr-FR')}
+          <article key={reception.id_reception} className="rc-card" data-statut={reception.statut}>
+            <header className="rc-card-head">
+              <div>
+                <span className="rc-num">{reception.numero_reception}</span>
+                <span className="rc-card-date">
+                  <Calendar size={13} />
+                  {formatDate(reception.date_reception)}
                 </span>
               </div>
-              <div className="reception-actions">
-                <button
-                  className="action-btn btn-view"
-                  onClick={() => handleView(reception)}
-                  title="Voir les détails"
-                >
-                  <Eye size={16} />
-                </button>
-                {canManage && reception.statut === 'en_attente' && (
-                  <button
-                    className="action-btn btn-success"
-                    onClick={() => handleChangeStatut(reception.id_reception, 'complete')}
-                    disabled={updatingStatut === reception.id_reception}
-                    title="Valider la réception"
-                  >
-                    <Check size={16} />
-                  </button>
-                )}
-                {canManage && reception.statut !== 'complete' && reception.statut !== 'annulee' && (
-                  <button
-                    className="action-btn btn-delete"
-                    onClick={() => confirmDelete(reception)}
-                    title="Supprimer"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                )}
-              </div>
-            </div>
-            <div className="reception-card-body">
-              <div className="fournisseur-info">
-                <Building size={16} />
-                <span>{reception.fournisseur_nom || 'Sans fournisseur'}</span>
-              </div>
+              <div className="rc-row-actions">{renderRowActions(reception)}</div>
+            </header>
+            <div className="rc-card-body">
+              <span className="rc-with-icon rc-card-supplier">
+                <Building size={15} />
+                {reception.fournisseur_nom || 'Sans fournisseur'}
+              </span>
               {reception.numero_commande && (
-                <div className="commande-info">
+                <span className="rc-with-icon rc-muted">
                   <FileText size={14} />
-                  <span>{reception.numero_commande}</span>
-                </div>
+                  {reception.numero_commande}
+                </span>
               )}
-              <div className="reception-montant">
-                <Banknote size={16} />
-                <span>{formatMontant(reception.montant_total)}</span>
-              </div>
-              <div className="reception-lignes-count">
+              <span className="rc-card-amount">{formatMontant(reception.montant_total)}</span>
+            </div>
+            <footer className="rc-card-foot">
+              <span className="rc-with-icon rc-muted">
                 <Package size={14} />
-                <span>{reception.lignes?.length || 0} produit(s)</span>
-              </div>
-            </div>
-            <div className="reception-card-footer">
+                {reception.lignes?.length || 0} produit(s)
+              </span>
               {renderStatut(reception.statut)}
-            </div>
-          </div>
+            </footer>
+          </article>
         ))
       )}
     </div>
@@ -1334,246 +1243,207 @@ const handlePickerSelect = (commande) => {
   // ============================================================
   // RENDU PRINCIPAL
   // ============================================================
+  const statItems = [
+    { key: 'total', label: 'Total', value: stats.total },
+    { key: 'en-attente', label: 'En attente', value: stats.enAttente },
+    { key: 'partielle', label: 'Partielles', value: stats.partielle },
+    { key: 'complete', label: 'Complètes', value: stats.complete },
+    { key: 'annulee', label: 'Annulées', value: stats.annulee },
+  ];
+
   return (
-    <div className="receptions-container">
+    <div className="rc-page">
       {toastMessage && (
-        <div className="toast-success">
-          <CheckCircle size={20} />
+        <div className="rc-toast" role="status">
+          <CheckCircle size={18} />
           {toastMessage}
         </div>
       )}
 
-      <div className="receptions-header">
+      {/* EN-TÊTE */}
+      <div className="rc-header">
         <div>
-          <h1 className="receptions-title">Réceptions de Stock</h1>
-          <p className="receptions-subtitle">{stats.total} réceptions au total</p>
+          <h1 className="rc-title">Réceptions de stock</h1>
+          <p className="rc-subtitle">
+            {stats.total} réception(s) · {commandesDisponibles.length} commande(s) en attente de livraison
+          </p>
         </div>
-        <div className="receptions-actions">
-          {canManage && (
-            <button className="btn btn-primary" onClick={handleAdd}>
-              <Plus size={18} />
-              <span>Nouvelle Réception</span>
-            </button>
-          )}
-          <button className="btn btn-secondary" onClick={handleExport}>
-            <Download size={18} />
-            <span>Exporter</span>
-          </button>
+        <div className="rc-header-actions">
           <button
-            className="btn btn-secondary btn-icon-only"
+            className="rc-btn rc-btn--ghost rc-btn--icon"
             onClick={() => { loadReceptions(); loadCommandesDisponibles(); }}
             title="Rafraîchir"
+            aria-label="Rafraîchir"
             disabled={loading}
           >
-            <RefreshCw size={18} className={loading ? 'spinning' : ''} />
+            <RefreshCw size={17} className={loading ? 'rc-spin' : ''} />
           </button>
-        </div>
-      </div>
-
-      <div className="receptions-stats">
-        <div className="stat-card">
-          <div className="stat-icon total"><Truck size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Total</span>
-            <span className="stat-value">{stats.total}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon en-attente"><Clock size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">En attente</span>
-            <span className="stat-value">{stats.enAttente}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon partielle"><AlertCircle size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Partielles</span>
-            <span className="stat-value">{stats.partielle}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon complete"><CheckCircle size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Complètes</span>
-            <span className="stat-value">{stats.complete}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon annulee"><Ban size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Annulées</span>
-            <span className="stat-value">{stats.annulee}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon montant"><Banknote size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Montant total</span>
-            <span className="stat-value">{formatMontant(stats.totalMontant)}</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="receptions-filters">
-        <div className="search-box">
-          <Search size={20} className="search-icon" />
-          <input
-            type="text"
-            placeholder="Rechercher une réception..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
-          {searchTerm && (
-            <button className="search-clear" onClick={() => setSearchTerm('')}>
-              <X size={16} />
+          <button className="rc-btn rc-btn--outline" onClick={handleExport}>
+            <Download size={17} />
+            Exporter
+          </button>
+          {canManage && (
+            <button className="rc-btn rc-btn--primary" onClick={handleAdd}>
+              <Plus size={17} />
+              Nouvelle réception
             </button>
           )}
         </div>
-        <div className="filter-group">
-          <select
-            className="filter-select"
-            value={filterStatut}
-            onChange={(e) => setFilterStatut(e.target.value)}
-          >
-            <option value="">Tous les statuts</option>
-            <option value="en_attente">En attente</option>
-            <option value="partielle">Partielle</option>
-            <option value="complete">Complète</option>
-            <option value="annulee">Annulée</option>
-          </select>
+      </div>
+
+      {/* BANDEAU DE CHIFFRES */}
+      <div className="rc-stats">
+        {statItems.map((s) => (
+          <div key={s.key} className={`rc-stat rc-stat--${s.key}`}>
+            <span className="rc-stat-label">{s.label}</span>
+            <span className="rc-stat-value">{s.value}</span>
+          </div>
+        ))}
+        <div className="rc-stat rc-stat--montant">
+          <span className="rc-stat-label">Montant total</span>
+          <span className="rc-stat-value">{formatMontant(stats.totalMontant)}</span>
         </div>
-        <div className="view-toggle">
+      </div>
+
+      {/* BARRE D'OUTILS */}
+      <div className="rc-toolbar">
+        <div className="rc-search">
+          <Search size={17} className="rc-search-icon" />
+          <input
+            type="text"
+            placeholder="Rechercher une réception, un fournisseur, une commande"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          {searchTerm && (
+            <button className="rc-search-clear" onClick={() => setSearchTerm('')} aria-label="Effacer la recherche">
+              <X size={15} />
+            </button>
+          )}
+        </div>
+        <select
+          className="rc-select"
+          value={filterStatut}
+          onChange={(e) => setFilterStatut(e.target.value)}
+        >
+          <option value="">Tous les statuts</option>
+          <option value="en_attente">En attente</option>
+          <option value="partielle">Partielle</option>
+          <option value="complete">Complète</option>
+          <option value="annulee">Annulée</option>
+        </select>
+        <div className="rc-view-toggle" role="group" aria-label="Mode d'affichage">
           <button
-            className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
+            className={viewMode === 'grid' ? 'is-active' : ''}
             onClick={() => setViewMode('grid')}
             title="Vue grille"
+            aria-label="Vue grille"
           >
-            <Grid size={18} />
+            <Grid size={17} />
           </button>
           <button
-            className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
+            className={viewMode === 'list' ? 'is-active' : ''}
             onClick={() => setViewMode('list')}
             title="Vue liste"
+            aria-label="Vue liste"
           >
-            <List size={18} />
+            <List size={17} />
           </button>
         </div>
       </div>
 
       {loading && (
-        <div className="loading-container">
-          <div className="spinner"></div>
-          <p>Chargement...</p>
+        <div className="rc-loading">
+          <div className="rc-spinner" />
+          <p>Chargement en cours</p>
         </div>
       )}
 
-      {error && !loading && (
-        <div className="error-container">
-          <p className="error-message">{error}</p>
-          <button className="btn btn-secondary" onClick={loadReceptions}>
+      {error && !loading && !showModal && (
+        <div className="rc-error">
+          <AlertTriangle size={18} />
+          <p>{error}</p>
+          <button className="rc-btn rc-btn--outline rc-btn--sm" onClick={loadReceptions}>
             Réessayer
           </button>
         </div>
       )}
 
-      {!loading && !error && (
-        <>
-          {viewMode === 'grid' ? renderGridView() : renderListView()}
-        </>
-      )}
+      {!loading && !error && (viewMode === 'grid' ? renderGridView() : renderListView())}
 
       {!loading && !error && filteredReceptions.length > itemsPerPage && (
-        <div className="receptions-pagination">
+        <div className="rc-pagination">
           <button
-            className="pagination-btn"
             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
+            aria-label="Page précédente"
           >
-            <ChevronLeft size={18} />
+            <ChevronLeft size={17} />
           </button>
-          <span className="pagination-info">
-            Page {currentPage} sur {totalPages}
-          </span>
+          <span>Page {currentPage} sur {totalPages}</span>
           <button
-            className="pagination-btn"
             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages}
+            aria-label="Page suivante"
           >
-            <ChevronRight size={18} />
+            <ChevronRight size={17} />
           </button>
         </div>
       )}
 
-      {/* MODAL NOUVELLE RÉCEPTION */}
+      {/* PANNEAU NOUVELLE RÉCEPTION */}
       {showModal && (
-        <div className="modal-overlay">
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-header-title">
-                <div className="modal-header-icon">
-                  <Plus size={20} />
-                </div>
-                <div>
-                  <h2>Nouvelle Réception</h2>
-                  <p className="modal-header-subtitle">Enregistrez la réception d'une commande fournisseur</p>
-                </div>
+        <div className="rc-overlay rc-overlay--sheet">
+          <div className="rc-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="rc-sheet-head">
+              <div>
+                <h2>Nouvelle réception</h2>
+                <p>Enregistrez la livraison d'une commande fournisseur</p>
               </div>
-              <button className="modal-close" onClick={() => !saving && setShowModal(false)}>
-                <X size={22} />
+              <button className="rc-icon-btn" onClick={() => !saving && setShowModal(false)} aria-label="Fermer">
+                <X size={20} />
               </button>
             </div>
-            <div className="modal-body">
+
+            <div className="rc-sheet-body">
               {error && (
-                <div className="modal-error">
-                  <AlertTriangle size={18} />
+                <div className="rc-alert">
+                  <AlertTriangle size={17} />
                   <p>{error}</p>
                 </div>
               )}
 
-              <div className="form-section">
-                <div className="section-header">
-                  <h4>
-                    <ShoppingBag size={18} />
-                    1. Sélectionner une commande
-                  </h4>
-                  <span className="section-badge">
-                    {commandesDisponibles.length} disponible(s)
-                  </span>
+              <section className="rc-section">
+                <div className="rc-section-head">
+                  <h3>Choisir la commande</h3>
+                  <span className="rc-chip">{commandesDisponibles.length} disponible(s)</span>
                 </div>
-
                 {renderCommandePicker()}
-              </div>
+              </section>
 
               {formData.id_commande_achat && commandeSelectionnee && (
-                <div className="form-section">
-                  <div className="section-header">
-                    <h4>
-                      <CheckCheck size={18} />
-                      2. Produits à recevoir
-                    </h4>
-                    <span className="section-badge">
+                <section className="rc-section">
+                  <div className="rc-section-head">
+                    <h3>Produits reçus</h3>
+                    <span className="rc-chip">
                       {formData.lignes.filter(l => l.valide).length} / {formData.lignes.length} validés
                     </span>
                   </div>
-
                   {renderLignesReception()}
-                </div>
+                </section>
               )}
-
-             
             </div>
-            <div className="modal-footer">
+
+            <div className="rc-sheet-foot">
               <button
-                className="btn btn-secondary"
+                className="rc-btn rc-btn--ghost"
                 onClick={() => setShowModal(false)}
                 disabled={saving}
               >
                 Annuler
               </button>
               <button
-                className="btn btn-primary"
+                className="rc-btn rc-btn--primary"
                 onClick={handleSave}
                 disabled={
                   saving ||
@@ -1583,13 +1453,13 @@ const handlePickerSelect = (commande) => {
               >
                 {saving ? (
                   <>
-                    <span className="spinner-small spinner-on-primary"></span>
-                    <span>Enregistrement...</span>
+                    <span className="rc-spinner rc-spinner--sm rc-spinner--light" />
+                    Enregistrement...
                   </>
                 ) : (
                   <>
-                    <Check size={18} />
-                    <span>Enregistrer la réception</span>
+                    <Check size={17} />
+                    Enregistrer la réception
                   </>
                 )}
               </button>
@@ -1598,158 +1468,112 @@ const handlePickerSelect = (commande) => {
         </div>
       )}
 
-      {/* MODAL DÉTAILS */}
+      {/* PANNEAU DÉTAILS */}
       {showDetailModal && selectedReception && (
-        <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-header-title">
-                <div className="modal-header-icon">
-                  <Truck size={20} />
-                </div>
-                <div>
-                  <h2>Détails de la réception</h2>
-                  <p className="modal-header-subtitle">{selectedReception.numero_reception}</p>
-                </div>
+        <div className="rc-overlay rc-overlay--sheet" onClick={() => setShowDetailModal(false)}>
+          <div className="rc-sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="rc-sheet-head">
+              <div>
+                <h2>{selectedReception.numero_reception}</h2>
+                <p>
+                  <Calendar size={13} /> {formatDate(selectedReception.date_reception)}
+                </p>
               </div>
-              <button className="modal-close" onClick={() => setShowDetailModal(false)}>
-                <X size={22} />
-              </button>
+              <div className="rc-sheet-head-end">
+                {renderStatut(selectedReception.statut)}
+                <button className="rc-icon-btn" onClick={() => setShowDetailModal(false)} aria-label="Fermer">
+                  <X size={20} />
+                </button>
+              </div>
             </div>
-            <div className="modal-body">
-              <div className="detail-header">
-                <div className="detail-header-left">
-                  <div className="detail-icon"><Truck size={28} /></div>
-                  <div>
-                    <h3 className="detail-numero">{selectedReception.numero_reception}</h3>
-                    <span className="detail-date">
-                      <Calendar size={14} />
-                      {new Date(selectedReception.date_reception).toLocaleDateString('fr-FR')}
-                    </span>
-                  </div>
-                </div>
-                <div className="detail-header-right">
-                  {renderStatut(selectedReception.statut)}
-                </div>
-              </div>
 
-              <div className="detail-grid">
-                <div className="detail-section">
-                  <h4><Building size={16} /> Fournisseur</h4>
-                  <div className="detail-item">
-                    <label>Nom</label>
-                    <span>{selectedReception.fournisseur_nom || '-'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Téléphone</label>
-                    <span>{selectedReception.fournisseur_telephone || '-'}</span>
-                  </div>
+            <div className="rc-sheet-body">
+              <div className="rc-detail-grid">
+                <div className="rc-detail-block">
+                  <h3><Building size={15} /> Fournisseur</h3>
+                  <dl>
+                    <div><dt>Nom</dt><dd>{selectedReception.fournisseur_nom || '-'}</dd></div>
+                    <div><dt>Téléphone</dt><dd>{selectedReception.fournisseur_telephone || '-'}</dd></div>
+                  </dl>
                 </div>
-                <div className="detail-section">
-                  <h4><FileText size={16} /> Informations</h4>
-                  <div className="detail-item">
-                    <label>Commande</label>
-                    <span>{selectedReception.numero_commande || 'Sans commande'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Créé par</label>
-                    <span>{selectedReception.utilisateur_nom || '-'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Montant total</label>
-                    <span className="montant-total">{formatMontant(selectedReception.montant_total)}</span>
-                  </div>
+                <div className="rc-detail-block">
+                  <h3><FileText size={15} /> Informations</h3>
+                  <dl>
+                    <div><dt>Commande</dt><dd>{selectedReception.numero_commande || 'Sans commande'}</dd></div>
+                    <div><dt>Créé par</dt><dd>{selectedReception.utilisateur_nom || '-'}</dd></div>
+                    <div>
+                      <dt>Montant total</dt>
+                      <dd className="rc-detail-total">{formatMontant(selectedReception.montant_total)}</dd>
+                    </div>
+                  </dl>
                 </div>
               </div>
 
               {selectedReception.lignes && selectedReception.lignes.length > 0 && (
-                <div className="detail-lignes">
-                  <h4>Produits reçus</h4>
-                  <div className="detail-lignes-wrapper">
-                    <table className="detail-lignes-table">
-                      <thead>
-                        <tr>
-                          <th>Produit</th>
-                          <th>Unité</th>
-                          <th>Commandé</th>
-                          <th>Reçu</th>
-                          <th>Écart</th>
-                          <th>Prix unit.</th>
-                          <th>État</th>
-                          <th>Lot</th>
-                          <th>Péremption</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedReception.lignes.map((ligne, index) => {
-                          const qteBase = parseFloat(ligne.quantite_base) || 1;
-                          const prixUV = ligne.prix_achat_unite_vente !== null
-                            ? parseFloat(ligne.prix_achat_unite_vente) : null;
-                          const ecart = parseFloat(ligne.ecart) || 0;
-                          const uniteLabel = ligne.nom_unite_vente || 'Unité';
-
-                          return (
-                            <tr key={index}>
-                              <td>
-                                <span className="produit-nom">{ligne.produit_nom}</span>
-                              </td>
-                              <td>
-                                <span className="unite-badge">
-                                  <Box size={12} />
-                                  {uniteLabel}
-                                  {qteBase > 1 && <small>×{qteBase}</small>}
-                                </span>
-                              </td>
-                              <td className="quantite-commandee">
-                                <span className="qte-display">
-                                  <strong>{ligne.quantite_commandee || 0}</strong>
-                                  <span className="qte-unite">{uniteLabel}</span>
-                                </span>
-                              </td>
-                              <td className="quantite-recue">
-                                <span className="qte-display highlight">
-                                  <strong>{ligne.quantite_recue}</strong>
-                                  <span className="qte-unite">{uniteLabel}</span>
-                                </span>
-                              </td>
-                              <td className="col-ecart">
-                                {ecart > 0 && (
-                                  <span className="ecart-badge warning">
-                                    <strong>-{ecart}</strong> {uniteLabel}
-                                  </span>
-                                )}
-                                {ecart < 0 && (
-                                  <span className="ecart-badge info">
-                                    <strong>+{Math.abs(ecart)}</strong> {uniteLabel}
-                                  </span>
-                                )}
-                                {ecart === 0 && (
-                                  <span className="ecart-badge success">✓ Conforme</span>
-                                )}
-                              </td>
-                              <td>
-                                {prixUV !== null
-                                  ? formatMontant(prixUV)
-                                  : <em style={{ color: '#94a3b8' }}>À définir</em>}
-                              </td>
-                              <td>
-                                <span className={`etat-badge etat-${ligne.etat_marchandise || 'bon'}`}>
-                                  {ligne.etat_marchandise || 'bon'}
-                                </span>
-                              </td>
-                              <td>{ligne.num_lot || '-'}</td>
-                              <td>{ligne.date_peremption ? new Date(ligne.date_peremption).toLocaleDateString('fr-FR') : '-'}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                <section className="rc-section">
+                  <div className="rc-section-head">
+                    <h3>Produits reçus</h3>
+                    <span className="rc-chip">{selectedReception.lignes.length} ligne(s)</span>
                   </div>
-                </div>
+                  <div className="rc-lines">
+                    <div className="rc-scroll">
+                      <table className="rc-detail-table">
+                        <thead>
+                          <tr>
+                            <th>Produit</th>
+                            <th>Unité</th>
+                            <th>Commandé</th>
+                            <th>Reçu</th>
+                            <th>Écart</th>
+                            <th>Prix unit.</th>
+                            <th>État</th>
+                            <th>Lot</th>
+                            <th>Péremption</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selectedReception.lignes.map((ligne, index) => {
+                            const qteBase = parseFloat(ligne.quantite_base) || 1;
+                            const prixUV = ligne.prix_achat_unite_vente !== null
+                              ? parseFloat(ligne.prix_achat_unite_vente) : null;
+                            const ecart = parseFloat(ligne.ecart) || 0;
+                            const uniteLabel = ligne.nom_unite_vente || 'Unité';
+
+                            return (
+                              <tr key={index}>
+                                <td><strong>{ligne.produit_nom}</strong></td>
+                                <td>
+                                  {uniteLabel}
+                                  {qteBase > 1 && <small className="rc-muted"> ×{qteBase}</small>}
+                                </td>
+                                <td>{ligne.quantite_commandee || 0}</td>
+                                <td className="rc-received">{ligne.quantite_recue}</td>
+                                <td>{renderEcart(ecart, uniteLabel)}</td>
+                                <td>
+                                  {prixUV !== null
+                                    ? formatMontant(prixUV)
+                                    : <em className="rc-muted">À définir</em>}
+                                </td>
+                                <td>
+                                  <span className={`rc-etat etat-${ligne.etat_marchandise || 'bon'}`}>
+                                    {ligne.etat_marchandise || 'bon'}
+                                  </span>
+                                </td>
+                                <td>{ligne.num_lot || '-'}</td>
+                                <td>{ligne.date_peremption ? formatDate(ligne.date_peremption) : '-'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </section>
               )}
             </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowDetailModal(false)}>
+
+            <div className="rc-sheet-foot">
+              <button className="rc-btn rc-btn--outline" onClick={() => setShowDetailModal(false)}>
                 Fermer
               </button>
             </div>
@@ -1759,46 +1583,31 @@ const handlePickerSelect = (commande) => {
 
       {/* MODAL SUPPRESSION */}
       {showDeleteModal && (
-        <div className="modal-overlay" onClick={() => !deleting && setShowDeleteModal(false)}>
-          <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Confirmer la suppression</h2>
-              <button className="modal-close" onClick={() => !deleting && setShowDeleteModal(false)}>
-                <X size={22} />
-              </button>
+        <div className="rc-overlay" onClick={() => !deleting && setShowDeleteModal(false)}>
+          <div className="rc-dialog" onClick={(e) => e.stopPropagation()}>
+            <div className="rc-dialog-icon">
+              <Trash2 size={24} />
             </div>
-            <div className="modal-body">
-              <div className="delete-icon-wrapper">
-                <AlertTriangle size={48} color="#ef4444" />
-              </div>
-              <p>Êtes-vous sûr de vouloir supprimer cette réception ?</p>
-              <p className="delete-item-name">
-                <strong>"{receptionToDelete?.numero_reception}"</strong>
-              </p>
-              <p className="delete-item-detail">
-                Fournisseur : {receptionToDelete?.fournisseur_nom || 'Sans fournisseur'}
-              </p>
-              <p className="delete-item-detail">
-                Date : {receptionToDelete?.date_reception}
-              </p>
-              <p className="delete-warning">
-                ⚠️ Cette action est irréversible
-              </p>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowDeleteModal(false)} disabled={deleting}>
+            <h2>Supprimer cette réception ?</h2>
+            <p className="rc-dialog-name">{receptionToDelete?.numero_reception}</p>
+            <p className="rc-dialog-meta">
+              {receptionToDelete?.fournisseur_nom || 'Sans fournisseur'} · {formatDate(receptionToDelete?.date_reception)}
+            </p>
+            <p className="rc-dialog-warning">Cette action est irréversible.</p>
+            <div className="rc-dialog-actions">
+              <button className="rc-btn rc-btn--ghost" onClick={() => setShowDeleteModal(false)} disabled={deleting}>
                 Annuler
               </button>
-              <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
+              <button className="rc-btn rc-btn--danger" onClick={handleDelete} disabled={deleting}>
                 {deleting ? (
                   <>
-                    <span className="spinner-small"></span>
-                    <span>Suppression...</span>
+                    <span className="rc-spinner rc-spinner--sm rc-spinner--light" />
+                    Suppression...
                   </>
                 ) : (
                   <>
-                    <Trash2 size={18} />
-                    <span>Supprimer</span>
+                    <Trash2 size={16} />
+                    Supprimer
                   </>
                 )}
               </button>

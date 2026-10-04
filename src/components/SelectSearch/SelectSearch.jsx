@@ -134,7 +134,6 @@ const SelectSearch = ({
       {isOpen && !disabled && (
         <div className="select-search-dropdown">
           <div className="select-search-input-wrapper">
-            {/* <Search size={16} className="search-icon" /> */}
             <input
               type="text"
               className="select-search-input"

@@ -10,6 +10,7 @@ import {
 import AssistantAchatService from '../../services/assistantAchatService';
 import { useUser } from '../../context/AuthContext';
 import StockSelector from '../../components/StockSelector/StockSelector';
+import ConfirmModal from '../../components/ConfirmModal/ConfirmModal';
 import './AssistantAchat.css';
 
 // ============ HELPERS ============
@@ -36,7 +37,6 @@ const UniteSelect = ({ unites, uniteBaseNom, selectedId, onChange, disabled }) =
     const [open, setOpen] = useState(false);
     const ref = useRef(null);
 
-    // Fermer au clic extérieur
     useEffect(() => {
         if (!open) return;
         const handleClick = (e) => {
@@ -48,11 +48,9 @@ const UniteSelect = ({ unites, uniteBaseNom, selectedId, onChange, disabled }) =
         return () => document.removeEventListener('mousedown', handleClick);
     }, [open]);
 
-    // Construire la liste : unité de base + toutes les unités personnalisées
     const toutesUnites = useMemo(() => {
         const list = [];
 
-        // Unité de base (id = null)
         if (uniteBaseNom) {
             list.push({
                 id_unite_vente: null,
@@ -63,7 +61,6 @@ const UniteSelect = ({ unites, uniteBaseNom, selectedId, onChange, disabled }) =
             });
         }
 
-        // Unités personnalisées (triées par quantite_base croissant)
         (unites || [])
             .filter(u => u && u.nom)
             .sort((a, b) => (a.quantite_base || 1) - (b.quantite_base || 1))
@@ -81,7 +78,6 @@ const UniteSelect = ({ unites, uniteBaseNom, selectedId, onChange, disabled }) =
     const selectedUnite = toutesUnites.find(u => u.id_unite_vente === selectedId)
         || toutesUnites[0];
 
-    // Une seule unité → pas de dropdown, juste un label
     if (toutesUnites.length <= 1) {
         return (
             <span className="unite-static">
@@ -151,6 +147,49 @@ const AssistantAchat = () => {
     const [selection, setSelection] = useState({});
     const [ouverts, setOuverts] = useState({});
 
+    // ============ MODAL DE CONFIRMATION / ALERTE ============
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        details: null,
+        type: 'warning',
+        confirmLabel: 'Confirmer',
+        cancelLabel: 'Annuler',
+        onConfirm: null,
+        hideCancel: false,
+    });
+
+    const openConfirm = (config) => {
+        setConfirmModal({
+            isOpen: true,
+            title: config.title || 'Confirmation',
+            message: config.message || '',
+            details: config.details || null,
+            type: config.type || 'warning',
+            confirmLabel: config.confirmLabel || 'Confirmer',
+            cancelLabel: config.cancelLabel || 'Annuler',
+            onConfirm: config.onConfirm || null,
+            hideCancel: config.hideCancel || false,
+        });
+    };
+
+    const closeConfirm = () => {
+        setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+    };
+
+    // Alerte simple (1 seul bouton "OK")
+    const showAlert = (title, message, type = 'warning') => {
+        openConfirm({
+            title,
+            message,
+            type,
+            confirmLabel: 'Compris',
+            hideCancel: true,
+            onConfirm: closeConfirm,
+        });
+    };
+
     // ============ CHARGEMENT ============
     const loadProposition = useCallback(async () => {
         if (!token) return;
@@ -163,7 +202,6 @@ const AssistantAchat = () => {
             if (res.success) {
                 setData(res.data);
 
-                // ✅ Init sélection : tout coché par défaut
                 const sel = {};
                 (res.data.fournisseurs || []).forEach(f => {
                     f.produits.forEach(p => {
@@ -174,7 +212,6 @@ const AssistantAchat = () => {
                             parseInt(p.quantite_proposee_uv, 10) || 1
                         );
 
-                        // Prix unitaire de l'unité proposée (fallback sur prix produit)
                         const prixUnitaire =
                             uvProposee?.prix_achat ||
                             p.prix_unitaire ||
@@ -187,14 +224,12 @@ const AssistantAchat = () => {
                             nom_unite_vente: uvProposee?.nom || p.unite_base_nom,
                             quantite_base: parseFloat(uvProposee?.quantite_base) || 1,
                             prix_unitaire: prixUnitaire,
-                            // Besoin en base (constant quand on change d'unité)
                             besoin_base: p.besoin_base || (qteProposee * (uvProposee?.quantite_base || 1)) || 1,
                         };
                     });
                 });
                 setSelection(sel);
 
-                // Ouvrir tous les fournisseurs par défaut
                 const ouv = {};
                 (res.data.fournisseurs || []).forEach(f => {
                     ouv[f.id_fournisseur || 'sans_fournisseur'] = true;
@@ -267,20 +302,16 @@ const AssistantAchat = () => {
         });
     };
 
-    // ✅ Changer l'unité de vente
     const changeUnite = (idProduit, unite) => {
         setSelection(prev => {
             const current = prev[idProduit];
 
-            // Le besoin en base reste CONSTANT quand on change d'unité
             const besoinBase = current.besoin_base ||
                 (current.quantite_uv * current.quantite_base) || 1;
 
-            // Recalcul de la quantité dans la nouvelle unité
             const nouvelleQteBase = parseFloat(unite.quantite_base) || 1;
             const nouvelleQteUV = Math.max(1, Math.ceil(besoinBase / nouvelleQteBase));
 
-            // Prix unitaire de la nouvelle unité
             const nouveauPrix = unite.prix_achat || current.prix_unitaire || null;
 
             return {
@@ -318,7 +349,6 @@ const AssistantAchat = () => {
                     produits += 1;
                     hasSelected = true;
 
-                    // ✅ Prix de l'unité choisie
                     const prixUnitaire = s.prix_unitaire || p.prix_unitaire;
 
                     if (prixUnitaire) {
@@ -342,14 +372,28 @@ const AssistantAchat = () => {
     // ============ CRÉATION ============
     const handleCreer = async () => {
         if (totalSelectionne.produits === 0) {
-            alert('Veuillez sélectionner au moins un produit');
+            showAlert(
+                'Aucun produit sélectionné',
+                'Veuillez sélectionner au moins un produit.',
+                'warning'
+            );
             return;
         }
 
-        if (!window.confirm(
-            `Créer ${totalSelectionne.fournisseurs} bon(s) de commande pour ${totalSelectionne.produits} produit(s) ?`
-        )) return;
+        openConfirm({
+            title: 'Confirmer la création',
+            message: `Créer ${totalSelectionne.fournisseurs} bon(s) de commande pour ${totalSelectionne.produits} produit(s) ?`,
+            type: 'info',
+            confirmLabel: 'Créer',
+            cancelLabel: 'Annuler',
+            onConfirm: () => {
+                closeConfirm();
+                executeCreateBons();
+            },
+        });
+    };
 
+    const executeCreateBons = async () => {
         setSaving(true);
         try {
             const groupes = [];
@@ -377,7 +421,6 @@ const AssistantAchat = () => {
                         quantite_base: qteBase,
                         quantite: qteUV,
                         quantite_totale_base: qteTotaleBase,
-                        // ✅ Prix de l'unité choisie
                         prix_achat: s.prix_unitaire || p.prix_unitaire || null,
                     };
 
@@ -390,7 +433,11 @@ const AssistantAchat = () => {
             });
 
             if (groupes.length === 0) {
-                alert('Aucun groupe valide à créer');
+                showAlert(
+                    'Aucun groupe valide',
+                    'Aucun groupe valide à créer.',
+                    'warning'
+                );
                 return;
             }
 
@@ -410,17 +457,36 @@ const AssistantAchat = () => {
                     const detail = (res.data?.erreurs || [])
                         .map(e => `• Fournisseur #${e.id_fournisseur}: ${e.message}`)
                         .join('\n');
-                    alert(`${nbCrees} bon(s) créé(s).\n${nbErreurs} erreur(s) :\n${detail}`);
+                    showAlert(
+                        'Création partielle',
+                        `${nbCrees} bon(s) créé(s).\n${nbErreurs} erreur(s) :\n${detail}`,
+                        'warning'
+                    );
                 } else {
-                    alert(res.message || `${nbCrees} bon(s) créé(s) avec succès`);
+                    showAlert(
+                        'Succès',
+                        res.message || `${nbCrees} bon(s) créé(s) avec succès`,
+                        'success'
+                    );
                 }
-                navigate(`/${slug}/commandes-achat`);
+
+                setTimeout(() => {
+                    navigate(`/${slug}/commandes-achat`);
+                }, 1500);
             } else {
-                alert(res.message || 'Erreur lors de la création');
+                showAlert(
+                    'Erreur',
+                    res.message || 'Erreur lors de la création',
+                    'danger'
+                );
             }
         } catch (e) {
             console.error('❌ handleCreer error:', e);
-            alert(e.message || 'Erreur lors de la création');
+            showAlert(
+                'Erreur',
+                e.message || 'Erreur lors de la création',
+                'danger'
+            );
         } finally {
             setSaving(false);
         }
@@ -480,183 +546,161 @@ const AssistantAchat = () => {
     }
 
     return (
-        <div className="assistant-container">
-            {/* ==================== HEADER ==================== */}
-            <div className="assistant-header">
-                <div>
-                    <h1 className="assistant-title">
-                        <Bot size={28} />
-                        Assistant de réapprovisionnement
-                    </h1>
-                    <p className="assistant-subtitle">
-                        {data.total_produits} produit(s) à commander ·{' '}
-                        {data.total_fournisseurs} fournisseur(s)
-                    </p>
-                </div>
-                <div className="assistant-actions">
-                    <button
-                        className="btn btn-secondary"
-                        onClick={loadProposition}
-                        disabled={loading}
-                    >
-                        <RefreshCw size={16} className={loading ? 'spinning' : ''} />
-                        <span>Recalculer</span>
-                    </button>
-                </div>
-            </div>
-
-            {/* ==================== INFO BANNER ==================== */}
-            <div className="assistant-info">
-                <div className="assistant-info-icon">
-                    <Sparkles size={20} />
-                </div>
-                <div className="assistant-info-content">
-                    <strong>Proposition intelligente</strong>
-                    <span>
-                        Basée sur vos seuils (min/max) et vos ventes des 30 derniers jours.
-                        Vous pouvez tout ajuster avant de valider.
-                    </span>
-                </div>
-            </div>
-
-            {/* ==================== NIVEAU ==================== */}
-            <div className="assistant-niveaux">
-                <span className="niveaux-label">Niveau de couverture :</span>
-                <div className="niveaux-list">
-                    {NIVEAUX.map(n => (
+        <>
+            <div className="assistant-container">
+                {/* ==================== HEADER ==================== */}
+                <div className="assistant-header">
+                    <div>
+                        <h1 className="assistant-title">
+                            <Bot size={28} />
+                            Assistant de réapprovisionnement
+                        </h1>
+                        <p className="assistant-subtitle">
+                            {data.total_produits} produit(s) à commander ·{' '}
+                            {data.total_fournisseurs} fournisseur(s)
+                        </p>
+                    </div>
+                    <div className="assistant-actions">
                         <button
-                            key={n.id}
-                            className={`niveau-btn ${niveau === n.id ? 'active' : ''}`}
-                            onClick={() => setNiveau(n.id)}
-                            style={{
-                                '--niveau-color': n.color,
-                                '--niveau-bg': n.bg,
-                            }}
+                            className="btn btn-secondary"
+                            onClick={loadProposition}
                             disabled={loading}
                         >
-                            <strong>{n.label}</strong>
-                            <small>{n.description}</small>
+                            <RefreshCw size={16} className={loading ? 'spinning' : ''} />
+                            <span>Recalculer</span>
                         </button>
-                    ))}
+                    </div>
                 </div>
-            </div>
 
-            {/* ==================== FOURNISSEURS ==================== */}
-            <div className="assistant-fournisseurs">
-                {data.fournisseurs.map((f) => {
-                    const key = f.id_fournisseur || 'sans_fournisseur';
-                    const isOpen = ouverts[key];
-                    const produitsSelectionnes = f.produits.filter(p => selection[p.id_produit]?.selected);
-                    const allSelected = produitsSelectionnes.length === f.produits.length;
-                    const someSelected = produitsSelectionnes.length > 0 && !allSelected;
+                {/* ==================== INFO BANNER ==================== */}
+                <div className="assistant-info">
+                    <div className="assistant-info-content">
+                        <strong>Proposition intelligente</strong>
+                        <span>
+                            Basée sur vos seuils (min/max) et vos ventes des 30 derniers jours.
+                            Vous pouvez tout ajuster avant de valider.
+                        </span>
+                    </div>
+                </div>
 
-                    return (
-                        <div key={key} className={`fournisseur-bloc ${isOpen ? 'open' : ''}`}>
-                            <div className="fournisseur-header">
-                                <button
-                                    className="fournisseur-toggle"
-                                    onClick={() => toggleAccordion(key)}
-                                >
-                                    {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-                                </button>
+                {/* ==================== NIVEAU ==================== */}
+                <div className="assistant-niveaux">
+                    <span className="niveaux-label">Niveau de couverture :</span>
+                    <div className="niveaux-list">
+                        {NIVEAUX.map(n => (
+                            <button
+                                key={n.id}
+                                className={`niveau-btn ${niveau === n.id ? 'active' : ''}`}
+                                onClick={() => setNiveau(n.id)}
+                                style={{
+                                    '--niveau-color': n.color,
+                                    '--niveau-bg': n.bg,
+                                }}
+                                disabled={loading}
+                            >
+                                <strong>{n.label}</strong>
+                                <small>{n.description}</small>
+                            </button>
+                        ))}
+                    </div>
+                </div>
 
-                                <div className="fournisseur-checkbox">
-                                    <input
-                                        type="checkbox"
-                                        checked={allSelected}
-                                        ref={el => {
-                                            if (el) el.indeterminate = someSelected;
-                                        }}
-                                        onChange={() => toggleFournisseur(f)}
-                                    />
-                                </div>
+                {/* ==================== FOURNISSEURS ==================== */}
+                <div className="assistant-fournisseurs">
+                    {data.fournisseurs.map((f) => {
+                        const key = f.id_fournisseur || 'sans_fournisseur';
+                        const isOpen = ouverts[key];
+                        const produitsSelectionnes = f.produits.filter(p => selection[p.id_produit]?.selected);
+                        const allSelected = produitsSelectionnes.length === f.produits.length;
+                        const someSelected = produitsSelectionnes.length > 0 && !allSelected;
 
-                                <div className="fournisseur-icon">
-                                    <Truck size={20} />
-                                </div>
+                        return (
+                            <div key={key} className={`fournisseur-bloc ${isOpen ? 'open' : ''}`}>
+                                <div className="fournisseur-header">
+                                    <button
+                                        className="fournisseur-toggle"
+                                        onClick={() => toggleAccordion(key)}
+                                    >
+                                        {isOpen ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                                    </button>
 
-                                <div className="fournisseur-info">
-                                    <h3>{f.fournisseur_nom}</h3>
-                                    <div className="fournisseur-contacts">
-                                        {f.fournisseur_telephone && (
-                                            <span><Phone size={12} /> {f.fournisseur_telephone}</span>
-                                        )}
-                                        {f.fournisseur_email && (
-                                            <span><Mail size={12} /> {f.fournisseur_email}</span>
-                                        )}
-                                        {f.fournisseur_ville && (
-                                            <span><MapPin size={12} /> {f.fournisseur_ville}</span>
-                                        )}
+                                    <div className="fournisseur-checkbox">
+                                        <input
+                                            type="checkbox"
+                                            checked={allSelected}
+                                            ref={el => {
+                                                if (el) el.indeterminate = someSelected;
+                                            }}
+                                            onChange={() => toggleFournisseur(f)}
+                                        />
                                     </div>
-                                </div>
 
-                                <div className="fournisseur-stats">
-                                    <div className="fournisseur-stat">
-                                        <span className="fs-value">{produitsSelectionnes.length}/{f.produits.length}</span>
-                                        <span className="fs-label">produits</span>
+                                    <div className="fournisseur-icon">
+                                        <Truck size={20} />
                                     </div>
-                                    {f.total_estime > 0 && (
-                                        <div className="fournisseur-stat">
-                                            <span className="fs-value">{formatMontant(f.total_estime)}</span>
-                                            <span className="fs-label">estimé</span>
+
+                                    <div className="fournisseur-info">
+                                        <h3>{f.fournisseur_nom}</h3>
+                                        <div className="fournisseur-contacts">
+                                            {f.fournisseur_telephone && (
+                                                <span><Phone size={12} /> {f.fournisseur_telephone}</span>
+                                            )}
+                                            {f.fournisseur_email && (
+                                                <span><Mail size={12} /> {f.fournisseur_email}</span>
+                                            )}
+                                            {f.fournisseur_ville && (
+                                                <span><MapPin size={12} /> {f.fournisseur_ville}</span>
+                                            )}
                                         </div>
-                                    )}
+                                    </div>
+
+                                    <div className="fournisseur-stats">
+                                        <div className="fournisseur-stat">
+                                            <span className="fs-value">{produitsSelectionnes.length}/{f.produits.length}</span>
+                                            <span className="fs-label">produits</span>
+                                        </div>
+                                        {f.total_estime > 0 && (
+                                            <div className="fournisseur-stat">
+                                                <span className="fs-value">{formatMontant(f.total_estime)}</span>
+                                                <span className="fs-label">estimé</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            </div>
 
-                            {isOpen && (
-                                <div className="fournisseur-produits">
-                                    {f.produits.map(p => {
-                                        const s = selection[p.id_produit];
-                                        const isSel = s?.selected;
+                                {isOpen && (
+                                    <div className="fournisseur-produits">
+                                        {f.produits.map(p => {
+                                            const s = selection[p.id_produit];
+                                            const isSel = s?.selected;
 
-                                        // Toutes les unités de vente du produit
-                                        const unitesPourSelector = p.unites_vente || [];
+                                            const unitesPourSelector = p.unites_vente || [];
 
-                                        return (
-                                            <div key={p.id_produit} className={`produit-ligne ${isSel ? 'selected' : ''}`}>
-                                                <div className="produit-checkbox">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={isSel}
-                                                        onChange={() => toggleProduit(p.id_produit)}
-                                                    />
-                                                </div>
-
-                                                <div className="produit-info">
-                                                    <div className="produit-nom">
-                                                        {p.produit_nom}
-                                                        {p.marque_nom && <small> · {p.marque_nom}</small>}
+                                            return (
+                                                <div key={p.id_produit} className={`produit-ligne ${isSel ? 'selected' : ''}`}>
+                                                    <div className="produit-checkbox">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={isSel}
+                                                            onChange={() => toggleProduit(p.id_produit)}
+                                                        />
                                                     </div>
-                                                    <div className="produit-meta">
-                                                        <span className={`alerte-badge ${p.type_alerte}`}>
-                                                            {p.type_alerte === 'rupture' ? 'Rupture' : 'Stock bas'}
-                                                        </span>
 
-                                                        {/* ✅ Stock actuel décomposé */}
-                                                        <span className="stock-inline">
-                                                            <span className="stock-inline-label">Stock :</span>
-                                                            <StockSelector
-                                                                idProduit={`assistant-${p.id_produit}`}
-                                                                stockBase={p.quantite_stock}
-                                                                unitesVente={unitesPourSelector}
-                                                                uniteBase={{
-                                                                    nom: p.unite_base_nom,
-                                                                    symbole: p.unite_base_symbole,
-                                                                }}
-                                                                variant="list"
-                                                            />
-                                                            <span className="stock-inline-min">
-                                                                / min {p.quantite_minimale}
+                                                    <div className="produit-info">
+                                                        <div className="produit-nom">
+                                                            {p.produit_nom}
+                                                            {p.marque_nom && <small> · {p.marque_nom}</small>}
+                                                        </div>
+                                                        <div className="produit-meta">
+                                                            <span className={`alerte-badge ${p.type_alerte}`}>
+                                                                {p.type_alerte === 'rupture' ? 'Rupture' : 'Stock bas'}
                                                             </span>
-                                                        </span>
 
-                                                        {p.quantite_en_commande > 0 && (
-                                                            <span className="en-commande">
-                                                                <span>⏳</span>
+                                                            <span className="stock-inline">
+                                                                <span className="stock-inline-label">Stock :</span>
                                                                 <StockSelector
-                                                                    idProduit={`assistant-cmd-${p.id_produit}`}
-                                                                    stockBase={p.quantite_en_commande}
+                                                                    idProduit={`assistant-${p.id_produit}`}
+                                                                    stockBase={p.quantite_stock}
                                                                     unitesVente={unitesPourSelector}
                                                                     uniteBase={{
                                                                         nom: p.unite_base_nom,
@@ -664,156 +708,190 @@ const AssistantAchat = () => {
                                                                     }}
                                                                     variant="list"
                                                                 />
-                                                                <span>en commande</span>
+                                                                <span className="stock-inline-min">
+                                                                    / min {p.quantite_minimale}
+                                                                </span>
                                                             </span>
-                                                        )}
 
-                                                        {p.ventes_30j_base > 0 && (
-                                                            <span className="vitesse">
-                                                                <TrendingUp size={12} />
-                                                                {p.vitesse_jour}/j
+                                                            {p.quantite_en_commande > 0 && (
+                                                                <span className="en-commande">
+                                                                    <span>⏳</span>
+                                                                    <StockSelector
+                                                                        idProduit={`assistant-cmd-${p.id_produit}`}
+                                                                        stockBase={p.quantite_en_commande}
+                                                                        unitesVente={unitesPourSelector}
+                                                                        uniteBase={{
+                                                                            nom: p.unite_base_nom,
+                                                                            symbole: p.unite_base_symbole,
+                                                                        }}
+                                                                        variant="list"
+                                                                    />
+                                                                    <span>en commande</span>
+                                                                </span>
+                                                            )}
+
+                                                            {p.ventes_30j_base > 0 && (
+                                                                <span className="vitesse">
+                                                                    <TrendingUp size={12} />
+                                                                    {p.vitesse_jour}/j
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="produit-quantite">
+                                                        <button
+                                                            className="qte-btn"
+                                                            onClick={() => updateQuantite(p.id_produit, -1)}
+                                                            disabled={!isSel || s.quantite_uv <= 1}
+                                                        >
+                                                            <Minus size={14} />
+                                                        </button>
+                                                        <input
+                                                            type="number"
+                                                            className="qte-input"
+                                                            value={s?.quantite_uv || 1}
+                                                            onChange={(e) => setQuantiteExacte(p.id_produit, e.target.value)}
+                                                            onBlur={(e) => {
+                                                                if (!e.target.value || parseInt(e.target.value, 10) < 1) {
+                                                                    setQuantiteExacte(p.id_produit, 1);
+                                                                }
+                                                            }}
+                                                            disabled={!isSel}
+                                                            min="1"
+                                                            step="1"
+                                                        />
+                                                        <button
+                                                            className="qte-btn"
+                                                            onClick={() => updateQuantite(p.id_produit, 1)}
+                                                            disabled={!isSel}
+                                                        >
+                                                            <Plus size={14} />
+                                                        </button>
+
+                                                        <UniteSelect
+                                                            unites={unitesPourSelector}
+                                                            uniteBaseNom={p.unite_base_nom}
+                                                            selectedId={s?.id_unite_vente}
+                                                            onChange={(u) => changeUnite(p.id_produit, u)}
+                                                            disabled={!isSel}
+                                                        />
+
+                                                        {s?.quantite_base > 1 && (
+                                                            <span className="qte-equivalent">
+                                                                = {s.quantite_uv * s.quantite_base} {p.unite_base_nom}
                                                             </span>
                                                         )}
                                                     </div>
-                                                </div>
 
-                                                <div className="produit-quantite">
-                                                    <button
-                                                        className="qte-btn"
-                                                        onClick={() => updateQuantite(p.id_produit, -1)}
-                                                        disabled={!isSel || s.quantite_uv <= 1}
-                                                    >
-                                                        <Minus size={14} />
-                                                    </button>
-                                                    <input
-                                                        type="number"
-                                                        className="qte-input"
-                                                        value={s?.quantite_uv || 1}
-                                                        onChange={(e) => setQuantiteExacte(p.id_produit, e.target.value)}
-                                                        onBlur={(e) => {
-                                                            if (!e.target.value || parseInt(e.target.value, 10) < 1) {
-                                                                setQuantiteExacte(p.id_produit, 1);
+                                                    <div className="produit-prix">
+                                                        {(() => {
+                                                            const prixUnitaire = s?.prix_unitaire || p.prix_unitaire;
+                                                            if (prixUnitaire) {
+                                                                return (
+                                                                    <>
+                                                                        <span className="prix-value">
+                                                                            {formatMontant(s.quantite_uv * prixUnitaire)}
+                                                                        </span>
+                                                                        <small className="prix-detail">
+                                                                            {formatMontant(prixUnitaire)} / {s.nom_unite_vente || 'unité'}
+                                                                        </small>
+                                                                    </>
+                                                                );
                                                             }
-                                                        }}
-                                                        disabled={!isSel}
-                                                        min="1"
-                                                        step="1"
-                                                    />
-                                                    <button
-                                                        className="qte-btn"
-                                                        onClick={() => updateQuantite(p.id_produit, 1)}
-                                                        disabled={!isSel}
-                                                    >
-                                                        <Plus size={14} />
-                                                    </button>
-
-                                                    {/* ✅ Sélecteur d'unité */}
-                                                    <UniteSelect
-                                                        unites={unitesPourSelector}
-                                                        uniteBaseNom={p.unite_base_nom}
-                                                        selectedId={s?.id_unite_vente}
-                                                        onChange={(u) => changeUnite(p.id_produit, u)}
-                                                        disabled={!isSel}
-                                                    />
-
-                                                    {/* ✅ Équivalent en base */}
-                                                    {s?.quantite_base > 1 && (
-                                                        <span className="qte-equivalent">
-                                                            = {s.quantite_uv * s.quantite_base} {p.unite_base_nom}
-                                                        </span>
-                                                    )}
-                                                </div>
-
-                                                <div className="produit-prix">
-                                                    {(() => {
-                                                        const prixUnitaire = s?.prix_unitaire || p.prix_unitaire;
-                                                        if (prixUnitaire) {
                                                             return (
-                                                                <>
-                                                                    <span className="prix-value">
-                                                                        {formatMontant(s.quantite_uv * prixUnitaire)}
-                                                                    </span>
-                                                                    <small className="prix-detail">
-                                                                        {formatMontant(prixUnitaire)} / {s.nom_unite_vente || 'unité'}
-                                                                    </small>
-                                                                </>
+                                                                <span className="prix-inconnu">
+                                                                    À définir
+                                                                </span>
                                                             );
-                                                        }
-                                                        return (
-                                                            <span className="prix-inconnu">
-                                                                À définir
-                                                            </span>
-                                                        );
-                                                    })()}
+                                                        })()}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                {/* ==================== RÉCAP FLOTTANT ==================== */}
+                <div className="assistant-recap">
+                    <div className="recap-content">
+                        <div className="recap-item">
+                            <ShoppingCart size={18} />
+                            <div>
+                                <strong>{totalSelectionne.produits}</strong>
+                                <span>produit(s)</span>
+                            </div>
                         </div>
-                    );
-                })}
+                        <div className="recap-item">
+                            <Truck size={18} />
+                            <div>
+                                <strong>{totalSelectionne.fournisseurs}</strong>
+                                <span>fournisseur(s)</span>
+                            </div>
+                        </div>
+                        <div className="recap-item">
+                            <Package size={18} />
+                            <div>
+                                <strong>{totalSelectionne.montant > 0 ? formatMontant(totalSelectionne.montant) : '—'}</strong>
+                                <span>
+                                    {totalSelectionne.montantInconnu > 0
+                                        ? `+ ${totalSelectionne.montantInconnu} prix à définir`
+                                        : 'Total estimé'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="recap-actions">
+                        <button
+                            className="btn btn-secondary"
+                            onClick={() => navigate(`/${slug}/commandes-achat`)}
+                            disabled={saving}
+                        >
+                            Annuler
+                        </button>
+                        <button
+                            className="btn btn-primary btn-lg"
+                            onClick={handleCreer}
+                            disabled={saving || totalSelectionne.produits === 0 || totalSelectionne.fournisseurs === 0}
+                        >
+                            {saving ? (
+                                <>
+                                    <Loader size={18} className="spinning" />
+                                    <span>Création...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Check size={18} />
+                                    <span>Créer {totalSelectionne.fournisseurs} bon(s)</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
             </div>
 
-            {/* ==================== RÉCAP FLOTTANT ==================== */}
-            <div className="assistant-recap">
-                <div className="recap-content">
-                    <div className="recap-item">
-                        <ShoppingCart size={18} />
-                        <div>
-                            <strong>{totalSelectionne.produits}</strong>
-                            <span>produit(s)</span>
-                        </div>
-                    </div>
-                    <div className="recap-item">
-                        <Truck size={18} />
-                        <div>
-                            <strong>{totalSelectionne.fournisseurs}</strong>
-                            <span>fournisseur(s)</span>
-                        </div>
-                    </div>
-                    <div className="recap-item">
-                        <Package size={18} />
-                        <div>
-                            <strong>{totalSelectionne.montant > 0 ? formatMontant(totalSelectionne.montant) : '—'}</strong>
-                            <span>
-                                {totalSelectionne.montantInconnu > 0
-                                    ? `+ ${totalSelectionne.montantInconnu} prix à définir`
-                                    : 'Total estimé'}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-                <div className="recap-actions">
-                    <button
-                        className="btn btn-secondary"
-                        onClick={() => navigate(`/${slug}/commandes-achat`)}
-                        disabled={saving}
-                    >
-                        Annuler
-                    </button>
-                    <button
-                        className="btn btn-primary btn-lg"
-                        onClick={handleCreer}
-                        disabled={saving || totalSelectionne.produits === 0 || totalSelectionne.fournisseurs === 0}
-                    >
-                        {saving ? (
-                            <>
-                                <Loader size={18} className="spinning" />
-                                <span>Création...</span>
-                            </>
-                        ) : (
-                            <>
-                                <Check size={18} />
-                                <span>Créer {totalSelectionne.fournisseurs} bon(s)</span>
-                            </>
-                        )}
-                    </button>
-                </div>
-            </div>
-        </div>
-    ); 
+            {/* ============================================================
+                MODAL DE CONFIRMATION / ALERTE
+                ============================================================ */}
+            <ConfirmModal
+                isOpen={confirmModal.isOpen}
+                onClose={closeConfirm}
+                onConfirm={confirmModal.onConfirm || closeConfirm}
+                title={confirmModal.title}
+                message={confirmModal.message}
+                details={confirmModal.details}
+                type={confirmModal.type}
+                confirmLabel={confirmModal.confirmLabel}
+                cancelLabel={confirmModal.cancelLabel}
+                loading={saving}
+                hideCancel={confirmModal.hideCancel}
+            />
+        </>
+    );
 };
 
 export default AssistantAchat;

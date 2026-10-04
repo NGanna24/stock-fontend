@@ -481,7 +481,7 @@ const Entrees = () => {
       {/* Filtres et recherche */}
       <div className="entrees-filters">
         <div className="search-box">
-          <Search size={20} className="search-icon" />
+          <Search size={20}  />
           <input
             type="text"
             placeholder="Rechercher par référence, produit, fournisseur ou BL..."

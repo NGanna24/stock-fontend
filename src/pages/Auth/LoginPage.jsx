@@ -1,5 +1,5 @@
 // pages/Auth/LoginPage.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useUser } from '../../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
 import {
@@ -9,6 +9,7 @@ import {
     EyeOff,
     ArrowRight,
     AlertCircle,
+    CheckCircle,
     Loader2
 } from 'lucide-react';
 import './LoginPages.css';
@@ -17,98 +18,104 @@ function LoginPage() {
     const { login, loading, error } = useUser();
     const navigate = useNavigate();
 
+    const logoMiyo = '/logo/logo-miyo.png';
+
     const [credentials, setCredentials] = useState({
         telephone: '',
         password: ''
     });
     const [showPassword, setShowPassword] = useState(false);
 
+    // États pour les animations du singe
+    const [monkeyState, setMonkeyState] = useState('idle'); // 'idle' | 'error' | 'success'
+    const [statusMessage, setStatusMessage] = useState('');
+    const [showTransition, setShowTransition] = useState(false);
+
+    // Reset l'état du singe après une erreur
+    useEffect(() => {
+        if (monkeyState === 'error') {
+            const timer = setTimeout(() => {
+                setMonkeyState('idle');
+                setStatusMessage('');
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [monkeyState]);
+
+    // ==================== SOUMISSION ====================
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        // ==================== 🔍 LOGS DÉBUT ====================
-        console.group('🔐 [LOGIN] Tentative de connexion');
-        console.log('📤 Données envoyées :', {
-            telephone: credentials.telephone,
-            telephoneJSON: JSON.stringify(credentials.telephone),
-            telephoneLength: credentials.telephone.length,
-            password: credentials.password ? '***' + credentials.password.slice(-2) : '(vide)',
-            passwordLength: credentials.password.length,
-        });
-        console.log('🌐 Environnement :', {
-            hostname: window.location.hostname,
-            origin: window.location.origin,
-            pathname: window.location.pathname,
-            isLocal: window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1',
-        });
-        console.log('🕒 Timestamp :', new Date().toISOString());
-        // =========================================================
-
-        const startTime = performance.now();
         const result = await login(credentials);
-        const duration = Math.round(performance.now() - startTime);
-
-        // ==================== 🔍 LOGS RÉSULTAT ====================
-        console.log(`⏱️ Durée de la requête : ${duration}ms`);
-        console.log('📥 Résultat brut du login :', result);
-        console.log('   result.success :', result?.success);
-        console.log('   result.data :', result?.data);
-        console.log('   result.data.user :', result?.data?.user);
-        console.log('   result.data.user.slug :', result?.data?.user?.slug);
-        console.log('   result.data.token :', result?.data?.token ? '***présent***' : '(absent)');
-        console.log('   result.error :', result?.error);
-        console.log('   result.message :', result?.message);
-        // =========================================================
 
         if (result.success && result.data?.user?.slug) {
-            console.log('✅ Succès → redirection vers :', `/${result.data.user.slug}/dashboard`);
-            console.groupEnd();
-            navigate(`/${result.data.user.slug}/dashboard`);
+            // ✅ SUCCÈS avec slug
+            setMonkeyState('success');
+            setStatusMessage('Connexion réussie');
+
+            // Séquence :
+            // 1. Animation du singe (900ms)
+            // 2. Overlay de transition (2500ms)
+            // 3. Redirection dashboard
+            setTimeout(() => {
+                setShowTransition(true);
+
+                setTimeout(() => {
+                    navigate(`/${result.data.user.slug}/dashboard`);
+                }, 2500);
+
+            }, 900);
+
         } else if (result.success) {
-            console.log('⚠️ Succès mais pas de slug → redirection vers /dashboard');
-            console.groupEnd();
-            navigate('/dashboard');
+            // ✅ SUCCÈS sans slug (fallback)
+            setMonkeyState('success');
+            setStatusMessage('Connexion réussie');
+
+            setTimeout(() => {
+                setShowTransition(true);
+                setTimeout(() => navigate('/dashboard'), 2500);
+            }, 900);
+
         } else {
-            console.error('❌ Échec du login');
-            console.error('   Raison :', result?.error || result?.message || 'Inconnue');
-            console.groupEnd();
+            // ❌ ÉCHEC
+            setMonkeyState('error');
+            setStatusMessage(result?.error || 'Identifiants incorrects');
+            // Le reset est géré par useEffect (3s)
         }
     };
 
+    // ==================== CHANGEMENT DE CHAMP ====================
     const handleChange = (e) => {
         const { name, value } = e.target;
-
-        // ==================== 🔍 LOG SAISIE ====================
-        console.log(`✏️ Champ "${name}" :`, {
-            valeur: name === 'password' ? '***' : value,
-            longueur: value.length,
-            type: typeof value,
-        });
-        // ======================================================
-
         setCredentials({
             ...credentials,
             [name]: value
         });
+
+        // Effacer l'état d'erreur dès que l'utilisateur retape
+        if (monkeyState === 'error') {
+            setMonkeyState('idle');
+            setStatusMessage('');
+        }
     };
 
-    // ==================== 🔍 LOG ERREUR CONTEXTE ====================
-    React.useEffect(() => {
-        if (error) {
-            console.group('🚨 [LOGIN] Erreur remontée par AuthContext');
-            console.error('   error :', error);
-            console.error('   typeof :', typeof error);
-            console.groupEnd();
-        }
-    }, [error]);
-    // =============================================================
-
+    // ==================== RENDER ====================
     return (
         <div className="auth-page-split">
-            {/* Partie gauche - Formulaire */}
+
+            {/* ============================================ */}
+            {/* PARTIE GAUCHE — FORMULAIRE                   */}
+            {/* ============================================ */}
             <div className="auth-form-section">
                 <div className="auth-form-container">
 
+                    {/* Petit badge Miyo */}
+                    <div className="auth-brand">
+                        <div className="auth-brand-logo">
+                            <img src={logoMiyo} alt="Miyo" />
+                        </div>
+                        <span className="auth-brand-name">Miyo Stock</span>
+                    </div>
 
                     {/* En-tête */}
                     <div className="auth-header-split">
@@ -116,14 +123,15 @@ function LoginPage() {
                         <p>Connectez-vous à votre compte</p>
                     </div>
 
-                    {/* Message d'erreur */}
-                    {error && (
+                    {/* Message d'erreur global (AuthContext) */}
+                    {error && monkeyState !== 'error' && (
                         <div className="auth-error-split">
                             <AlertCircle size={20} />
                             <span>{error}</span>
                         </div>
                     )}
 
+                   
                     {/* Formulaire */}
                     <form onSubmit={handleSubmit} className="auth-form-split">
                         {/* Téléphone */}
@@ -136,7 +144,7 @@ function LoginPage() {
                                     placeholder="Numéro de téléphone"
                                     value={credentials.telephone}
                                     onChange={handleChange}
-                                    disabled={loading}
+                                    disabled={loading || monkeyState === 'success'}
                                     required
                                     autoFocus
                                 />
@@ -154,7 +162,7 @@ function LoginPage() {
                                     value={credentials.password}
                                     onChange={handleChange}
                                     maxLength="4"
-                                    disabled={loading}
+                                    disabled={loading || monkeyState === 'success'}
                                     required
                                 />
                                 <button
@@ -162,6 +170,7 @@ function LoginPage() {
                                     className="password-toggle-split"
                                     onClick={() => setShowPassword(!showPassword)}
                                     tabIndex="-1"
+                                    aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
                                 >
                                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                                 </button>
@@ -172,12 +181,17 @@ function LoginPage() {
                         <button
                             type="submit"
                             className={`auth-button-split ${loading ? 'loading' : ''}`}
-                            disabled={loading}
+                            disabled={loading || monkeyState === 'success'}
                         >
                             {loading ? (
                                 <>
                                     <Loader2 size={20} className="spinner" />
                                     Connexion en cours...
+                                </>
+                            ) : monkeyState === 'success' ? (
+                                <>
+                                    <CheckCircle size={20} />
+                                    Redirection...
                                 </>
                             ) : (
                                 <>
@@ -200,35 +214,78 @@ function LoginPage() {
                 </div>
             </div>
 
-            {/* Partie droite - Information */}
+            {/* ============================================ */}
+            {/* PARTIE DROITE — PANNEAU AVEC LE SINGE         */}
+            {/* ============================================ */}
             <div className="auth-info-section">
                 <div className="auth-info-content">
 
-                    <h2>Gérez votre stock en toute simplicité</h2>
-                    <p className="info-subtitle">
-                        Connectez-vous pour accéder à votre tableau de bord
-                    </p>
-
-                    <div className="info-features">
-                        <div className="info-feature">
-                            <div>
-                                <h4>Gestion de stock</h4>
-                                <p>Suivez vos produits en temps réel</p>
-                            </div>
-                        </div>
-                        <div className="info-feature">
-                            <div>
-                                <h4>Rapports détaillés</h4>
-                                <p>Analysez vos ventes et vos achats</p>
-                            </div>
+                    {/* Le singe animé */}
+                    <div className={`monkey-wrapper ${monkeyState === 'error' ? 'is-error' : ''} ${monkeyState === 'success' ? 'is-success' : ''}`}>
+                        <div className="monkey-circle">
+                            <img src={logoMiyo} alt="Miyo Stock" />
                         </div>
                     </div>
 
+                    {/* Message d'état (erreur ou succès) */}
+                    {statusMessage && (
+                        <div className={`monkey-status ${monkeyState === 'error' ? 'is-error' : ''} ${monkeyState === 'success' ? 'is-success' : ''}`}>
+                            {monkeyState === 'error' && (
+                                <>
+                                    <AlertCircle size={16} />
+                                    {statusMessage}
+                                </>
+                            )}
+                            {monkeyState === 'success' && (
+                                <>
+                                    <CheckCircle size={16} />
+                                    {statusMessage}
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* Titre */}
+                    <div className="auth-info-title">
+                        <h2>
+                            Gérez votre stock <br />
+                            <span className="highlight">en toute simplicité.</span>
+                        </h2>
+                        <p className="info-subtitle">
+                            Connectez-vous pour accéder à votre tableau de bord et
+                            piloter votre activité en temps réel.
+                        </p>
+                    </div>
+
+                    {/* Footer */}
                     <div className="info-footer">
-                        <p>© 2026 miyo. Tous droits réservés.</p>
+                        <p>© 2026 Miyo Stock. Tous droits réservés.</p>
                     </div>
                 </div>
             </div>
+
+            {/* ============================================ */}
+            {/* OVERLAY DE TRANSITION (après succès)         */}
+            {/* ============================================ */}
+            {showTransition && (
+                <div className="auth-transition-overlay">
+                    <div className="auth-transition-monkey">
+                        <img src={logoMiyo} alt="Miyo" />
+                    </div>
+
+                    <div className="auth-transition-text">
+                        Miyo est content de vous revoir !
+                    </div>
+
+                    <p className="auth-transition-subtext">
+                        Préparation de votre tableau de bord...
+                    </p>
+
+                    <div className="auth-transition-bar">
+                        <div className="auth-transition-bar-fill" />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

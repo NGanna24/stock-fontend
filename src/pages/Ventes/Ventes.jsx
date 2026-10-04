@@ -17,6 +17,9 @@ import { useUser } from "../../context/AuthContext";
 import FacturePDFActions from "../../components/Facture/FacturePDFActions";
 
 import "./Ventes.css";
+import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
+
+
 
 // ============================================================
 // HELPERS
@@ -207,6 +210,50 @@ const Ventes = () => {
 
   // ========== ÉTATS TOAST ==========
   const [toast, setToast] = useState(null);
+
+  // ========== MODAL DE CONFIRMATION GÉNÉRIQUE ==========
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    details: null,
+    type: 'warning',
+    confirmLabel: 'Confirmer',
+    onConfirm: null,
+  });
+
+  // ========== MODAL D'ALERTE GÉNÉRIQUE (remplace les alert()) ==========
+  const [alertModal, setAlertModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    details: null,
+    type: 'warning',
+  });
+
+  const showAlert = (title, message, type = 'warning', details = null) => {
+    setAlertModal({ isOpen: true, title, message, type, details });
+  };
+
+  const closeAlert = () => {
+    setAlertModal((prev) => ({ ...prev, isOpen: false }));
+  };
+
+  const openConfirm = (config) => {
+    setConfirmModal({
+      isOpen: true,
+      title: config.title || 'Confirmation',
+      message: config.message || '',
+      details: config.details || null,
+      type: config.type || 'warning',
+      confirmLabel: config.confirmLabel || 'Confirmer',
+      onConfirm: config.onConfirm || null,
+    });
+  };
+
+  const closeConfirm = () => {
+    setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+  };
 
   const showToast = (message, type = 'info') => {
     setToast({ message, type });
@@ -436,17 +483,29 @@ const Ventes = () => {
 
   const ajouterProduit = async () => {
     if (!selectedProduit) {
-      alert("Veuillez sélectionner un produit");
+      showAlert(
+        'Produit non sélectionné',
+        'Veuillez sélectionner un produit avant de l\'ajouter.',
+        'warning'
+      );
       return;
     }
 
     if (!selectedUnite) {
-      alert("Veuillez sélectionner une unité de vente");
+      showAlert(
+        'Unité manquante',
+        'Veuillez sélectionner une unité de vente.',
+        'warning'
+      );
       return;
     }
 
     if (!quantite || parseFloat(quantite) <= 0) {
-      alert("Veuillez saisir une quantité valide");
+      showAlert(
+        'Quantité invalide',
+        'Veuillez saisir une quantité supérieure à 0.',
+        'warning'
+      );
       return;
     }
 
@@ -471,20 +530,35 @@ const Ventes = () => {
 
     if (unitesNecessaires > stockRestant) {
       const maxConditionnements = Math.floor(stockRestant / qteBase);
-      alert(
-        `❌ Stock insuffisant !\n\n` +
-        `Stock disponible : ${stockDisponible} unité(s) de base\n` +
-        `Déjà dans le panier : ${dejaReserve} unité(s)\n` +
-        `Restant : ${stockRestant} unité(s)\n\n` +
-        `Vous demandez : ${quantite} ${selectedUnite.nom}(s) = ${unitesNecessaires} unité(s)\n` +
-        `Maximum possible : ${maxConditionnements} ${selectedUnite.nom}(s)`
+      showAlert(
+        'Stock insuffisant',
+        `Vous demandez ${quantite} ${selectedUnite.nom}(s) = ${unitesNecessaires} unité(s) de base.`,
+        'danger',
+        <>
+          <div className="detail-section">
+            <span className="detail-label">Stock disponible</span>
+            <ul>
+              <li>Stock total : <strong>{stockDisponible} unité(s)</strong></li>
+              <li>Déjà au panier : <strong>{dejaReserve} unité(s)</strong></li>
+              <li>Restant : <strong>{stockRestant} unité(s)</strong></li>
+            </ul>
+          </div>
+          <div className="detail-section">
+            <span className="detail-label">Maximum possible</span>
+            <p><strong>{maxConditionnements} {selectedUnite.nom}(s)</strong></p>
+          </div>
+        </>
       );
       return;
     }
 
     const prix = parseFloat(prixVente) || parseFloat(selectedUnite.prix_vente) || 0;
     if (prix <= 0) {
-      alert(`Le prix de vente n'est pas défini`);
+      showAlert(
+        'Prix non défini',
+        'Le prix de vente de ce produit n\'est pas renseigné. Veuillez saisir un prix.',
+        'warning'
+      );
       return;
     }
 
@@ -667,34 +741,63 @@ const handleChangeStatut = async (id, statut) => {
   }
 };
 
-  const handleImprimerDepuisListe = async (commande) => {
-    try {
-      const res = await CommandeVenteService.getCommandeById(token, commande.id_commande);
-      if (!res.success) {
-        showToast('Impossible de charger la facture', 'error');
-        return;
-      }
-      const facture = { ...res.data, magasin };
-      await FacturePDFService.print(facture);
-    } catch (err) {
-      console.error('❌ Print error:', err);
-      showToast('Erreur lors de l\'impression', 'error');
+const handleImprimerDepuisListe = async (commande) => {
+  try {
+    const res = await CommandeVenteService.getCommandeById(token, commande.id_commande);
+    if (!res.success) {
+      showToast('Impossible de charger la facture', 'error');
+      return;
     }
-  };
+
+    const facture = {
+      ...res.data,
+      magasin: magasin || null,
+    };
+
+    const result = await FacturePDFService.print(facture);
+
+    if (result.fallback) {
+      showToast(
+        'Impression non disponible — le PDF a été téléchargé',
+        'info'
+      );
+    } else if (result.success) {
+      showToast('Impression lancée', 'success');
+    }
+  } catch (err) {
+    console.error('❌ Print error:', err);
+    showToast(
+      err.message || 'Erreur lors de l\'impression',
+      'error'
+    );
+  }
+};
 
   const handleFinaliserVente = async () => {
     if (!formData.nomclient || formData.nomclient.trim() === "") {
-      alert("Veuillez saisir le nom du client");
+      showAlert(
+        'Client manquant',
+        'Veuillez saisir le nom du client.',
+        'warning'
+      );
       return;
     }
 
     if (!formData.telephone || formData.telephone.trim() === "") {
-      alert("Veuillez saisir le numéro de téléphone du client");
+      showAlert(
+        'Téléphone manquant',
+        'Veuillez saisir le numéro de téléphone du client.',
+        'warning'
+      );
       return;
     }
 
     if (formData.lignes.length === 0) {
-      alert("Veuillez ajouter au moins un produit");
+      showAlert(
+        'Panier vide',
+        'Veuillez ajouter au moins un produit à la vente.',
+        'warning'
+      );
       return;
     }
 
@@ -771,7 +874,11 @@ const handleChangeStatut = async (id, statut) => {
     } catch (error) {
       console.error('❌ Finaliser error:', error);
       setError(error.message || 'Erreur lors de la finalisation');
-      alert(`❌ Erreur: ${error.message}`);
+      showAlert(
+        'Erreur',
+        error.message || 'Erreur lors de la finalisation de la vente.',
+        'danger'
+      );
     } finally {
       setSaving(false);
     }
@@ -779,7 +886,11 @@ const handleChangeStatut = async (id, statut) => {
 
   const handlePayer = async () => {
     if (!commandeEnCours || !factureGeneree) {
-      alert('❌ Aucune facture à payer');
+      showAlert(
+        'Aucune facture',
+        'Aucune facture à payer.',
+        'warning'
+      );
       return;
     }
 
@@ -788,7 +899,11 @@ const handleChangeStatut = async (id, statut) => {
       : factureGeneree.montant_total;
 
     if (resteAPayer <= 0) {
-      alert('❌ Cette facture est déjà totalement payée');
+      showAlert(
+        'Facture déjà payée',
+        'Cette facture est déjà totalement payée.',
+        'success'
+      );
       setShowPaiementModal(false);
       return;
     }
@@ -868,7 +983,11 @@ const handleChangeStatut = async (id, statut) => {
 
   const preparerPaiement = async (commande) => {
     if (!commande?.id_commande) {
-      alert('❌ Commande invalide');
+      showAlert(
+        'Commande invalide',
+        'Impossible de préparer le paiement pour cette commande.',
+        'danger'
+      );
       return;
     }
 
@@ -879,7 +998,11 @@ const handleChangeStatut = async (id, statut) => {
       const commandeComplete = fullResponse.data;
 
       if (!commandeComplete.id_facture) {
-        alert('❌ Aucune facture associée à cette commande');
+        showAlert(
+          'Facture manquante',
+          'Aucune facture n\'est associée à cette commande.',
+          'warning'
+        );
         return;
       }
 
@@ -888,7 +1011,11 @@ const handleChangeStatut = async (id, statut) => {
       const resteAPayer = montantTotal - totalPaye;
 
       if (resteAPayer <= 0) {
-        alert('❌ Cette facture est déjà totalement payée');
+        showAlert(
+          'Facture déjà payée',
+          'Cette facture est déjà totalement payée.',
+          'success'
+        );
         return;
       }
 
@@ -923,7 +1050,11 @@ const handleChangeStatut = async (id, statut) => {
 
     } catch (error) {
       console.error('❌ Erreur preparerPaiement:', error);
-      alert(`❌ Erreur: ${error.message}`);
+      showAlert(
+        'Erreur',
+        error.message || 'Erreur lors de la préparation du paiement.',
+        'danger'
+      );
     }
   };
 
@@ -984,7 +1115,11 @@ const handleChangeStatut = async (id, statut) => {
       }
     } catch (error) {
       console.error('❌ Export error:', error);
-      alert('Erreur lors de l\'exportation');
+      showAlert(
+        'Erreur d\'exportation',
+        'Une erreur est survenue lors de l\'exportation des données.',
+        'danger'
+      );
     }
   };
 
@@ -1417,13 +1552,14 @@ const handleChangeStatut = async (id, statut) => {
       {/* Filtres */}
       <div className="ventes-filters">
         <div className="search-box">
-          <Search size={20} className="search-icon" />
+          <Search size={20}  />
           <input
             type="text"
             placeholder="Rechercher une commande..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
+            title="Rechercher par numéro, client, téléphone, facture ou notes"
+
           />
           {searchTerm && (
             <button className="search-clear" onClick={() => setSearchTerm('')}>
@@ -2345,6 +2481,36 @@ const handleChangeStatut = async (id, statut) => {
           </div>
         </div>
       )}
+
+      {/* ============================================================
+          MODAL - ALERTE GÉNÉRIQUE (remplace les alert())
+          ============================================================ */}
+      <ConfirmModal
+        isOpen={alertModal.isOpen}
+        onClose={closeAlert}
+        onConfirm={closeAlert}
+        title={alertModal.title}
+        message={alertModal.message}
+        details={alertModal.details}
+        type={alertModal.type}
+        confirmLabel="Compris"
+        cancelLabel="Fermer"
+      />
+
+      {/* ============================================================
+          MODAL - CONFIRMATION GÉNÉRIQUE (pour actions destructives)
+          ============================================================ */}
+      <ConfirmModal
+        isOpen={confirmModal.isOpen}
+        onClose={closeConfirm}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        details={confirmModal.details}
+        type={confirmModal.type}
+        confirmLabel={confirmModal.confirmLabel}
+        loading={saving}
+      />
 
       {/* ============================================================
           TOAST

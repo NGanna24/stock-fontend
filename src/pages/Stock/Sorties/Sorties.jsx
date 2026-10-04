@@ -634,7 +634,7 @@ const Sorties = () => {
       {/* Filtres et recherche */}
       <div className="sorties-filters">
         <div className="search-box">
-          <Search size={20} className="search-icon" />
+          <Search size={20}  />
           <input
             type="text"
             placeholder="Rechercher une sortie..."

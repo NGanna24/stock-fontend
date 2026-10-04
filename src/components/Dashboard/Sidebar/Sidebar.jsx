@@ -12,6 +12,7 @@ import {
   PanelLeftClose, PanelLeftOpen, LogOut, Store, Ruler,
   Bot,
 } from "lucide-react";
+import ConfirmModal from "../../ConfirmModal/ConfirmModal";
 import "./Sidebar.css";
 
 // ============================================================
@@ -58,7 +59,6 @@ const MENU_CONFIG = [
       { id: "commandes-achat",      title: "Commandes fournisseurs",    icon: ShoppingBasket, path: "/commandes-achat" },
       { id: "receptions",           title: "Réceptions",           icon: PackageCheck,   path: "/receptions" },
       { id: "retours-fournisseurs", title: "Retours fournisseurs", icon: RotateCcw,      path: "/retours-fournisseurs" },
-      // { id: "depenses",             title: "Dépenses",             icon: TrendingDown,   path: "/depenses", highlight: "#ef4444" },
     ],
   },
   {
@@ -74,13 +74,11 @@ const MENU_CONFIG = [
   {
     section: "Administration",
     icon: Settings,
-    // ⚠️ Section entièrement réservée aux rôles listés ci-dessous
     allowedRoles: ["admin"],
     items: [
       { id: "mon-magasin",  title: "Mon magasin",         icon: Store,    path: "/mon-magasin" },
       { id: "employes",     title: "Employés",            icon: Users,    path: "/employes" },
       { id: "paiements",    title: "Paiements",           icon: CreditCard, path: "/paiements" },
-      // { id: "parametres",   title: "Paramètres",          icon: Settings, path: "/parametres" },
     ],
   },
 ];
@@ -94,12 +92,14 @@ const Sidebar = () => {
   const { logout, user } = useUser();
 
   const [collapsed, setCollapsed] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const userSlug = user?.slug || "";
-  const userRole = user?.role || "caissier"; // rôle par défaut (le moins permissif)
+  const userRole = user?.role || "caissier";
 
   // ============================================================
-  // ✅ FILTRAGE DES MENUS SELON LE RÔLE
+  // FILTRAGE DES MENUS SELON LE RÔLE
   // ============================================================
   const menuConfigFiltre = useMemo(() => {
     const perms = ROLE_PERMISSIONS[userRole] || [];
@@ -107,7 +107,6 @@ const Sidebar = () => {
 
     return MENU_CONFIG
       .filter(section => {
-        // Section réservée aux rôles listés
         if (section.allowedRoles) {
           return section.allowedRoles.includes(userRole);
         }
@@ -115,21 +114,18 @@ const Sidebar = () => {
       })
       .map(section => ({
         ...section,
-        // Filtrer les items selon les permissions
-        items: section.items.filter(item => 
+        items: section.items.filter(item =>
           isFullAccess || perms.includes(item.id)
         ),
       }))
-      // Supprimer les sections vides
       .filter(section => section.items.length > 0);
   }, [userRole]);
- 
+
   // ============================================================
   // ÉTAT D'OUVERTURE DES SECTIONS
   // ============================================================
   const [openSections, setOpenSections] = useState({});
 
-  // Initialiser ouvertures quand les menus sont filtrés
   useEffect(() => {
     const initial = {};
     menuConfigFiltre.forEach(section => {
@@ -150,8 +146,7 @@ const Sidebar = () => {
     }
     return 'dashboard';
   }, [location.pathname, userSlug, menuConfigFiltre]);
- 
-  // Ouvrir auto la section active
+
   useEffect(() => {
     menuConfigFiltre.forEach(section => {
       section.items.forEach(item => {
@@ -175,10 +170,20 @@ const Sidebar = () => {
     }
   };
 
-  const handleLogout = async () => {
-    if (window.confirm("Êtes-vous sûr de vouloir vous déconnecter ?")) {
+  const handleLogoutClick = () => {
+    setShowLogoutModal(true);
+  };
+
+  const handleLogoutConfirm = async () => {
+    setLoggingOut(true);
+    try {
       await logout();
       navigate("/login");
+    } catch (err) {
+      console.error('Erreur déconnexion:', err);
+    } finally {
+      setLoggingOut(false);
+      setShowLogoutModal(false);
     }
   };
 
@@ -256,70 +261,85 @@ const Sidebar = () => {
   // RENDER PRINCIPAL
   // ============================================================
   return (
-    <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
-<div className="logo">
-    {!collapsed && (
-        <div className="logo-content">
-            <div className="logo-brand">
-                {/* ✅ Logo Miyo depuis public/ */}
+    <>
+      <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
+        <div className="logo">
+          {!collapsed && (
+            <div className="logo-content">
+              <div className="logo-brand" onClick={() => navigate(`/${userSlug}/dashboard`)}>
                 <img
-                    src="/logo-miyo.png"
-                    alt="Miyo"
-                    className="logo-miyo-image"
-                    onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.nextElementSibling.style.display = 'block';
-                    }}
+                  src="/logo-miyo.png"
+                  alt="Miyo"
+                  className="logo-miyo-image"
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    e.target.nextElementSibling.style.display = 'block';
+                  }}
                 />
                 <div className="logo-text">
-                    <h2>Miyo</h2>
-                    <span>Gestion des Stocks</span>
+                  <h2>Miyo</h2>
+                  <span>Gestion des Stocks</span>
                 </div>
+              </div>
             </div>
+          )}
+
+          {collapsed && (
+            <img
+              src="/logo-miyo.png"
+              alt="Miyo"
+              className="logo-miyo-image-collapsed"
+            />
+          )}
+
+          <button
+            className="collapse-btn"
+            onClick={() => setCollapsed(prev => !prev)}
+            title={collapsed ? "Agrandir" : "Réduire"}
+          >
+            {collapsed ? <PanelLeftOpen size={22} /> : <PanelLeftClose size={22} />}
+          </button>
         </div>
-    )}
 
-    {/* Logo seul en mode réduit */}
-    {collapsed && (
-        <img
-            src="/logo-miyo.png"
-            alt="Miyo"
-            className="logo-miyo-image-collapsed"
-        />
-    )}
+        <nav className="sidebar-nav">
+          {collapsed ? (
+            <div className="collapsed-nav">
+              {menuConfigFiltre.flatMap(section => section.items).map(renderItem)}
+            </div>
+          ) : (
+            menuConfigFiltre.map(renderSection)
+          )}
+        </nav>
 
-    <button
-        className="collapse-btn"
-        onClick={() => setCollapsed(prev => !prev)}
-    >
-        {collapsed ? <PanelLeftOpen size={22} /> : <PanelLeftClose size={22} />}
-    </button>
-</div>
+        <div className="sidebar-footer">
+          <button
+            className="menu-item logout-item"
+            onClick={handleLogoutClick}
+            title={collapsed ? "Déconnexion" : ""}
+          >
+            <span className="menu-left">
+              <LogOut size={20} />
+              {!collapsed && <span>Déconnexion</span>}
+            </span>
+          </button>
+        </div>
+      </aside>
 
-      <nav className="sidebar-nav">
-        {collapsed ? (
-          <div className="collapsed-nav">
-            {menuConfigFiltre.flatMap(section => section.items).map(renderItem)}
-          </div>
-        ) : (
-          menuConfigFiltre.map(renderSection)
-        )}
-      </nav>
-
-      <div className="sidebar-footer">
-        <button
-          className="menu-item logout-item"
-          onClick={handleLogout}
-          title={collapsed ? "Déconnexion" : ""}
-        >
-          <span className="menu-left">
-            <LogOut size={20} />
-            {!collapsed && <span>Déconnexion</span>}
-          </span>
-        </button>
-
-      </div>
-    </aside>
+      {/* ============================================================
+          MODAL DE DÉCONNEXION
+          ============================================================ */}
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => !loggingOut && setShowLogoutModal(false)}
+        onConfirm={handleLogoutConfirm}
+        title="Se déconnecter ?"
+        message="Vous allez être redirigé vers la page de connexion. Toute modification non enregistrée sera perdue."
+        type="warning"
+        confirmLabel="Se déconnecter"
+        cancelLabel="Annuler"
+        loading={loggingOut}
+      />
+    </>
   );
 };
 

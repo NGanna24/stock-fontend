@@ -191,7 +191,6 @@ const RapportAchats = () => {
             <div className="rapport-header">
                 <div>
                     <h1 className="rapport-title">
-                        <Receipt size={28} />
                         Rapport des Achats
                     </h1>
                     <p className="rapport-subtitle">

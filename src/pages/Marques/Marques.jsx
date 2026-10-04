@@ -530,7 +530,7 @@ const Marques = () => {
       {/* Filtres et recherche */}
       <div className="marques-filters">
         <div className="search-box">
-          <Search size={20} className="search-icon" />
+          <Search size={20}  />
           <input
             type="text"
             placeholder="Rechercher une marque..."

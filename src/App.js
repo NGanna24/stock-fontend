@@ -4,8 +4,8 @@ import DashboardLayout from "./layouts/DashboardLayout";
 import Dashboard from "./pages/Dashboard/Dashboard";
 import Produits from "./pages/Produits/Produits";
 import Categories from "./pages/Categories/Categories";
-import Achats from "./pages/Approvisionnement/Achat/Achat";
 import Fournisseurs from "./pages/Approvisionnement/Fournisseurs/Fournisseurs";
+import CommandesAchats from "./pages/Approvisionnement/Commandes/CommandesAchats";
 import Entrees from "./pages/Stock/Entrees/Entrees";
 import Sorties from "./pages/Stock/Sorties/Sorties";
 import Ventes from "./pages/Ventes/Ventes";
@@ -15,7 +15,6 @@ import { AuthContextProvider, useUser } from "./context/AuthContext";
 import Modeles from "./pages/Model/Modeles";
 import Marques from "./pages/Marques/Marques";
 import Unites from "./pages/Unites/Unites";
-import CommandesAchats from "./pages/Commandes/CommandesAchats";
 import Receptions from "./pages/Approvisionnement/Receptions/Receptions";
 import RetoursFournisseurs from "./pages/RetoursFournisseurs/RetoursFournisseurs";
 import Paiements from "./pages/Paiements/Paiements";
@@ -284,14 +283,7 @@ function AppContent() {
                             </ProtectedRouteByRole>
                         }
                     />
-                    <Route
-                        path="achats"
-                        element={
-                            <ProtectedRouteByRole itemId="commandes-achat">
-                                <Achats />
-                            </ProtectedRouteByRole>
-                        }
-                    />
+                   
                     <Route
                         path="entrees"
                         element={

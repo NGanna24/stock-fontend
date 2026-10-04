@@ -206,7 +206,7 @@ const Filters = ({
     return (
         <div className="mouvements-filters">
             <div className="search-box">
-                <Search size={18} className="search-icon" />
+                <Search size={18}/>
                 <input
                     type="text"
                     placeholder="Rechercher un mouvement..."
@@ -635,7 +635,7 @@ const Mouvements = () => {
                         <span>Exporter</span>
                     </button>
                     <button
-                        className="btn btn-secondary btn-icon"
+                        className="btn btn-secondary"
                         onClick={handleRefresh}
                         disabled={loading}
                         title="Rafraîchir"

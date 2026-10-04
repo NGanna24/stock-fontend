@@ -1440,7 +1440,7 @@ const Produits = () => {
             <span className="hide-mobile">Exporter</span>
           </button>
           <button
-            className="btn btn-icon"
+            className="btn"
             onClick={loadProduits}
             title="Rafraîchir"
             disabled={loading}
@@ -1456,7 +1456,7 @@ const Produits = () => {
       {/* ================= FILTRES ET RECHERCHE ================= */}
       <div className="produits-filters">
         <div className="search-box">
-          <Search size={18} className="search-icon" />
+          <Search size={18}  />
           <input
             type="text"
             placeholder="Rechercher un produit..."

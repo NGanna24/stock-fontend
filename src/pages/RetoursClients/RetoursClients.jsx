@@ -595,7 +595,7 @@ const RetoursClients = () => {
       {/* Filtres */}
       <div className="retours-filters">
         <div className="search-box">
-          <Search size={18} className="search-icon" />
+          <Search size={18}/>
           <input
             type="text"
             placeholder="Rechercher un retour..."
@@ -766,7 +766,7 @@ const RetoursClients = () => {
               {wizardStep === 1 && (
                 <div className="wizard-step-1">
                   <div className="search-commande-wrapper">
-                    <Search size={18} className="search-icon" />
+                    <Search size={18}  />
                     <input
                       type="text"
                       placeholder="N° de commande, téléphone client, n° facture..."

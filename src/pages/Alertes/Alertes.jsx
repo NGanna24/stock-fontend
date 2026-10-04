@@ -379,7 +379,7 @@ const Alertes = () => {
 
                         {/* Barre de recherche */}
                         <div className="alertes-search">
-                            <Search size={18} className="search-icon" />
+                            <Search size={18} />
                             <input
                                 type="text"
                                 placeholder="Rechercher un produit, une catégorie, un fournisseur..."

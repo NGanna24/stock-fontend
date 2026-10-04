@@ -255,7 +255,7 @@ const Paiements = () => {
       {/* En-tête */}
       <div className="paiements-header">
         <div>
-          <h1 className="paiements-title">💰 Paiements</h1>
+          <h1 className="paiements-title">Paiements</h1>
           <p className="paiements-subtitle">
             {stats.total_paiements} paiements au total
           </p>
@@ -325,7 +325,7 @@ const Paiements = () => {
       {/* Filtres */}
       <div className="paiements-filters">
         <div className="search-box">
-          <Search size={20} className="search-icon" />
+          <Search size={20} />
           <input
             type="text"
             placeholder="Rechercher un paiement..."
