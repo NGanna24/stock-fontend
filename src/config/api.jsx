@@ -40,6 +40,9 @@ SEARCH: {
         PROFILE_BY_SLUG: (slug) => `${BASE_URL}/api/utilisateur/profile/${slug}`,
         LOGOUT: `${BASE_URL}/api/utilisateur/logout`,       
         CHANGE_PASSWORD: `${BASE_URL}/api/utilisateur/change-password`, 
+        FORGOT_PASSWORD: `${BASE_URL}/api/utilisateur/forgot-password`,
+    VERIFY_RESET_CODE: `${BASE_URL}/api/utilisateur/verify-reset-code`,
+    RESET_PASSWORD: `${BASE_URL}/api/utilisateur/reset-password`,
     },
     // ==================== URLS MAGASIN ====================
 MAGASIN: {

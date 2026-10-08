@@ -12,6 +12,7 @@ import Ventes from "./pages/Ventes/Ventes";
 import LoginPage from "./pages/Auth/LoginPage";
 import RegisterPage from "./pages/Auth/RegisterPage";
 import { AuthContextProvider, useUser } from "./context/AuthContext";
+import ForgotPasswordPage from "./pages/Auth/ForgotPasswordPage";
 import Modeles from "./pages/Model/Modeles";
 import Marques from "./pages/Marques/Marques";
 import Unites from "./pages/Unites/Unites";
@@ -94,6 +95,7 @@ function AppContent() {
                 
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
                 {/* Redirection racine */}
                 <Route path="/" element={<RedirectToDashboard />} />

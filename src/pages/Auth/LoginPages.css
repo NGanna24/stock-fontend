@@ -714,6 +714,81 @@ body:has(.auth-page-split) {
   animation: authProgress 2s ease forwards;
 }
 
+
+/* Indicateur d'étapes */
+.steps-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 20px 0 30px;
+}
+
+.step-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #e5e7eb;
+    color: #9ca3af;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.3s ease;
+}
+
+.step-dot.active {
+    background: linear-gradient(135deg, #3D2E1F, #8A7560);
+    color: white;
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(207, 207, 219, 0.3);
+}
+
+.step-line {
+    flex: 1;
+    max-width: 60px;
+    height: 2px;
+    background: #e5e7eb;
+    transition: background 0.3s ease;
+}
+
+.step-line.active {
+    background: linear-gradient(135deg, #3D2E1F, #8A7560);
+}
+
+.link-btn {
+    background: none;
+    border: none;
+    color: #3D2E1F;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 8px;
+    width: 100%;
+    justify-content: center;
+    transition: color 0.2s;
+}
+
+.link-btn:hover {
+    color: #8A7560;
+    text-decoration: underline;
+}
+
+/* Lien "Mot de passe oublié" dans LoginPage */
+.forgot-password-link {
+    text-align: right;
+    margin-top: -8px;
+    margin-bottom: 8px;
+}
+
+.forgot-password-link .auth-link-split {
+    font-size: 13px;
+    color: #3D2E1F;
+}
 @keyframes authProgress {
   from { width: 0%; }
   to { width: 100%; }

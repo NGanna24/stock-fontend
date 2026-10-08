@@ -177,6 +177,13 @@ function LoginPage() {
                             </div>
                         </div>
 
+                        {/* ✅ Lien Mot de passe oublié */}
+                        <div className="forgot-password-link">
+                            <Link to="/forgot-password" className="auth-link-split">
+                                Mot de passe oublié ?
+                            </Link>
+                        </div>
+
                         {/* Bouton de connexion */}
                         <button
                             type="submit"

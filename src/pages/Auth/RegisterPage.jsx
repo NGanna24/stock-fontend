@@ -87,7 +87,7 @@ function RegisterPage() {
         if (touched[name]) {
             return validateField(name, formData[name]);
         }
-        return '';
+        return ''; 
     };
 
     const isFieldValid = (name) => {

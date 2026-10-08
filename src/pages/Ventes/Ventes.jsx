@@ -1,12 +1,12 @@
 // pages/Ventes/Ventes.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, {
+  useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback,
+} from "react";
 import {
-  Plus, Search, Eye, ChevronLeft, ChevronRight, Download, X, Check,
-  RefreshCw, Grid, List, Package, Calendar, Clock, AlertCircle,
-  CheckCircle, Ban, FileText, ShoppingBag, AlertTriangle, Trash2,
-  Truck, User, TrendingUp, Wallet, Phone, Search as SearchIcon,
-  Loader, ChevronDown, CreditCard, Building, Coins, Printer, FileDown,
-  MoreVertical, Box, ShoppingCart, UserCheck, Receipt, XCircle
+  Plus, Search, Eye, ChevronLeft, ChevronRight, Download, X, Check, RefreshCw,
+  Grid, List, AlertTriangle, Trash2, Wallet, Loader, ChevronDown, CreditCard,
+  Building, Coins, Printer, MoreVertical, Box, FileText, ShoppingBag,
+  CheckCircle, User,
 } from "lucide-react";
 import CommandeVenteService from "../../services/commandeVenteService";
 import ProduitService from "../../services/produitService";
@@ -15,45 +15,45 @@ import MagasinService from "../../services/magasinService";
 import FacturePDFService from "../../services/facturePDFService";
 import { useUser } from "../../context/AuthContext";
 import FacturePDFActions from "../../components/Facture/FacturePDFActions";
-
-import "./Ventes.css";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
 
-
+import "./Ventes.css";
 
 // ============================================================
 // HELPERS
 // ============================================================
+const NBSP = "\u00A0";
+
 const formatMontant = (value) => {
-  if (value === undefined || value === null || isNaN(value)) return '0 FCFA';
-  const num = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : value;
-  if (isNaN(num)) return '0 FCFA';
-  const fixed = Math.round(num).toString();
-  const formatted = fixed.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  return `${formatted} FCFA`;
+  if (value === undefined || value === null) return `0${NBSP}FCFA`;
+  const num = typeof value === "string" ? parseFloat(value.replace(/,/g, "")) : value;
+  if (isNaN(num)) return `0${NBSP}FCFA`;
+  const formatted = Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
+  return `${formatted}${NBSP}FCFA`;
 };
 
 const formatDateFR = (date) => {
-  if (!date) return '-';
+  if (!date) return "-";
   try {
     const d = new Date(date);
-    if (isNaN(d.getTime())) return '-';
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
+    if (isNaN(d.getTime())) return "-";
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
   } catch {
-    return '-';
+    return "-";
   }
 };
 
-// ============================================================
-// HELPERS PAIEMENT — logique centralisée
-// ============================================================
+// Accepte "12,5" et "12.5" — retourne NaN si vide
+const toNum = (v) => {
+  if (v === "" || v === null || v === undefined) return NaN;
+  return parseFloat(String(v).replace(",", "."));
+};
+const DECIMAL_RE = /^\d*[.,]?\d*$/;
+
+// ---------- Logique de paiement centralisée ----------
 const isFacturePayee = (commande) => {
   if (!commande) return false;
-  const statut = commande.statut_facture;
-  if (statut === 'payee') return true;
+  if (commande.statut_facture === "payee") return true;
   const montant = parseFloat(commande.montant_total) || 0;
   const paye = parseFloat(commande.total_paye) || 0;
   return montant > 0 && paye >= montant;
@@ -61,118 +61,339 @@ const isFacturePayee = (commande) => {
 
 const isFacturePartiellementPayee = (commande) => {
   if (!commande) return false;
-  if (commande.statut_facture === 'partiellement_payee') return true;
+  if (commande.statut_facture === "partiellement_payee") return true;
   const montant = parseFloat(commande.montant_total) || 0;
   const paye = parseFloat(commande.total_paye) || 0;
   return montant > 0 && paye > 0 && paye < montant;
 };
 
+const PAIEMENT_LABELS = {
+  en_attente: "Non payée",
+  payee: "Soldée",
+  partiellement_payee: "Partielle",
+  en_retard: "En retard",
+  annulee: "Annulée",
+};
+
+const paiementInfo = (c) => {
+  if (!c.statut_facture && !c.numero_facture && !c.id_facture) return null;
+  let key = c.statut_facture || "en_attente";
+  if (isFacturePayee(c)) key = "payee";
+  else if (key !== "annulee" && key !== "en_retard" && isFacturePartiellementPayee(c)) {
+    key = "partiellement_payee";
+  }
+  const montant = parseFloat(c.montant_total) || 0;
+  const paye = parseFloat(c.total_paye) || 0;
+  const ratio = key === "payee" ? 1 : montant > 0 ? Math.min(1, paye / montant) : 0;
+  let label = PAIEMENT_LABELS[key] || PAIEMENT_LABELS.en_attente;
+  if (key === "partiellement_payee" && ratio > 0) label = `${label}${NBSP}${Math.round(ratio * 100)}${NBSP}%`;
+  return { key, label, ratio };
+};
+
 // ============================================================
-// CONFIGURATION DES STATUTS
+// STATUTS DE COMMANDE
 // ============================================================
-const STATUTS_CONFIG = [
-  { value: 'en_attente', label: 'En attente', icon: Clock, className: 'status-en-attente' },
-  { value: 'confirmee', label: 'Confirmée', icon: CheckCircle, className: 'status-confirmee' },
-  { value: 'en_preparation', label: 'En préparation', icon: Package, className: 'status-preparation' },
-  { value: 'expediee', label: 'Expédiée', icon: Truck, className: 'status-expediee' },
-  { value: 'livree', label: 'Livrée', icon: CheckCircle, className: 'status-livree' },
-  { value: 'annulee', label: 'Annulée', icon: Ban, className: 'status-annulee' }
+const STATUTS = [
+  { value: "en_attente", label: "En attente" },
+  { value: "confirmee", label: "Confirmée" },
+  { value: "en_preparation", label: "En préparation" },
+  { value: "expediee", label: "Expédiée" },
+  { value: "livree", label: "Livrée" },
+  { value: "annulee", label: "Annulée" },
+];
+
+const MODES_PAIEMENT = [
+  { value: "especes", label: "Espèces", Icon: Coins },
+  { value: "carte", label: "Carte", Icon: CreditCard },
+  { value: "virement", label: "Virement", Icon: Building },
+  { value: "cheque", label: "Chèque", Icon: FileText },
 ];
 
 // ============================================================
-// COMPOSANT : Badge de statut
+// VERROU DE SCROLL (sans décalage de mise en page)
 // ============================================================
-const StatutBadge = ({ statut }) => {
-  const config = STATUTS_CONFIG.find(s => s.value === statut) || STATUTS_CONFIG[0];
-  const Icon = config.icon;
+let lockDepth = 0;
+const lockScroll = () => {
+  if (lockDepth++ === 0) {
+    const gap = window.innerWidth - document.documentElement.clientWidth;
+    document.body.dataset.vtPad = document.body.style.paddingRight || "";
+    document.body.style.overflow = "hidden";
+    if (gap > 0) document.body.style.paddingRight = `${gap}px`;
+  }
+};
+const unlockScroll = () => {
+  lockDepth = Math.max(0, lockDepth - 1);
+  if (lockDepth === 0) {
+    document.body.style.overflow = "";
+    document.body.style.paddingRight = document.body.dataset.vtPad || "";
+    delete document.body.dataset.vtPad;
+  }
+};
+
+// ============================================================
+// MENU ANCRÉ (position: fixed — jamais rogné, se retourne vers le haut si besoin)
+// ============================================================
+const AnchoredMenu = ({
+  open, anchorRef, onClose, width = 200, align = "left",
+  matchWidth = false, keepFocus = false, estHeight = 240, className = "", children,
+}) => {
+  const menuRef = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const [pos, setPos] = useState(null);
+
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return; }
+    const a = anchorRef.current;
+    if (!a) return;
+    const r = a.getBoundingClientRect();
+    const gap = 6;
+    const pad = 8;
+    const w = matchWidth ? r.width : width;
+    const below = window.innerHeight - r.bottom - gap - pad;
+    const above = r.top - gap - pad;
+    const flip = below < estHeight && above > below;
+    let left = align === "right" ? r.right - w : r.left;
+    left = Math.min(Math.max(pad, left), Math.max(pad, window.innerWidth - w - pad));
+    setPos(
+      flip
+        ? { left, width: w, bottom: window.innerHeight - r.top + gap, maxHeight: Math.max(120, above) }
+        : { left, width: w, top: r.bottom + gap, maxHeight: Math.max(120, below) }
+    );
+  }, [open, anchorRef, width, align, matchWidth, estHeight]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => {
+      const t = e.target;
+      if (menuRef.current?.contains(t) || anchorRef.current?.contains(t)) return;
+      closeRef.current();
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") { e.stopPropagation(); closeRef.current(); }
+    };
+    const onScroll = (e) => {
+      if (menuRef.current && menuRef.current.contains(e.target)) return;
+      closeRef.current();
+    };
+    const onResize = () => closeRef.current();
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey, true);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey, true);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open, anchorRef]);
+
+  if (!open || !pos) return null;
+
+  const style = { left: pos.left, width: pos.width, maxHeight: pos.maxHeight };
+  if (pos.bottom !== undefined) style.bottom = pos.bottom; else style.top = pos.top;
+
   return (
-    <span className={`status-badge ${config.className}`}>
-      <Icon size={14} />
-      {config.label}
-    </span>
+    <div
+      ref={menuRef}
+      className={`vt-menu ${className}`}
+      style={style}
+      role="menu"
+      onMouseDown={keepFocus ? (e) => e.preventDefault() : undefined}
+    >
+      {children}
+    </div>
   );
 };
 
 // ============================================================
-// COMPOSANT : Dropdown de statut
+// MODAL (focus restauré, Échap, clic extérieur, scroll verrouillé)
 // ============================================================
-const StatutDropdown = ({ commande, onSelect, updatingStatut, canManage }) => {
-  const [open, setOpen] = useState(false);
-  const dropdownRef = useRef(null);
+const Modal = ({ onClose, dismissable = true, size = "md", busy = false, labelledBy, children }) => {
+  const ref = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setOpen(false);
+    const previous = document.activeElement;
+    lockScroll();
+    if (ref.current && !ref.current.contains(document.activeElement)) {
+      ref.current.focus({ preventScroll: true });
+    }
+    return () => {
+      unlockScroll();
+      if (previous && typeof previous.focus === "function" && document.contains(previous)) {
+        previous.focus({ preventScroll: true });
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const currentStatut = STATUTS_CONFIG.find(s => s.value === commande.statut) || STATUTS_CONFIG[0];
-  const Icon = currentStatut.icon;
-  const isUpdating = updatingStatut === commande.id_commande;
-  const isLocked = commande.statut === 'livree' || commande.statut === 'annulee';
+  useEffect(() => {
+    if (!dismissable) return undefined;
+    const onKey = (e) => {
+      if (e.key === "Escape" && !e.defaultPrevented) onCloseRef.current?.();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [dismissable]);
 
-  if (!canManage || isLocked) {
+  return (
+    <div
+      className="vt-overlay"
+      onMouseDown={(e) => {
+        if (dismissable && e.target === e.currentTarget) onCloseRef.current?.();
+      }}
+    >
+      <div
+        ref={ref}
+        className={`vt-modal vt-modal--${size}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={labelledBy}
+        aria-busy={busy || undefined}
+        tabIndex={-1}
+      >
+        {busy && <div className="vt-busybar" />}
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const ModalHead = ({ id, title, sub, onClose, disabled, children }) => (
+  <div className="vt-modal-head">
+    <div className="vt-modal-titles">
+      <h2 id={id} className="vt-modal-title">{title}</h2>
+      {sub && <p className="vt-modal-sub">{sub}</p>}
+    </div>
+    {children}
+    <button
+      type="button"
+      className="vt-iconbtn"
+      onClick={() => !disabled && onClose()}
+      aria-label="Fermer"
+    >
+      <X size={18} />
+    </button>
+  </div>
+);
+
+// ============================================================
+// PETITS COMPOSANTS
+// ============================================================
+const PaiementTag = ({ info }) =>
+  info ? (
+    <span className="vt-pay">
+      <span className="vt-pay-label" data-p={info.key}>{info.label}</span>
+      <span className="vt-meter" aria-hidden="true">
+        <i data-p={info.key} style={{ width: `${Math.round(info.ratio * 100)}%` }} />
+      </span>
+    </span>
+  ) : (
+    <span className="vt-muted">-</span>
+  );
+
+const StatutMenu = ({ commande, onSelect, updatingStatut, canManage }) => {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
+  const current = STATUTS.find((s) => s.value === commande.statut) || STATUTS[0];
+  const locked = commande.statut === "livree" || commande.statut === "annulee";
+  const updating = updatingStatut === commande.id_commande;
+
+  if (!canManage || locked) {
     return (
-      <span className={`status-badge ${currentStatut.className} ${isLocked ? 'locked' : ''}`}>
-        <Icon size={14} />
-        {currentStatut.label}
-        {isLocked && <span className="lock-icon" title="Statut verrouillé"></span>}
+      <span
+        className="vt-status"
+        data-s={current.value}
+        title={locked ? "Statut verrouillé" : undefined}
+      >
+        <i className="vt-dot" />
+        {current.label}
+        {locked && (
+          <svg className="vt-lock" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="4" y="11" width="16" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" />
+          </svg>
+        )}
       </span>
     );
   }
 
   return (
-    <div className="statut-dropdown-container" ref={dropdownRef}>
+    <>
       <button
-        className={`status-badge clickable ${currentStatut.className} ${isUpdating ? 'loading' : ''}`}
-        onClick={() => !isUpdating && setOpen(!open)}
-        disabled={isUpdating}
-        title="Cliquer pour changer le statut"
+        ref={btnRef}
+        type="button"
+        className="vt-status vt-status--btn"
+        data-s={current.value}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Changer le statut"
+        onClick={() => !updating && setOpen((o) => !o)}
       >
-        {isUpdating ? (
-          <span className="spinner-small"></span>
-        ) : (
-          <>
-            <Icon size={14} />
-            <span>{currentStatut.label}</span>
-            <ChevronDown size={12} className={`statut-chevron ${open ? 'rotated' : ''}`} />
-          </>
-        )}
+        <i className="vt-dot" />
+        <span>{current.label}</span>
+        {updating ? <Loader size={12} className="vt-spin" /> : <ChevronDown size={12} className="vt-chev" />}
       </button>
+      <AnchoredMenu open={open} anchorRef={btnRef} onClose={() => setOpen(false)} width={210} estHeight={260}>
+        <div className="vt-menu-title">Changer le statut</div>
+        {STATUTS.map((s) => {
+          const isCurrent = s.value === commande.statut;
+          return (
+            <button
+              key={s.value}
+              type="button"
+              role="menuitem"
+              className="vt-menu-item"
+              data-s={s.value}
+              disabled={isCurrent}
+              onClick={() => {
+                onSelect(commande.id_commande, s.value);
+                setOpen(false);
+              }}
+            >
+              <i className="vt-dot" />
+              <span>{s.label}</span>
+              {isCurrent && <Check size={14} className="vt-menu-check" />}
+            </button>
+          );
+        })}
+      </AnchoredMenu>
+    </>
+  );
+};
 
-      {open && (
-        <div className="statut-dropdown-menu">
-          <div className="statut-dropdown-header">Changer le statut</div>
-          {STATUTS_CONFIG.map((s) => {
-            const SIcon = s.icon;
-            const isCurrent = s.value === commande.statut;
-            const isDisabled = commande.statut === 'livree' && s.value !== 'livree';
-
-            return (
-              <button
-                key={s.value}
-                className={`statut-dropdown-item ${isCurrent ? 'active' : ''}`}
-                onClick={() => {
-                  if (!isCurrent && !isDisabled) {
-                    onSelect(commande.id_commande, s.value);
-                    setOpen(false);
-                  }
-                }}
-                disabled={isCurrent || isDisabled}
-              >
-                <SIcon size={14} className={s.className} />
-                <span>{s.label}</span>
-                {isCurrent && <Check size={14} className="current-check" />}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
+const RowMenu = ({ commande, canPrint, canDelete, onPrint, onDelete }) => {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
+  if (!canPrint && !canDelete) return null;
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className="vt-iconbtn"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Autres actions pour ${commande.numero_commande}`}
+        title="Autres actions"
+        onClick={() => setOpen((o) => !o)}
+      >
+        <MoreVertical size={18} />
+      </button>
+      <AnchoredMenu open={open} anchorRef={btnRef} onClose={() => setOpen(false)} width={180} align="right" estHeight={110}>
+        {canPrint && (
+          <button type="button" role="menuitem" className="vt-menu-item" onClick={() => { setOpen(false); onPrint(commande); }}>
+            <Printer size={15} /><span>Imprimer la facture</span>
+          </button>
+        )}
+        {canDelete && (
+          <button type="button" role="menuitem" className="vt-menu-item vt-menu-item--danger" onClick={() => { setOpen(false); onDelete(commande); }}>
+            <Trash2 size={15} /><span>Supprimer</span>
+          </button>
+        )}
+      </AnchoredMenu>
+    </>
   );
 };
 
@@ -181,20 +402,23 @@ const StatutDropdown = ({ commande, onSelect, updatingStatut, canManage }) => {
 // ============================================================
 const Ventes = () => {
   const { user, isAuthenticated } = useUser();
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
 
-  // ========== ÉTATS PRINCIPAUX ==========
+  // ---------- Données ----------
   const [commandes, setCommandes] = useState([]);
-  const [produits, setProduits] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(8);
-  const [viewMode, setViewMode] = useState("list");
+  const [loading, setLoading] = useState(!!token);
   const [error, setError] = useState(null);
-  const [filterStatut, setFilterStatut] = useState("");
+  const [magasin, setMagasin] = useState(null);
 
-  // ========== ÉTATS MODALS ==========
+  // ---------- Liste ----------
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatut, setFilterStatut] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 8;
+  const [viewMode, setViewMode] = useState("list");
+  const searchRef = useRef(null);
+
+  // ---------- Modals ----------
   const [showModal, setShowModal] = useState(false);
   const [showPaiementModal, setShowPaiementModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
@@ -208,98 +432,53 @@ const Ventes = () => {
   const [deleting, setDeleting] = useState(false);
   const [updatingStatut, setUpdatingStatut] = useState(null);
 
-  // ========== ÉTATS TOAST ==========
+  // ---------- Toast ----------
   const [toast, setToast] = useState(null);
-
-  // ========== MODAL DE CONFIRMATION GÉNÉRIQUE ==========
-  const [confirmModal, setConfirmModal] = useState({
-    isOpen: false,
-    title: '',
-    message: '',
-    details: null,
-    type: 'warning',
-    confirmLabel: 'Confirmer',
-    onConfirm: null,
-  });
-
-  // ========== MODAL D'ALERTE GÉNÉRIQUE (remplace les alert()) ==========
-  const [alertModal, setAlertModal] = useState({
-    isOpen: false,
-    title: '',
-    message: '',
-    details: null,
-    type: 'warning',
-  });
-
-  const showAlert = (title, message, type = 'warning', details = null) => {
-    setAlertModal({ isOpen: true, title, message, type, details });
-  };
-
-  const closeAlert = () => {
-    setAlertModal((prev) => ({ ...prev, isOpen: false }));
-  };
-
-  const openConfirm = (config) => {
-    setConfirmModal({
-      isOpen: true,
-      title: config.title || 'Confirmation',
-      message: config.message || '',
-      details: config.details || null,
-      type: config.type || 'warning',
-      confirmLabel: config.confirmLabel || 'Confirmer',
-      onConfirm: config.onConfirm || null,
-    });
-  };
-
-  const closeConfirm = () => {
-    setConfirmModal((prev) => ({ ...prev, isOpen: false }));
-  };
-
-  const showToast = (message, type = 'info') => {
+  const toastTimer = useRef(null);
+  const showToast = useCallback((message, type = "info") => {
+    clearTimeout(toastTimer.current);
     setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
+    toastTimer.current = setTimeout(() => setToast(null), 4000);
+  }, []);
 
-  // ========== ÉTAT FORMULAIRE ==========
-  const [formData, setFormData] = useState({
-    nomclient: "",
-    telephone: "",
-    lignes: []
+  // ---------- Alerte générique ----------
+  const [alertModal, setAlertModal] = useState({
+    isOpen: false, title: "", message: "", details: null, type: "warning",
   });
+  const showAlert = (title, message, type = "warning", details = null) =>
+    setAlertModal({ isOpen: true, title, message, type, details });
+  const closeAlert = () => setAlertModal((prev) => ({ ...prev, isOpen: false }));
 
-  // ========== ÉTATS COMBOBOX PRODUIT ==========
+  // ---------- Formulaire de vente ----------
+  const [formData, setFormData] = useState({ nomclient: "", telephone: "", lignes: [] });
   const [produitSearch, setProduitSearch] = useState("");
   const [produitSearchResults, setProduitSearchResults] = useState([]);
   const [showProduitDropdown, setShowProduitDropdown] = useState(false);
+  const [activeIdx, setActiveIdx] = useState(0);
   const [selectedProduit, setSelectedProduit] = useState(null);
   const [isSearching, setIsSearching] = useState(false);
   const [quantite, setQuantite] = useState("");
   const [prixVente, setPrixVente] = useState("");
-  const searchDebounce = useRef(null);
-  const dropdownRef = useRef(null);
-
-  // ========== Unités de vente ==========
+  const [adding, setAdding] = useState(false);
   const [unitesVente, setUnitesVente] = useState([]);
   const [selectedUnite, setSelectedUnite] = useState(null);
   const [loadingUnites, setLoadingUnites] = useState(false);
 
-  // ========== ÉTAT PAIEMENT ==========
-  const [paiementData, setPaiementData] = useState({
-    mode_paiement: "especes"
-  });
+  const comboRef = useRef(null);
+  const inputRef = useRef(null);
+  const qteRef = useRef(null);
+  const telRef = useRef(null);
+  const searchDebounce = useRef(null);
+  const searchReq = useRef(0);
+  const unitReq = useRef(0);
 
-  // ========== ÉTAT MAGASIN (pour le PDF) ==========
-  const [magasin, setMagasin] = useState(null);
+  // ---------- Paiement ----------
+  const [paiementData, setPaiementData] = useState({ mode_paiement: "especes", montant: "" });
 
-  const canManage = user && ['admin', 'manager', 'caissier'].includes(user.role);
-  const [openMenuId, setOpenMenuId] = useState(null);
-
-  const toggleMenu = (id) => {
-    setOpenMenuId(openMenuId === id ? null : id);
-  };
+  const canManage = !!user && ["admin", "manager", "caissier"].includes(user.role);
 
   // ============================================================
-  // CHARGEMENT DES DONNÉES
+  // EFFETS
   // ============================================================
   useEffect(() => {
     if (isAuthenticated && token) {
@@ -307,31 +486,53 @@ const Ventes = () => {
       loadProduits();
       loadMagasin();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, token]);
 
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setShowProduitDropdown(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, filterStatut]);
+
+  useEffect(() => () => {
+    clearTimeout(toastTimer.current);
+    clearTimeout(searchDebounce.current);
   }, []);
 
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Focus quantité dès que l'unité est prête (au lieu d'un setTimeout fragile)
+  useEffect(() => {
+    if (selectedProduit && !loadingUnites && selectedUnite) {
+      qteRef.current?.focus();
+    }
+  }, [selectedProduit, loadingUnites, selectedUnite]);
+
+  useEffect(() => {
+    if (!showProduitDropdown) return;
+    document.getElementById(`vt-opt-${activeIdx}`)?.scrollIntoView({ block: "nearest" });
+  }, [activeIdx, showProduitDropdown]);
+
+  // ============================================================
+  // CHARGEMENT
+  // ============================================================
   const loadCommandes = async () => {
     setLoading(true);
     setError(null);
     try {
       const response = await CommandeVenteService.getAllCommandes(token);
-      if (response.success) {
-        setCommandes(response.data || []);
-      } else {
-        setError(response.message || 'Erreur lors du chargement des commandes');
-      }
-    } catch (error) {
-      console.error('❌ LoadCommandes error:', error);
-      setError(error.message || 'Erreur lors du chargement des commandes');
+      if (response.success) setCommandes(response.data || []);
+      else setError(response.message || "Erreur lors du chargement des commandes");
+    } catch (err) {
+      console.error("LoadCommandes error:", err);
+      setError(err.message || "Erreur lors du chargement des commandes");
     } finally {
       setLoading(false);
     }
@@ -339,12 +540,9 @@ const Ventes = () => {
 
   const loadProduits = async () => {
     try {
-      const response = await ProduitService.getAllProduits(token);
-      if (response.success) {
-        setProduits(response.data || []);
-      }
-    } catch (error) {
-      console.error('❌ LoadProduits error:', error);
+      await ProduitService.getAllProduits(token);
+    } catch (err) {
+      console.error("LoadProduits error:", err);
     }
   };
 
@@ -352,17 +550,33 @@ const Ventes = () => {
     try {
       const res = await MagasinService.getMonMagasin(token);
       if (res.success) setMagasin(res.magasin);
-    } catch (error) {
-      console.error('❌ LoadMagasin error:', error);
+    } catch (err) {
+      console.error("LoadMagasin error:", err);
     }
   };
 
   // ============================================================
-  // GESTION FORMULAIRE
+  // FORMULAIRE DE VENTE
   // ============================================================
+  const resetComposer = () => {
+    searchReq.current++;
+    unitReq.current++;
+    clearTimeout(searchDebounce.current);
+    setSelectedProduit(null);
+    setSelectedUnite(null);
+    setUnitesVente([]);
+    setProduitSearch("");
+    setQuantite("");
+    setPrixVente("");
+    setProduitSearchResults([]);
+    setShowProduitDropdown(false);
+    setIsSearching(false);
+    setActiveIdx(0);
+  };
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
   const rechercherProduits = (texte) => {
@@ -370,434 +584,315 @@ const Ventes = () => {
     setSelectedProduit(null);
     setSelectedUnite(null);
     setUnitesVente([]);
+    setActiveIdx(0);
+
+    clearTimeout(searchDebounce.current);
+    const rid = ++searchReq.current;
 
     if (texte.length < 2) {
       setProduitSearchResults([]);
       setShowProduitDropdown(false);
+      setIsSearching(false);
       return;
     }
 
     setIsSearching(true);
     setShowProduitDropdown(true);
 
-    if (searchDebounce.current) {
-      clearTimeout(searchDebounce.current);
-    }
-
     searchDebounce.current = setTimeout(async () => {
       try {
         const response = await ProduitService.getProduitsByModele(token, texte);
-
+        if (rid !== searchReq.current) return; // réponse périmée
         if (response.success && response.data) {
-          const produitsDisponibles = response.data.filter(p => {
-            const stock = parseFloat(p.quantite_stock) || 0;
-            return stock > 0;
-          });
-
-          setProduitSearchResults(produitsDisponibles);
+          setProduitSearchResults(
+            response.data.filter((p) => (parseFloat(p.quantite_stock) || 0) > 0)
+          );
         } else {
           setProduitSearchResults([]);
         }
-      } catch (error) {
-        console.error('❌ [RECHERCHE] Erreur:', error);
-        setProduitSearchResults([]);
+      } catch (err) {
+        console.error("Recherche produit:", err);
+        if (rid === searchReq.current) setProduitSearchResults([]);
       } finally {
-        setIsSearching(false);
+        if (rid === searchReq.current) setIsSearching(false);
       }
     }, 300);
   };
 
   const selectProduit = async (produit) => {
+    const rid = ++unitReq.current;
+    searchReq.current++;
+    clearTimeout(searchDebounce.current);
+    setIsSearching(false);
     setSelectedProduit(produit);
-    setProduitSearch(produit.nom + (produit.modele_nom ? ` - ${produit.modele_nom}` : ''));
+    setProduitSearch(produit.nom + (produit.modele_nom ? ` - ${produit.modele_nom}` : ""));
     setShowProduitDropdown(false);
     setSelectedUnite(null);
     setUnitesVente([]);
-    setPrixVente('');
+    setPrixVente("");
+    setQuantite("");
     setLoadingUnites(true);
+
+    const uniteBase = {
+      id_unite_vente: null,
+      nom: produit.unite_nom || produit.unite_symbole || "Unité",
+      symbole: produit.unite_symbole || "",
+      quantite_base: 1,
+      prix_vente: produit.prix_vente || 0,
+      prix_achat: produit.prix_achat || 0,
+      est_principal: false,
+      est_unite_base: true,
+    };
 
     try {
       const res = await UniteVenteService.getByProduit(token, produit.id_produit);
-      const unitesPersonnalisees = (res.success && res.data) ? res.data : [];
-
-      const uniteBase = {
-        id_unite_vente: null,
-        nom: produit.unite_nom || produit.unite_symbole || 'Unité',
-        symbole: produit.unite_symbole || '',
-        quantite_base: 1,
-        prix_vente: produit.prix_vente || 0,
-        prix_achat: produit.prix_achat || 0,
-        est_principal: false,
-        est_unite_base: true,
-      };
-
-      const toutesLesUnites = [uniteBase, ...unitesPersonnalisees];
-      setUnitesVente(toutesLesUnites);
-
-      const principale = unitesPersonnalisees.find(
-        u => u.est_principal === 1 || u.est_principal === true
-      );
+      if (rid !== unitReq.current) return;
+      const perso = res.success && res.data ? res.data : [];
+      setUnitesVente([uniteBase, ...perso]);
+      const principale = perso.find((u) => u.est_principal === 1 || u.est_principal === true);
       const defaut = principale || uniteBase;
       setSelectedUnite(defaut);
-      setPrixVente(defaut.prix_vente || 0);
-    } catch (error) {
-      console.error('❌ Erreur chargement unités:', error);
-
-      const uniteBase = {
-        id_unite_vente: null,
-        nom: produit.unite_nom || produit.unite_symbole || 'Unité',
-        quantite_base: 1,
-        prix_vente: produit.prix_vente || 0,
-        prix_achat: produit.prix_achat || 0,
-        est_principal: true,
-        est_unite_base: true,
-      };
-      setUnitesVente([uniteBase]);
-      setSelectedUnite(uniteBase);
-      setPrixVente(uniteBase.prix_vente);
+      setPrixVente(String(defaut.prix_vente || 0));
+    } catch (err) {
+      console.error("Erreur chargement unités:", err);
+      if (rid !== unitReq.current) return;
+      const fallback = { ...uniteBase, est_principal: true };
+      setUnitesVente([fallback]);
+      setSelectedUnite(fallback);
+      setPrixVente(String(fallback.prix_vente || 0));
     } finally {
-      setLoadingUnites(false);
+      if (rid === unitReq.current) setLoadingUnites(false);
     }
-
-    setTimeout(() => {
-      const qteInput = document.querySelector('input[name="quantite_ajout"]');
-      if (qteInput) qteInput.focus();
-    }, 200);
   };
 
   const handleUniteChange = (uniteId) => {
-    const unite = unitesVente.find(u =>
-      u.id_unite_vente === uniteId ||
-      (uniteId === null && u.id_unite_vente === null)
-    );
+    const unite = unitesVente.find((u) => u.id_unite_vente === uniteId);
     if (unite) {
       setSelectedUnite(unite);
-      setPrixVente(unite.prix_vente || 0);
+      setPrixVente(String(unite.prix_vente || 0));
     }
   };
 
   const calculerUnitesBase = () => {
-    if (!selectedUnite || !quantite) return 0;
-    return parseFloat(quantite) * parseFloat(selectedUnite.quantite_base || 1);
+    const q = toNum(quantite);
+    if (!selectedUnite || isNaN(q)) return 0;
+    return q * (parseFloat(selectedUnite.quantite_base) || 1);
   };
 
   const ajouterProduit = async () => {
+    if (adding) return;
+
     if (!selectedProduit) {
-      showAlert(
-        'Produit non sélectionné',
-        'Veuillez sélectionner un produit avant de l\'ajouter.',
-        'warning'
-      );
+      showAlert("Produit non sélectionné", "Veuillez sélectionner un produit avant de l'ajouter.");
       return;
     }
-
     if (!selectedUnite) {
-      showAlert(
-        'Unité manquante',
-        'Veuillez sélectionner une unité de vente.',
-        'warning'
-      );
+      showAlert("Unité manquante", "Veuillez sélectionner une unité de vente.");
+      return;
+    }
+    const qte = toNum(quantite);
+    if (!(qte > 0)) {
+      showAlert("Quantité invalide", "Veuillez saisir une quantité supérieure à 0.");
       return;
     }
 
-    if (!quantite || parseFloat(quantite) <= 0) {
-      showAlert(
-        'Quantité invalide',
-        'Veuillez saisir une quantité supérieure à 0.',
-        'warning'
-      );
-      return;
-    }
-
-    let stockDisponible = parseFloat(selectedProduit.quantite_stock) || 0;
+    setAdding(true);
     try {
-      const fresh = await ProduitService.getProduitById(token, selectedProduit.id_produit);
-      if (fresh.success && fresh.data) {
-        stockDisponible = parseFloat(fresh.data.quantite_stock) || 0;
+      let stockDisponible = parseFloat(selectedProduit.quantite_stock) || 0;
+      try {
+        const fresh = await ProduitService.getProduitById(token, selectedProduit.id_produit);
+        if (fresh.success && fresh.data) stockDisponible = parseFloat(fresh.data.quantite_stock) || 0;
+      } catch {
+        console.warn("Impossible de rafraîchir le stock");
       }
-    } catch (err) {
-      console.warn('⚠️ Impossible de rafraîchir le stock');
-    }
 
-    const qteBase = parseFloat(selectedUnite.quantite_base) || 1;
-    const unitesNecessaires = parseFloat(quantite) * qteBase;
+      const qteBase = parseFloat(selectedUnite.quantite_base) || 1;
+      const unitesNecessaires = qte * qteBase;
 
-    const dejaReserve = formData.lignes
-      .filter(l => l.id_produit === selectedProduit.id_produit)
-      .reduce((sum, l) => sum + (parseFloat(l.quantite_totale_base) || 0), 0);
+      const dejaReserve = formData.lignes
+        .filter((l) => l.id_produit === selectedProduit.id_produit)
+        .reduce((sum, l) => sum + (parseFloat(l.quantite_totale_base) || 0), 0);
+      const stockRestant = stockDisponible - dejaReserve;
 
-    const stockRestant = stockDisponible - dejaReserve;
-
-    if (unitesNecessaires > stockRestant) {
-      const maxConditionnements = Math.floor(stockRestant / qteBase);
-      showAlert(
-        'Stock insuffisant',
-        `Vous demandez ${quantite} ${selectedUnite.nom}(s) = ${unitesNecessaires} unité(s) de base.`,
-        'danger',
-        <>
-          <div className="detail-section">
-            <span className="detail-label">Stock disponible</span>
-            <ul>
-              <li>Stock total : <strong>{stockDisponible} unité(s)</strong></li>
-              <li>Déjà au panier : <strong>{dejaReserve} unité(s)</strong></li>
-              <li>Restant : <strong>{stockRestant} unité(s)</strong></li>
-            </ul>
-          </div>
-          <div className="detail-section">
-            <span className="detail-label">Maximum possible</span>
-            <p><strong>{maxConditionnements} {selectedUnite.nom}(s)</strong></p>
-          </div>
-        </>
-      );
-      return;
-    }
-
-    const prix = parseFloat(prixVente) || parseFloat(selectedUnite.prix_vente) || 0;
-    if (prix <= 0) {
-      showAlert(
-        'Prix non défini',
-        'Le prix de vente de ce produit n\'est pas renseigné. Veuillez saisir un prix.',
-        'warning'
-      );
-      return;
-    }
-
-    const ligneExistanteIndex = formData.lignes.findIndex(
-      l => l.id_produit === selectedProduit.id_produit &&
-           l.id_unite_vente === selectedUnite.id_unite_vente
-    );
-
-    let nouvellesLignes;
-    if (ligneExistanteIndex !== -1) {
-      nouvellesLignes = [...formData.lignes];
-      const ligne = nouvellesLignes[ligneExistanteIndex];
-      const nouvelleQte = ligne.quantite + parseFloat(quantite);
-      const nouvelleQteBase = ligne.quantite_totale_base + unitesNecessaires;
-
-      ligne.quantite = nouvelleQte;
-      ligne.quantite_totale_base = nouvelleQteBase;
-      ligne.total = nouvelleQte * ligne.prix_vente;
-    } else {
-      nouvellesLignes = [
-        ...formData.lignes,
-        {
-          id_produit: selectedProduit.id_produit,
-          produit_nom: selectedProduit.nom,
-          modele_nom: selectedProduit.modele_nom || '',
-
-          id_unite_vente: selectedUnite.id_unite_vente,
-          nom_unite_vente: selectedUnite.nom,
-          quantite_base: qteBase,
-          quantite_totale_base: unitesNecessaires,
-
-          quantite: parseFloat(quantite),
-          prix_vente: prix,
-          unite: selectedUnite.nom,
-          total: parseFloat(quantite) * prix,
-        }
-      ];
-    }
-
-    setFormData({
-      ...formData,
-      lignes: nouvellesLignes
-    });
-
-    setSelectedProduit(null);
-    setSelectedUnite(null);
-    setUnitesVente([]);
-    setProduitSearch("");
-    setQuantite("");
-    setPrixVente("");
-    setProduitSearchResults([]);
-    setShowProduitDropdown(false);
-
-    setTimeout(() => {
-      const searchInput = document.querySelector('input[name="produit_search"]');
-      if (searchInput) searchInput.focus();
-    }, 100);
-  };
-
-  const removeLigne = (index) => {
-    const nouvellesLignes = [...formData.lignes];
-    nouvellesLignes.splice(index, 1);
-    setFormData({ ...formData, lignes: nouvellesLignes });
-  };
-
-  const calculerTotal = () => {
-    return formData.lignes.reduce((sum, l) => sum + (l.total || 0), 0);
-  };
-
-  const renderProduitDropdown = () => {
-    if (!showProduitDropdown) return null;
-
-    return (
-      <div className="produit-dropdown" ref={dropdownRef}>
-        {isSearching ? (
-          <div className="dropdown-loading">
-            <Loader size={18} className="spinning" />
-            <span>Recherche en cours...</span>
-          </div>
-        ) : produitSearchResults.length === 0 ? (
-          <div className="dropdown-empty">
-            <span>Aucun produit disponible</span>
-          </div>
-        ) : (
-          produitSearchResults.map(p => (
-            <div
-              key={p.id_produit}
-              className={`dropdown-item ${selectedProduit?.id_produit === p.id_produit ? 'selected' : ''}`}
-              onClick={() => selectProduit(p)}
-            >
-              <div className="dropdown-item-info">
-                <span className="dropdown-item-nom">{p.nom}</span>
-                {p.modele_nom && <span className="dropdown-item-modele">{p.modele_nom}</span>}
-              </div>
-              <div className="dropdown-item-prix">
-                {formatMontant(p.prix_vente)}
-              </div>
+      if (unitesNecessaires > stockRestant) {
+        const maxConditionnements = Math.max(0, Math.floor(stockRestant / qteBase));
+        showAlert(
+          "Stock insuffisant",
+          `Vous demandez ${quantite} ${selectedUnite.nom}(s) = ${unitesNecessaires} unité(s) de base.`,
+          "danger",
+          <>
+            <div className="detail-section">
+              <span className="detail-label">Stock disponible</span>
+              <ul>
+                <li>Stock total : <strong>{stockDisponible} unité(s)</strong></li>
+                <li>Déjà au panier : <strong>{dejaReserve} unité(s)</strong></li>
+                <li>Restant : <strong>{stockRestant} unité(s)</strong></li>
+              </ul>
             </div>
-          ))
-        )}
-      </div>
-    );
+            <div className="detail-section">
+              <span className="detail-label">Maximum possible</span>
+              <p><strong>{maxConditionnements} {selectedUnite.nom}(s)</strong></p>
+            </div>
+          </>
+        );
+        return;
+      }
+
+      const prix = toNum(prixVente) || parseFloat(selectedUnite.prix_vente) || 0;
+      if (prix <= 0) {
+        showAlert("Prix non défini", "Le prix de vente de ce produit n'est pas renseigné. Veuillez saisir un prix.");
+        return;
+      }
+
+      const nouvelle = {
+        id_produit: selectedProduit.id_produit,
+        produit_nom: selectedProduit.nom,
+        modele_nom: selectedProduit.modele_nom || "",
+        id_unite_vente: selectedUnite.id_unite_vente,
+        nom_unite_vente: selectedUnite.nom,
+        quantite_base: qteBase,
+        quantite_totale_base: unitesNecessaires,
+        quantite: qte,
+        prix_vente: prix,
+        unite: selectedUnite.nom,
+        total: qte * prix,
+      };
+
+      setFormData((prev) => {
+        const idx = prev.lignes.findIndex(
+          (l) => l.id_produit === nouvelle.id_produit && l.id_unite_vente === nouvelle.id_unite_vente
+        );
+        if (idx !== -1) {
+          return {
+            ...prev,
+            lignes: prev.lignes.map((l, i) =>
+              i !== idx
+                ? l
+                : {
+                    ...l,
+                    quantite: l.quantite + qte,
+                    quantite_totale_base: l.quantite_totale_base + unitesNecessaires,
+                    total: (l.quantite + qte) * l.prix_vente,
+                  }
+            ),
+          };
+        }
+        return { ...prev, lignes: [...prev.lignes, nouvelle] };
+      });
+
+      resetComposer();
+      requestAnimationFrame(() => inputRef.current?.focus());
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const removeLigne = (index) =>
+    setFormData((prev) => ({ ...prev, lignes: prev.lignes.filter((_, i) => i !== index) }));
+
+  const calculerTotal = () => formData.lignes.reduce((sum, l) => sum + (l.total || 0), 0);
+
+  const onComboKeyDown = (e) => {
+    const n = produitSearchResults.length;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (!showProduitDropdown && n) { setShowProduitDropdown(true); return; }
+      if (n) setActiveIdx((i) => (i + 1) % n);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (n) setActiveIdx((i) => (i - 1 + n) % n);
+    } else if (e.key === "Enter") {
+      if (showProduitDropdown && produitSearchResults[activeIdx]) {
+        e.preventDefault();
+        selectProduit(produitSearchResults[activeIdx]);
+      }
+    }
+  };
+
+  const onAddKeyDown = (e) => {
+    if (e.key === "Enter") { e.preventDefault(); ajouterProduit(); }
   };
 
   // ============================================================
-  // ACTIONS PRINCIPALES
+  // ACTIONS
   // ============================================================
   const handleAdd = () => {
-    setFormData({
-      nomclient: "",
-      telephone: "",
-      lignes: []
-    });
-    setSelectedProduit(null);
-    setSelectedUnite(null);
-    setUnitesVente([]);
-    setProduitSearch("");
-    setQuantite("");
-    setPrixVente("");
-    setProduitSearchResults([]);
-    setShowProduitDropdown(false);
+    setFormData({ nomclient: "", telephone: "", lignes: [] });
+    resetComposer();
     setCommandeEnCours(null);
     setFactureGeneree(null);
     setError(null);
     setShowModal(true);
   };
 
-  const handleView = (commande) => {
+  const handleView = async (commande) => {
     setSelectedCommande(commande);
     setShowDetailModal(true);
+    try {
+      const res = await CommandeVenteService.getCommandeById(token, commande.id_commande);
+      if (res.success && res.data) {
+        setSelectedCommande((prev) =>
+          prev && prev.id_commande === commande.id_commande ? { ...prev, ...res.data } : prev
+        );
+      }
+    } catch (err) {
+      console.warn("Détails complets indisponibles:", err);
+    }
   };
 
-const handleChangeStatut = async (id, statut) => {
-  if (updatingStatut === id) return;
-  setUpdatingStatut(id);
-  setError(null);
-
-  try {
-    const response = await CommandeVenteService.updateStatut(token, id, statut);
-
-    if (response.success) {
-      await loadCommandes();
-
-      // ✅ Mettre à jour le selectedCommande si le modal Détails est ouvert sur cette commande
-      setSelectedCommande(prev => {
-        if (prev && prev.id_commande === id) {
-          return { ...prev, statut };
-        }
-        return prev;
-      });
-
-      // ✅ Mettre à jour commandeEnCours si le modal Paiement est ouvert sur cette commande
-      setCommandeEnCours(prev => {
-        if (prev && prev.id_commande === id) {
-          return { ...prev, statut };
-        }
-        return prev;
-      });
-
-      const labels = {
-        'en_attente': 'En attente',
-        'confirmee': 'Confirmée',
-        'en_preparation': 'En préparation',
-        'expediee': 'Expédiée',
-        'livree': 'Livrée',
-        'annulee': 'Annulée'
-      };
-
-      showToast(`Statut modifié : "${labels[statut] || statut}"`, 'success');
-    } else {
-      setError(response.message || 'Erreur lors du changement de statut');
-      showToast(response.message || 'Erreur lors du changement', 'error');
+  const handleChangeStatut = async (id, statut) => {
+    if (updatingStatut === id) return;
+    setUpdatingStatut(id);
+    try {
+      const response = await CommandeVenteService.updateStatut(token, id, statut);
+      if (response.success) {
+        await loadCommandes();
+        const patch = (prev) => (prev && prev.id_commande === id ? { ...prev, statut } : prev);
+        setSelectedCommande(patch);
+        setCommandeEnCours(patch);
+        const label = STATUTS.find((s) => s.value === statut)?.label || statut;
+        showToast(`Statut modifié : ${label}`, "success");
+      } else {
+        showToast(response.message || "Erreur lors du changement", "error");
+      }
+    } catch (err) {
+      console.error("Change statut error:", err);
+      showToast(err.message || "Erreur lors du changement", "error");
+    } finally {
+      setUpdatingStatut(null);
     }
-  } catch (error) {
-    console.error('❌ Change statut error:', error);
-    setError(error.message || 'Erreur lors du changement de statut');
-    showToast(error.message || 'Erreur lors du changement', 'error');
-  } finally {
-    setUpdatingStatut(null);
-  }
-};
+  };
 
-const handleImprimerDepuisListe = async (commande) => {
-  try {
-    const res = await CommandeVenteService.getCommandeById(token, commande.id_commande);
-    if (!res.success) {
-      showToast('Impossible de charger la facture', 'error');
-      return;
+  const handleImprimerDepuisListe = async (commande) => {
+    try {
+      const res = await CommandeVenteService.getCommandeById(token, commande.id_commande);
+      if (!res.success) {
+        showToast("Impossible de charger la facture", "error");
+        return;
+      }
+      const result = await FacturePDFService.print({ ...res.data, magasin: magasin || null });
+      if (result.fallback) showToast("Impression directe indisponible : le PDF a été ouvert ou téléchargé", "info");
+      else if (result.success) showToast("Impression lancée", "success");
+    } catch (err) {
+      console.error("Print error:", err);
+      showToast(err.message || "Erreur lors de l'impression", "error");
     }
+  };
 
-    const facture = {
-      ...res.data,
-      magasin: magasin || null,
-    };
-
-    const result = await FacturePDFService.print(facture);
-
-    if (result.fallback) {
-      showToast(
-        'Impression non disponible — le PDF a été téléchargé',
-        'info'
-      );
-    } else if (result.success) {
-      showToast('Impression lancée', 'success');
-    }
-  } catch (err) {
-    console.error('❌ Print error:', err);
-    showToast(
-      err.message || 'Erreur lors de l\'impression',
-      'error'
-    );
-  }
-};
+  const mapLignesFacture = (lignes) =>
+    (lignes || []).map((l) => ({ ...l, unite_symbole: l.unite_symbole || l.nom_unite_vente || "" }));
 
   const handleFinaliserVente = async () => {
-    if (!formData.nomclient || formData.nomclient.trim() === "") {
-      showAlert(
-        'Client manquant',
-        'Veuillez saisir le nom du client.',
-        'warning'
-      );
+    if (!formData.nomclient.trim()) {
+      showAlert("Client manquant", "Veuillez saisir le nom du client.");
       return;
     }
-
-    if (!formData.telephone || formData.telephone.trim() === "") {
-      showAlert(
-        'Téléphone manquant',
-        'Veuillez saisir le numéro de téléphone du client.',
-        'warning'
-      );
+    if (!formData.telephone.trim()) {
+      showAlert("Téléphone manquant", "Veuillez saisir le numéro de téléphone du client.");
       return;
     }
-
     if (formData.lignes.length === 0) {
-      showAlert(
-        'Panier vide',
-        'Veuillez ajouter au moins un produit à la vente.',
-        'warning'
-      );
+      showAlert("Panier vide", "Veuillez ajouter au moins un produit à la vente.");
       return;
     }
 
@@ -808,11 +903,11 @@ const handleImprimerDepuisListe = async (commande) => {
       const data = {
         nomclient: formData.nomclient.trim(),
         telephone: formData.telephone.trim(),
-        date_commande: new Date().toISOString().split('T')[0],
+        date_commande: new Date().toISOString().split("T")[0],
         notes: null,
         mode_paiement: "especes",
         date_echeance: null,
-        lignes: formData.lignes.map(l => ({
+        lignes: formData.lignes.map((l) => ({
           id_produit: l.id_produit,
           id_unite_vente: l.id_unite_vente,
           nom_unite_vente: l.nom_unite_vente,
@@ -820,65 +915,50 @@ const handleImprimerDepuisListe = async (commande) => {
           quantite: l.quantite,
           quantite_totale_base: l.quantite_totale_base,
           prix_vente: l.prix_vente,
-          remise: 0
-        }))
+          remise: 0,
+        })),
       };
 
       const commandeResponse = await CommandeVenteService.createCommande(token, data);
-
       if (!commandeResponse.success) {
-        throw new Error(commandeResponse.message || 'Erreur lors de la création');
+        throw new Error(commandeResponse.message || "Erreur lors de la création");
       }
-
       const commande = commandeResponse.data;
 
-      const commandeCompleteResponse = await CommandeVenteService.getCommandeById(
-        token,
-        commande.id_commande
-      );
-
-      if (!commandeCompleteResponse.success) {
-        throw new Error('Impossible de récupérer les détails');
-      }
-
-      const commandeComplete = commandeCompleteResponse.data;
+      const completeRes = await CommandeVenteService.getCommandeById(token, commande.id_commande);
+      if (!completeRes.success) throw new Error("Impossible de récupérer les détails");
+      const c = completeRes.data;
 
       const facture = {
-        id_facture: commandeComplete.id_facture || Date.now(),
-        numero_facture: commandeComplete.numero_facture || `FV-${Date.now()}`,
-        date_facture: commandeComplete.date_facture || new Date().toISOString().split('T')[0],
-        date_echeance: commandeComplete.date_echeance || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-        nomclient: commandeComplete.nomclient || 'Client',
-        telephone: commandeComplete.telephone || '',
-        montant_total: parseFloat(commandeComplete.montant_total) || 0,
-        mode_paiement: commandeComplete.mode_paiement || "especes",
-        statut: commandeComplete.statut_facture || 'en_attente',
-        notes: commandeComplete.notes || `Facture pour commande ${commandeComplete.numero_commande}`,
-        lignes: (commandeComplete.lignes || []).map(l => ({
-          ...l,
-          unite_symbole: l.unite_symbole || l.nom_unite_vente || '',
-        })),
-        paiements: commandeComplete.paiements || [],
-        total_paye: commandeComplete.total_paye || 0,
-        reste_a_payer: parseFloat(commandeComplete.montant_total) - (commandeComplete.total_paye || 0),
-        numero_commande: commandeComplete.numero_commande,
-        id_commande: commandeComplete.id_commande,
-        magasin: magasin,
+        id_facture: c.id_facture || Date.now(),
+        numero_facture: c.numero_facture || `FV-${Date.now()}`,
+        date_facture: c.date_facture || new Date().toISOString().split("T")[0],
+        date_echeance:
+          c.date_echeance ||
+          new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        nomclient: c.nomclient || "Client",
+        telephone: c.telephone || "",
+        montant_total: parseFloat(c.montant_total) || 0,
+        mode_paiement: c.mode_paiement || "especes",
+        statut: c.statut_facture || "en_attente",
+        notes: c.notes || `Facture pour commande ${c.numero_commande}`,
+        lignes: mapLignesFacture(c.lignes),
+        paiements: c.paiements || [],
+        total_paye: c.total_paye || 0,
+        reste_a_payer: parseFloat(c.montant_total) - (c.total_paye || 0),
+        numero_commande: c.numero_commande,
+        id_commande: c.id_commande,
+        magasin,
       };
 
       setFactureGeneree(facture);
       setCommandeEnCours(commande);
       setShowModal(false);
       setShowFactureModal(true);
-
-    } catch (error) {
-      console.error('❌ Finaliser error:', error);
-      setError(error.message || 'Erreur lors de la finalisation');
-      showAlert(
-        'Erreur',
-        error.message || 'Erreur lors de la finalisation de la vente.',
-        'danger'
-      );
+    } catch (err) {
+      console.error("Finaliser error:", err);
+      setError(err.message || "Erreur lors de la finalisation");
+      showAlert("Erreur", err.message || "Erreur lors de la finalisation de la vente.", "danger");
     } finally {
       setSaving(false);
     }
@@ -886,25 +966,27 @@ const handleImprimerDepuisListe = async (commande) => {
 
   const handlePayer = async () => {
     if (!commandeEnCours || !factureGeneree) {
-      showAlert(
-        'Aucune facture',
-        'Aucune facture à payer.',
-        'warning'
-      );
+      showAlert("Aucune facture", "Aucune facture à payer.");
       return;
     }
 
-    const resteAPayer = factureGeneree.reste_a_payer !== undefined
-      ? factureGeneree.reste_a_payer
-      : factureGeneree.montant_total;
+    const resteAPayer =
+      factureGeneree.reste_a_payer !== undefined
+        ? factureGeneree.reste_a_payer
+        : factureGeneree.montant_total;
 
     if (resteAPayer <= 0) {
-      showAlert(
-        'Facture déjà payée',
-        'Cette facture est déjà totalement payée.',
-        'success'
-      );
+      showAlert("Facture déjà payée", "Cette facture est déjà totalement payée.", "success");
       setShowPaiementModal(false);
+      return;
+    }
+
+    const montant = paiementData.montant ? toNum(paiementData.montant) : resteAPayer;
+    if (!(montant > 0) || montant > resteAPayer + 0.001) {
+      showAlert(
+        "Montant invalide",
+        `Le montant doit être supérieur à 0 et ne pas dépasser le reste à payer (${formatMontant(resteAPayer)}).`
+      );
       return;
     }
 
@@ -917,65 +999,57 @@ const handleImprimerDepuisListe = async (commande) => {
         commandeEnCours.id_commande,
         {
           id_facture: factureGeneree.id_facture,
-          date_paiement: new Date().toISOString().split('T')[0],
-          montant: parseFloat(paiementData.montant || resteAPayer),
-          mode_paiement: paiementData.mode_paiement || 'especes',
+          date_paiement: new Date().toISOString().split("T")[0],
+          montant,
+          mode_paiement: paiementData.mode_paiement || "especes",
           note: `Paiement pour facture ${factureGeneree.numero_facture}`,
-          reference: null
+          reference: null,
         }
       );
-
       if (!paiementResponse.success) {
-        throw new Error(paiementResponse.message || 'Erreur lors du paiement');
+        throw new Error(paiementResponse.message || "Erreur lors du paiement");
       }
 
-      const commandeComplete = await CommandeVenteService.getCommandeById(
-        token,
-        commandeEnCours.id_commande
-      );
+      const completeRes = await CommandeVenteService.getCommandeById(token, commandeEnCours.id_commande);
 
       let nouveauTotalPaye = 0;
-      let nouveauMontantTotal = 0;
-      let nouveauStatutFacture = 'en_attente';
-      let nouveauResteAPayer = 0;
+      let nouveauStatutFacture = "en_attente";
+      let nouveauReste = 0;
 
-      if (commandeComplete.success) {
-        nouveauTotalPaye = commandeComplete.data.total_paye || 0;
-        nouveauMontantTotal = parseFloat(commandeComplete.data.montant_total) || 0;
-        nouveauStatutFacture = commandeComplete.data.statut_facture || 'en_attente';
-        nouveauResteAPayer = nouveauMontantTotal - nouveauTotalPaye;
+      if (completeRes.success) {
+        const d = completeRes.data;
+        nouveauTotalPaye = d.total_paye || 0;
+        const nouveauMontantTotal = parseFloat(d.montant_total) || 0;
+        nouveauStatutFacture = d.statut_facture || "en_attente";
+        nouveauReste = nouveauMontantTotal - nouveauTotalPaye;
 
-        // ✅ Mise à jour complète et cohérente de factureGeneree
-        setFactureGeneree(prev => ({
+        setFactureGeneree((prev) => ({
           ...prev,
           statut: nouveauStatutFacture,
           total_paye: nouveauTotalPaye,
-          reste_a_payer: nouveauResteAPayer,
-          paiements: commandeComplete.data.paiements || [],
-          lignes: (commandeComplete.data.lignes || []).map(l => ({
-            ...l,
-            unite_symbole: l.unite_symbole || l.nom_unite_vente || '',
-          })),
-          magasin: magasin,
+          reste_a_payer: nouveauReste,
+          paiements: d.paiements || [],
+          lignes: mapLignesFacture(d.lignes),
+          magasin,
         }));
       }
 
       await loadCommandes();
 
-      if (nouveauStatutFacture === 'payee' || nouveauResteAPayer <= 0) {
+      if (nouveauStatutFacture === "payee" || nouveauReste <= 0) {
         setShowPaiementModal(false);
         setCommandeEnCours(null);
         setPaiementData({ mode_paiement: "especes", montant: "" });
         setShowFactureModal(true);
-        showToast('Facture totalement payée !', 'success');
+        showToast("Facture totalement payée", "success");
       } else {
-        showToast(`Paiement partiel. Reste : ${formatMontant(nouveauResteAPayer)}`, 'success');
+        setPaiementData((p) => ({ ...p, montant: "" }));
+        showToast(`Paiement partiel enregistré. Reste : ${formatMontant(nouveauReste)}`, "success");
       }
-
-    } catch (error) {
-      console.error('❌ Payer error:', error);
-      setError(error.message || 'Erreur lors du paiement');
-      showToast(error.message || 'Erreur lors du paiement', 'error');
+    } catch (err) {
+      console.error("Payer error:", err);
+      setError(err.message || "Erreur lors du paiement");
+      showToast(err.message || "Erreur lors du paiement", "error");
     } finally {
       setSaving(false);
     }
@@ -983,78 +1057,53 @@ const handleImprimerDepuisListe = async (commande) => {
 
   const preparerPaiement = async (commande) => {
     if (!commande?.id_commande) {
-      showAlert(
-        'Commande invalide',
-        'Impossible de préparer le paiement pour cette commande.',
-        'danger'
-      );
+      showAlert("Commande invalide", "Impossible de préparer le paiement pour cette commande.", "danger");
       return;
     }
-
     try {
       const fullResponse = await CommandeVenteService.getCommandeById(token, commande.id_commande);
-      if (!fullResponse.success) throw new Error('Commande non trouvée');
+      if (!fullResponse.success) throw new Error("Commande non trouvée");
+      const c = fullResponse.data;
 
-      const commandeComplete = fullResponse.data;
-
-      if (!commandeComplete.id_facture) {
-        showAlert(
-          'Facture manquante',
-          'Aucune facture n\'est associée à cette commande.',
-          'warning'
-        );
+      if (!c.id_facture) {
+        showAlert("Facture manquante", "Aucune facture n'est associée à cette commande.");
         return;
       }
 
-      const montantTotal = parseFloat(commandeComplete.montant_total) || 0;
-      const totalPaye = parseFloat(commandeComplete.total_paye) || 0;
-      const resteAPayer = montantTotal - totalPaye;
+      const montantTotal = parseFloat(c.montant_total) || 0;
+      const totalPaye = parseFloat(c.total_paye) || 0;
+      const reste = montantTotal - totalPaye;
 
-      if (resteAPayer <= 0) {
-        showAlert(
-          'Facture déjà payée',
-          'Cette facture est déjà totalement payée.',
-          'success'
-        );
+      if (reste <= 0) {
+        showAlert("Facture déjà payée", "Cette facture est déjà totalement payée.", "success");
         return;
       }
 
-      const facture = {
-        id_facture: commandeComplete.id_facture,
-        numero_facture: commandeComplete.numero_facture,
-        date_facture: commandeComplete.date_facture,
-        date_echeance: commandeComplete.date_echeance,
-        nomclient: commandeComplete.nomclient,
-        telephone: commandeComplete.telephone,
+      setCommandeEnCours(c);
+      setFactureGeneree({
+        id_facture: c.id_facture,
+        numero_facture: c.numero_facture,
+        date_facture: c.date_facture,
+        date_echeance: c.date_echeance,
+        nomclient: c.nomclient,
+        telephone: c.telephone,
         montant_total: montantTotal,
-        statut: commandeComplete.statut_facture || 'en_attente',
-        lignes: (commandeComplete.lignes || []).map(l => ({
-          ...l,
-          unite_symbole: l.unite_symbole || l.nom_unite_vente || '',
-        })),
-        paiements: commandeComplete.paiements || [],
+        statut: c.statut_facture || "en_attente",
+        lignes: mapLignesFacture(c.lignes),
+        paiements: c.paiements || [],
         total_paye: totalPaye,
-        reste_a_payer: resteAPayer,
-        numero_commande: commandeComplete.numero_commande,
-        id_commande: commandeComplete.id_commande,
-        mode_paiement: commandeComplete.mode_paiement || 'especes',
-        magasin: magasin,
-      };
-
-      setCommandeEnCours(commandeComplete);
-      setFactureGeneree(facture);
-      setPaiementData({ mode_paiement: "especes" });
+        reste_a_payer: reste,
+        numero_commande: c.numero_commande,
+        id_commande: c.id_commande,
+        mode_paiement: c.mode_paiement || "especes",
+        magasin,
+      });
+      setPaiementData({ mode_paiement: "especes", montant: "" });
       setShowPaiementModal(true);
       setShowDetailModal(false);
-      setOpenMenuId(null);
-
-    } catch (error) {
-      console.error('❌ Erreur preparerPaiement:', error);
-      showAlert(
-        'Erreur',
-        error.message || 'Erreur lors de la préparation du paiement.',
-        'danger'
-      );
+    } catch (err) {
+      console.error("preparerPaiement:", err);
+      showAlert("Erreur", err.message || "Erreur lors de la préparation du paiement.", "danger");
     }
   };
 
@@ -1065,26 +1114,20 @@ const handleImprimerDepuisListe = async (commande) => {
 
   const handleDelete = async () => {
     if (!commandeToDelete) return;
-
     setDeleting(true);
-    setError(null);
-
     try {
       const response = await CommandeVenteService.deleteCommande(token, commandeToDelete.id_commande);
-
       if (response.success) {
         await loadCommandes();
         setShowDeleteModal(false);
         setCommandeToDelete(null);
-        showToast('Commande supprimée', 'success');
+        showToast("Commande supprimée", "success");
       } else {
-        setError(response.message || 'Erreur lors de la suppression');
-        showToast(response.message || 'Erreur suppression', 'error');
+        showToast(response.message || "Erreur suppression", "error");
       }
-    } catch (error) {
-      console.error('❌ Delete error:', error);
-      setError(error.message || 'Erreur lors de la suppression');
-      showToast(error.message || 'Erreur suppression', 'error');
+    } catch (err) {
+      console.error("Delete error:", err);
+      showToast(err.message || "Erreur suppression", "error");
     } finally {
       setDeleting(false);
     }
@@ -1094,1397 +1137,1123 @@ const handleImprimerDepuisListe = async (commande) => {
     try {
       const response = await CommandeVenteService.exportCommandes(token);
       if (response.success && response.data) {
+        const clean = (v) => String(v ?? "").replace(/\u00A0/g, " ").replace(/"/g, '""');
         const headers = ["ID", "Numéro", "Date", "Client", "Téléphone", "Facture", "Montant", "Statut", "Notes"];
-        const rows = response.data.map(c => [
-          c.id, c.numero, c.date, c.client || '-', c.telephone || '-',
-          c.facture || '-', formatMontant(c.montant), c.statut, c.notes || ""
+        const rows = response.data.map((c) => [
+          c.id, c.numero, c.date, c.client || "-", c.telephone || "-",
+          c.facture || "-", formatMontant(c.montant), c.statut, c.notes || "",
         ]);
-
         let csv = headers.join(",") + "\n";
-        rows.forEach(row => {
-          csv += row.map(cell => `"${cell}"`).join(",") + "\n";
-        });
+        rows.forEach((row) => { csv += row.map((cell) => `"${clean(cell)}"`).join(",") + "\n"; });
 
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
+        const link = document.createElement("a");
         link.href = url;
-        link.download = `ventes_${new Date().toISOString().split('T')[0]}.csv`;
+        link.download = `ventes_${new Date().toISOString().split("T")[0]}.csv`;
         link.click();
         URL.revokeObjectURL(url);
       }
-    } catch (error) {
-      console.error('❌ Export error:', error);
-      showAlert(
-        'Erreur d\'exportation',
-        'Une erreur est survenue lors de l\'exportation des données.',
-        'danger'
-      );
+    } catch (err) {
+      console.error("Export error:", err);
+      showAlert("Erreur d'exportation", "Une erreur est survenue lors de l'exportation des données.", "danger");
     }
   };
 
-  const getStatutFactureBadge = (statut) => {
-    const configs = {
-      'en_attente': { label: 'En attente', className: 'status-en-attente' },
-      'payee': { label: 'Payée', className: 'status-livree' },
-      'partiellement_payee': { label: 'Partiellement payée', className: 'status-preparation' },
-      'en_retard': { label: 'En retard', className: 'status-annulee' },
-      'annulee': { label: 'Annulée', className: 'status-annulee' }
-    };
-    const config = configs[statut] || configs['en_attente'];
-    return <span className={`status-badge ${config.className}`}>{config.label}</span>;
-  };
+  // ============================================================
+  // DONNÉES DÉRIVÉES
+  // ============================================================
+  const canPay = (c) =>
+    canManage && c.statut !== "livree" && c.statut !== "annulee" && !isFacturePayee(c);
 
-  const getStats = () => {
-    const total = commandes.length;
-    const enAttente = commandes.filter(c => c.statut === 'en_attente').length;
-    const confirmee = commandes.filter(c => c.statut === 'confirmee').length;
-    const enPreparation = commandes.filter(c => c.statut === 'en_preparation').length;
-    const expediee = commandes.filter(c => c.statut === 'expediee').length;
-    const livree = commandes.filter(c => c.statut === 'livree').length;
-    const annulee = commandes.filter(c => c.statut === 'annulee').length;
+  const stats = useMemo(() => {
+    const par = {};
+    STATUTS.forEach((s) => { par[s.value] = 0; });
+    let totalCA = 0;
+    let aEncaisser = 0;
+    commandes.forEach((c) => {
+      if (par[c.statut] !== undefined) par[c.statut]++;
+      if (c.statut !== "annulee") {
+        const m = parseFloat(c.montant_total);
+        if (!isNaN(m)) totalCA += m;
+        if (!isFacturePayee(c)) aEncaisser++;
+      }
+    });
+    return { total: commandes.length, par, totalCA, aEncaisser };
+  }, [commandes]);
 
-    const totalCA = commandes.reduce((sum, c) => {
-      const montant = c.montant_total !== undefined && c.montant_total !== null
-        ? parseFloat(c.montant_total) : 0;
-      return sum + (isNaN(montant) ? 0 : montant);
-    }, 0);
+  const filteredCommandes = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    return commandes.filter((c) => {
+      const matchSearch =
+        !q ||
+        [c.numero_commande, c.nomclient, c.telephone, c.numero_facture, c.notes].some((f) =>
+          f?.toLowerCase().includes(q)
+        );
+      const matchStatut = filterStatut ? c.statut === filterStatut : true;
+      return matchSearch && matchStatut;
+    });
+  }, [commandes, searchTerm, filterStatut]);
 
-    return { total, enAttente, confirmee, enPreparation, expediee, livree, annulee, totalCA };
-  };
+  const totalPages = Math.max(1, Math.ceil(filteredCommandes.length / itemsPerPage));
+  const page = Math.min(currentPage, totalPages);
+  const startIdx = (page - 1) * itemsPerPage;
+  const currentItems = filteredCommandes.slice(startIdx, startIdx + itemsPerPage);
 
-  const stats = getStats();
+  const composerReady = !!selectedProduit && !!selectedUnite && !loadingUnites;
+  const manques = [];
+  if (!formData.nomclient.trim()) manques.push("le nom du client");
+  if (!formData.telephone.trim()) manques.push("le téléphone");
+  if (formData.lignes.length === 0) manques.push("au moins un produit");
 
-  const filteredCommandes = commandes.filter((commande) => {
-    const matchSearch =
-      commande.numero_commande?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      commande.nomclient?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      commande.telephone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      commande.numero_facture?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      commande.notes?.toLowerCase().includes(searchTerm.toLowerCase());
-
-    const matchStatut = filterStatut ? commande.statut === filterStatut : true;
-    return matchSearch && matchStatut;
-  });
-
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredCommandes.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredCommandes.length / itemsPerPage);
+  const factureReste = factureGeneree
+    ? factureGeneree.reste_a_payer !== undefined
+      ? parseFloat(factureGeneree.reste_a_payer)
+      : parseFloat(factureGeneree.montant_total) || 0
+    : 0;
+  const factureEstPayee = factureGeneree ? factureGeneree.statut === "payee" || factureReste <= 0 : false;
 
   // ============================================================
-  // RENDU DES LIGNES DU FORMULAIRE
+  // RENDUS PARTIELS
   // ============================================================
-  const renderLignesForm = () => {
-    if (formData.lignes.length === 0) {
-      return (
-        <div className="empty-lignes">
-          <ShoppingBag size={28} />
-          <p>Aucun produit ajouté</p>
-          <small>Recherchez et ajoutez des produits à la commande</small>
-        </div>
-      );
-    }
+  const renderActions = (commande) => (
+    <div className="vt-actions">
+      {canPay(commande) && (
+        <button type="button" className="vt-btn vt-btn--sm vt-btn--cash" onClick={() => preparerPaiement(commande)}>
+          <Wallet size={14} />
+          {isFacturePartiellementPayee(commande) ? "Compléter" : "Encaisser"}
+        </button>
+      )}
+      <button
+        type="button"
+        className="vt-iconbtn"
+        onClick={() => handleView(commande)}
+        aria-label={`Voir ${commande.numero_commande}`}
+        title="Voir le détail"
+      >
+        <Eye size={17} />
+      </button>
+      <RowMenu
+        commande={commande}
+        canPrint={!!commande.id_facture}
+        canDelete={canManage}
+        onPrint={handleImprimerDepuisListe}
+        onDelete={confirmDelete}
+      />
+    </div>
+  );
 
-    return (
-      <div className="lignes-table-container">
-        <table className="lignes-table">
-          <thead>
-            <tr>
-              <th style={{ width: '34%' }}>Produit</th>
-              <th style={{ width: '18%' }}>Unité</th>
-              <th style={{ width: '10%' }}>Qté</th>
-              <th style={{ width: '16%' }}>Prix unit.</th>
-              <th style={{ width: '16%' }}>Total</th>
-              <th style={{ width: '6%' }}></th>
-            </tr>
-          </thead>
-          <tbody>
-            {formData.lignes.map((ligne, index) => (
-              <tr key={index}>
-                <td>
-                  <strong>{ligne.produit_nom}</strong>
-                  {ligne.modele_nom && <span className="unite-label"> - {ligne.modele_nom}</span>}
-                </td>
-                <td>
-                  <span className="unite-badge">
-                    <Box size={11} />
-                    {ligne.nom_unite_vente}
-                    {ligne.quantite_base > 1 && (
-                      <small> ({ligne.quantite_base})</small>
-                    )}
-                  </span>
-                </td>
-                <td>
-                  <span className="qte-cell">
-                    <strong>{ligne.quantite}</strong>
-                  </span>
-                </td>
-                <td>{formatMontant(ligne.prix_vente)}</td>
-                <td className="montant-cell">
-                  <strong>{formatMontant(ligne.total)}</strong>
-                  {ligne.quantite_base > 1 && (
-                    <div className="unites-total">
-                      = {ligne.quantite_totale_base} unités
-                    </div>
-                  )}
-                </td>
-                <td>
-                  <button
-                    className="btn-remove"
-                    onClick={() => removeLigne(index)}
-                    disabled={saving}
-                    title="Supprimer"
-                  >
-                    <X size={14} />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
+  const renderSkeleton = () =>
+    Array.from({ length: itemsPerPage }).map((_, i) => (
+      <tr key={`sk-${i}`} className="vt-skel-row" aria-hidden="true">
+        {[60, 70, 50, 55, 65, 50, 60].map((w, j) => (
+          <td key={j}><span className="vt-skel" style={{ width: `${w}%` }} /></td>
+        ))}
+      </tr>
+    ));
 
-  // ============================================================
-  // VUE LISTE
-  // ============================================================
+  const renderEmpty = () => (
+    <div className="vt-empty">
+      <ShoppingBag size={30} />
+      <p className="vt-empty-title">
+        {commandes.length === 0 ? "Aucune vente enregistrée" : "Aucune commande ne correspond"}
+      </p>
+      <p className="vt-empty-text">
+        {commandes.length === 0
+          ? canManage ? "Créez la première vente pour la voir apparaître ici." : "Les ventes apparaîtront ici dès qu'elles seront créées."
+          : "Modifiez la recherche ou le statut sélectionné."}
+      </p>
+      {commandes.length > 0 && (
+        <button
+          type="button"
+          className="vt-btn vt-btn--sm"
+          onClick={() => { setSearchTerm(""); setFilterStatut(""); }}
+        >
+          Effacer les filtres
+        </button>
+      )}
+    </div>
+  );
+
   const renderListView = () => (
-    <div className="ventes-table-container">
-      <table className="ventes-table">
+    <div className="vt-table-wrap" aria-busy={loading || undefined}>
+      {loading && commandes.length > 0 && <div className="vt-busybar" />}
+      <table className="vt-table">
+        <colgroup>
+          <col style={{ width: "13%" }} />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "12%" }} />
+          <col style={{ width: "13%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "12%" }} />
+          <col style={{ width: "18%" }} />
+        </colgroup>
         <thead>
           <tr>
-            <th>Numéro</th>
-            <th>Date</th>
+            <th>Commande</th>
             <th>Client</th>
-            <th>Téléphone</th>
             <th>Facture</th>
-            <th>Montant</th>
+            <th className="vt-th-right">Montant</th>
             <th>Statut</th>
-            <th>Statut Facture</th>
-            <th>Actions</th>
+            <th>Paiement</th>
+            <th className="vt-th-right">Actions</th>
           </tr>
         </thead>
         <tbody>
-          {currentItems.length === 0 ? (
-            <tr>
-              <td colSpan="9" className="empty-state">
-                <ShoppingBag size={32} />
-                <p>Aucune commande trouvée</p>
-              </td>
-            </tr>
-          ) : (
-            currentItems.map((commande) => {
-              const facturePayee = isFacturePayee(commande);
-              const facturePartielle = isFacturePartiellementPayee(commande);
-              const peutPayer = canManage &&
-                commande.statut !== 'livree' &&
-                commande.statut !== 'annulee' &&
-                !facturePayee;
-
-              return (
+          {loading && commandes.length === 0
+            ? renderSkeleton()
+            : currentItems.map((commande) => (
                 <tr key={commande.id_commande}>
-                  <td className="numero-cell">
-                    <span className="commande-numero">{commande.numero_commande}</span>
-                  </td>
-                  <td>{formatDateFR(commande.date_commande)}</td>
-                  <td className="client-cell">
-                    <User size={14} />
-                    <span>{commande.nomclient || '-'}</span>
-                  </td>
-                  <td>{commande.telephone || '-'}</td>
-                  <td>{commande.numero_facture || '-'}</td>
-                  <td className="montant-cell">
-                    <strong>{formatMontant(commande.montant_total)}</strong>
+                  <td>
+                    <button type="button" className="vt-link vt-cell-main" onClick={() => handleView(commande)}>
+                      {commande.numero_commande}
+                    </button>
+                    <div className="vt-cell-sub">{formatDateFR(commande.date_commande)}</div>
                   </td>
                   <td>
-                    <StatutDropdown
+                    <div className="vt-cell-main" title={commande.nomclient || ""}>{commande.nomclient || "-"}</div>
+                    <div className="vt-cell-sub">{commande.telephone || "-"}</div>
+                  </td>
+                  <td>
+                    <div className="vt-cell-main vt-cell-main--plain">{commande.numero_facture || "-"}</div>
+                  </td>
+                  <td className="vt-td-right">
+                    <div className="vt-cell-main vt-num">{formatMontant(commande.montant_total)}</div>
+                  </td>
+                  <td>
+                    <StatutMenu
                       commande={commande}
                       onSelect={handleChangeStatut}
                       updatingStatut={updatingStatut}
                       canManage={canManage}
                     />
                   </td>
-                  <td>{commande.statut_facture ? getStatutFactureBadge(commande.statut_facture) : '-'}</td>
-                  <td className="actions-cell">
-                    <div className="actions-dropdown-container">
-                      <button
-                        className="action-btn btn-more"
-                        onClick={() => toggleMenu(commande.id_commande)}
-                        title="Actions"
-                      >
-                        <MoreVertical size={18} />
-                      </button>
-
-                      {openMenuId === commande.id_commande && (
-                        <div className="actions-dropdown-menu">
-                          <button
-                            className="dropdown-item"
-                            onClick={() => {
-                              handleView(commande);
-                              setOpenMenuId(null);
-                            }}
-                          >
-                            <Eye size={16} />
-                            <span>Voir</span>
-                          </button>
-
-                          {commande.id_facture && (
-                            <button
-                              className="dropdown-item"
-                              onClick={() => {
-                                handleImprimerDepuisListe(commande);
-                                setOpenMenuId(null);
-                              }}
-                            >
-                              <Printer size={16} />
-                              <span>Imprimer</span>
-                            </button>
-                          )}
-
-                          {peutPayer && (
-                            <button
-                              className="dropdown-item"
-                              onClick={() => preparerPaiement(commande)}
-                            >
-                              <Wallet size={16} />
-                              <span>
-                                {facturePartielle ? 'Compléter le paiement' : 'Payer'}
-                              </span>
-                            </button>
-                          )}
-
-                          {canManage && (
-                            <button
-                              className="dropdown-item btn-delete"
-                              onClick={() => {
-                                confirmDelete(commande);
-                                setOpenMenuId(null);
-                              }}
-                            >
-                              <Trash2 size={16} />
-                              <span>Supprimer</span>
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </td>
+                  <td><PaiementTag info={paiementInfo(commande)} /></td>
+                  <td className="vt-td-right">{renderActions(commande)}</td>
                 </tr>
-              );
-            })
-          )}
+              ))}
         </tbody>
       </table>
+      {!loading && currentItems.length === 0 && renderEmpty()}
     </div>
   );
 
-  // ============================================================
-  // VUE GRILLE
-  // ============================================================
   const renderGridView = () => (
-    <div className="ventes-grid">
-      {currentItems.length === 0 ? (
-        <div className="empty-state">
-          <ShoppingBag size={48} className="empty-icon" />
-          <p>Aucune commande trouvée</p>
-        </div>
-      ) : (
-        currentItems.map((commande) => {
-          const facturePayee = isFacturePayee(commande);
-          const facturePartielle = isFacturePartiellementPayee(commande);
-          const peutPayer = canManage &&
-            commande.statut !== 'livree' &&
-            commande.statut !== 'annulee' &&
-            !facturePayee;
-
-          return (
-            <div key={commande.id_commande} className="vente-card">
-              <div className="vente-card-header">
-                <div className="vente-info">
-                  <span className="vente-numero">{commande.numero_commande}</span>
-                  <span className="vente-date">
-                    <Calendar size={14} />
-                    {formatDateFR(commande.date_commande)}
-                  </span>
-                </div>
-                <div className="vente-actions">
-                  <button
-                    className="action-btn btn-view"
-                    onClick={() => handleView(commande)}
-                    title="Voir"
-                  >
-                    <Eye size={16} />
-                  </button>
-                </div>
-              </div>
-              <div className="vente-card-body">
-                <div className="client-info">
-                  <User size={16} />
-                  <span>{commande.nomclient || 'Client inconnu'}</span>
-                </div>
-                <div className="client-telephone">
-                  <Phone size={14} />
-                  <span>{commande.telephone || '-'}</span>
-                </div>
-                <div className="vente-facture">
-                  <FileText size={14} />
-                  <span>{commande.numero_facture || 'Facture non générée'}</span>
-                </div>
-                <div className="vente-montant">
-                  <span>{formatMontant(commande.montant_total)}</span>
-                </div>
-                <div className="vente-stats">
-                  <StatutDropdown
-                    commande={commande}
-                    onSelect={handleChangeStatut}
-                    updatingStatut={updatingStatut}
-                    canManage={canManage}
-                  />
-                  {commande.statut_facture && getStatutFactureBadge(commande.statut_facture)}
-                </div>
-              </div>
-              {peutPayer && (
-                <div className="vente-card-footer">
-                  <button
-                    className="btn btn-paiement"
-                    onClick={() => preparerPaiement(commande)}
-                  >
-                    <Wallet size={16} />
-                    {facturePartielle ? 'Compléter' : 'Payer'}
-                  </button>
-                </div>
-              )}
+    <div className="vt-tickets" aria-busy={loading || undefined}>
+      {loading && commandes.length > 0 && <div className="vt-busybar" />}
+      {!loading && currentItems.length === 0 && renderEmpty()}
+      {currentItems.map((commande) => (
+        <article key={commande.id_commande} className="vt-ticket">
+          <header className="vt-ticket-head">
+            <button type="button" className="vt-link" onClick={() => handleView(commande)}>
+              {commande.numero_commande}
+            </button>
+            <span className="vt-cell-sub">{formatDateFR(commande.date_commande)}</span>
+          </header>
+          <div className="vt-ticket-client">
+            <User size={15} />
+            <div>
+              <div className="vt-cell-main">{commande.nomclient || "Client inconnu"}</div>
+              <div className="vt-cell-sub">{commande.telephone || "-"}</div>
             </div>
-          );
-        })
-      )}
+          </div>
+          <div className="vt-ticket-sep" />
+          <div className="vt-ticket-amount vt-num">{formatMontant(commande.montant_total)}</div>
+          <div className="vt-cell-sub">{commande.numero_facture ? `Facture ${commande.numero_facture}` : "Facture non générée"}</div>
+          <div className="vt-ticket-tags">
+            <StatutMenu
+              commande={commande}
+              onSelect={handleChangeStatut}
+              updatingStatut={updatingStatut}
+              canManage={canManage}
+            />
+            <PaiementTag info={paiementInfo(commande)} />
+          </div>
+          <footer className="vt-ticket-foot">{renderActions(commande)}</footer>
+        </article>
+      ))}
     </div>
   );
 
   // ============================================================
-  // RENDU PRINCIPAL
+  // RENDU
   // ============================================================
   return (
-    <div className="ventes-container">
-      {/* En-tête */}
-      <div className="ventes-header">
+    <div className="ventes-container vt">
+      {/* ---------- En-tête ---------- */}
+      <header className="vt-head">
         <div>
-          <h1 className="ventes-title">Ventes</h1>
-          <p className="ventes-subtitle">{stats.total} commandes au total</p>
+          <h1 className="vt-title">Ventes</h1>
+          <p className="vt-sub">
+            {stats.total} commande{stats.total > 1 ? "s" : ""}, dont {stats.aEncaisser} à encaisser
+          </p>
         </div>
-        <div className="ventes-actions">
-          {canManage && (
-            <button className="btn btn-primary" onClick={handleAdd}>
-              <Plus size={18} />
-              <span>Nouvelle Vente</span>
-            </button>
-          )}
-          <button className="btn btn-secondary" onClick={handleExport}>
-            <Download size={18} />
-            <span>Exporter</span>
+        <div className="vt-head-actions">
+          <button type="button" className="vt-btn" onClick={handleExport}>
+            <Download size={16} /> Exporter
           </button>
           <button
-            className="btn btn-secondary"
+            type="button"
+            className="vt-btn vt-btn--icon"
             onClick={loadCommandes}
-            title="Rafraîchir"
             disabled={loading}
+            aria-label="Rafraîchir"
+            title="Rafraîchir"
           >
-            <RefreshCw size={18} className={loading ? 'spinning' : ''} />
+            <RefreshCw size={16} className={loading ? "vt-spin" : ""} />
           </button>
+          {canManage && (
+            <button type="button" className="vt-btn vt-btn--primary" onClick={handleAdd}>
+              <Plus size={16} /> Nouvelle vente
+            </button>
+          )}
         </div>
-      </div>
+      </header>
 
-      {/* Statistiques */}
-      <div className="ventes-stats">
-        <div className="stat-card">
-          <div className="stat-icon total"><ShoppingBag size={18} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Total</span>
-            <span className="stat-value" title={stats.total}>{stats.total}</span>
-          </div>
+      {/* ---------- Chiffre d'affaires + parcours des commandes ---------- */}
+      <section className="vt-overview" aria-label="Synthèse des ventes">
+        <div className="vt-ca">
+          <span className="vt-label">Chiffre d'affaires</span>
+          <strong className="vt-ca-value vt-num" title={formatMontant(stats.totalCA)}>
+            {formatMontant(stats.totalCA)}
+          </strong>
+          <span className="vt-ca-note">Commandes annulées exclues</span>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon en-attente"><Clock size={18} /></div>
-          <div className="stat-info">
-            <span className="stat-label">En attente</span>
-            <span className="stat-value" title={stats.enAttente}>{stats.enAttente}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon confirmee"><CheckCircle size={18} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Confirmées</span>
-            <span className="stat-value" title={stats.confirmee}>{stats.confirmee}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon preparation"><Package size={18} /></div>
-          <div className="stat-info">
-            <span className="stat-label">En préparation</span>
-            <span className="stat-value" title={stats.enPreparation}>{stats.enPreparation}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon expediee"><Truck size={18} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Expédiées</span>
-            <span className="stat-value" title={stats.expediee}>{stats.expediee}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon livree"><CheckCircle size={18} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Livrées</span>
-            <span className="stat-value" title={stats.livree}>{stats.livree}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon ca"><TrendingUp size={18} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Chiffre d'affaires</span>
-            <span className="stat-value" title={formatMontant(stats.totalCA)}>{formatMontant(stats.totalCA)}</span>
-          </div>
-        </div>
-      </div>
 
-      {/* Filtres */}
-      <div className="ventes-filters">
-        <div className="search-box">
-          <Search size={20}  />
+        <div className="vt-rail" role="group" aria-label="Filtrer par statut">
+          <button
+            type="button"
+            className="vt-stage vt-stage--all"
+            data-s="all"
+            aria-pressed={filterStatut === ""}
+            onClick={() => setFilterStatut("")}
+          >
+            <span className="vt-stage-count vt-num">{stats.total}</span>
+            <span className="vt-stage-label">Toutes</span>
+          </button>
+          {STATUTS.map((s) => (
+            <button
+              key={s.value}
+              type="button"
+              className={`vt-stage ${s.value === "annulee" ? "vt-stage--apart" : ""}`}
+              data-s={s.value}
+              aria-pressed={filterStatut === s.value}
+              onClick={() => setFilterStatut(filterStatut === s.value ? "" : s.value)}
+            >
+              <span className="vt-stage-count vt-num">{stats.par[s.value]}</span>
+              <span className="vt-stage-label">{s.label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* ---------- Recherche ---------- */}
+      <div className="vt-toolbar">
+        <div className="vt-search">
+          <Search size={16} className="vt-search-icon" />
           <input
+            ref={searchRef}
             type="text"
-            placeholder="Rechercher une commande..."
+            className="vt-input vt-search-input"
+            placeholder="Numéro, client, téléphone, facture ou notes"
+            aria-label="Rechercher une commande"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            title="Rechercher par numéro, client, téléphone, facture ou notes"
-
+            spellCheck={false}
           />
-          {searchTerm && (
-            <button className="search-clear" onClick={() => setSearchTerm('')}>
-              <X size={16} />
+          {searchTerm ? (
+            <button type="button" className="vt-search-clear" onClick={() => setSearchTerm("")} aria-label="Effacer la recherche">
+              <X size={14} />
             </button>
+          ) : (
+            <kbd className="vt-kbd">Ctrl K</kbd>
           )}
         </div>
-        <div className="filter-group">
-          <select
-            className="filter-select"
-            value={filterStatut}
-            onChange={(e) => setFilterStatut(e.target.value)}
-          >
-            <option value="">Tous les statuts</option>
-            <option value="en_attente">En attente</option>
-            <option value="confirmee">Confirmée</option>
-            <option value="en_preparation">En préparation</option>
-            <option value="expediee">Expédiée</option>
-            <option value="livree">Livrée</option>
-            <option value="annulee">Annulée</option>
-          </select>
-        </div>
-        <div className="view-toggle">
-          <button
-            className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
-            onClick={() => setViewMode('grid')}
-          >
-            <Grid size={18} />
+        <span className="vt-count" aria-live="polite">
+          {filteredCommandes.length} résultat{filteredCommandes.length > 1 ? "s" : ""}
+        </span>
+        <div className="vt-seg" role="group" aria-label="Mode d'affichage">
+          <button type="button" aria-pressed={viewMode === "list"} onClick={() => setViewMode("list")} title="Liste" aria-label="Affichage en liste">
+            <List size={16} />
           </button>
-          <button
-            className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
-            onClick={() => setViewMode('list')}
-          >
-            <List size={18} />
+          <button type="button" aria-pressed={viewMode === "grid"} onClick={() => setViewMode("grid")} title="Tickets" aria-label="Affichage en tickets">
+            <Grid size={16} />
           </button>
         </div>
       </div>
 
-      {/* Contenu */}
-      {loading && (
-        <div className="loading-container">
-          <div className="spinner"></div>
-          <p>Chargement des commandes...</p>
+      {/* ---------- Erreur ---------- */}
+      {error && !loading && !showModal && (
+        <div className="vt-error" role="alert">
+          <AlertTriangle size={16} />
+          <span>{error}</span>
+          <button type="button" className="vt-btn vt-btn--sm" onClick={loadCommandes}>Réessayer</button>
         </div>
       )}
 
-      {error && !loading && (
-        <div className="error-container">
-          <p className="error-message">{error}</p>
-          <button className="btn btn-secondary" onClick={loadCommandes}>
-            Réessayer
-          </button>
-        </div>
-      )}
+      {/* ---------- Contenu ---------- */}
+      {viewMode === "grid" ? renderGridView() : renderListView()}
 
-      {!loading && !error && (
-        <>{viewMode === 'grid' ? renderGridView() : renderListView()}</>
-      )}
-
-      {/* Pagination */}
-      {!loading && !error && filteredCommandes.length > itemsPerPage && (
-        <div className="ventes-pagination">
+      {/* ---------- Pagination ---------- */}
+      <nav className="vt-pager" aria-label="Pagination">
+        <span className="vt-pager-info">
+          {filteredCommandes.length === 0
+            ? "0 commande"
+            : `${startIdx + 1} à ${Math.min(startIdx + itemsPerPage, filteredCommandes.length)} sur ${filteredCommandes.length}`}
+        </span>
+        <div className="vt-pager-ctrl">
           <button
-            className="pagination-btn"
-            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-            disabled={currentPage === 1}
+            type="button"
+            className="vt-iconbtn vt-iconbtn--boxed"
+            onClick={() => setCurrentPage(Math.max(page - 1, 1))}
+            disabled={page === 1}
+            aria-label="Page précédente"
           >
-            <ChevronLeft size={22} />
+            <ChevronLeft size={18} />
           </button>
-          <span className="pagination-info">
-            Page {currentPage} sur {totalPages}
-          </span>
+          <span className="vt-pager-page">Page {page} sur {totalPages}</span>
           <button
-            className="pagination-btn"
-            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-            disabled={currentPage === totalPages}
+            type="button"
+            className="vt-iconbtn vt-iconbtn--boxed"
+            onClick={() => setCurrentPage(Math.min(page + 1, totalPages))}
+            disabled={page === totalPages}
+            aria-label="Page suivante"
           >
             <ChevronRight size={18} />
           </button>
         </div>
-      )}
+      </nav>
 
       {/* ============================================================
-          MODAL - NOUVELLE VENTE
+          MODAL : NOUVELLE VENTE
           ============================================================ */}
       {showModal && (
-        <div className="modal-overlay" >
-          <div className="modal-content large vente-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <div className="modal-header-left">
-                <div className="modal-header-icon">
-                  <ShoppingCart size={20} />
-                </div>
-                <div>
-                  <h2>Nouvelle Vente</h2>
-                  <p className="modal-header-sub">Créer une commande client</p>
-                </div>
-              </div>
-              <button className="modal-close" onClick={() => !saving && setShowModal(false)}>
-                <X size={22} />
-              </button>
-            </div>
+        <Modal
+          size="sale"
+          busy={saving}
+          labelledBy="vt-sale-title"
+          dismissable={!saving && !alertModal.isOpen && formData.lignes.length === 0}
+          onClose={() => setShowModal(false)}
+        >
+          <ModalHead
+            id="vt-sale-title"
+            title="Nouvelle vente"
+            sub="Le ticket se remplit à droite au fur et à mesure"
+            onClose={() => setShowModal(false)}
+            disabled={saving}
+          />
 
-            <div className="modal-body vente-body-grid">
-              <div className="vente-form-main">
-                {error && (
-                  <div className="modal-error">
-                    <AlertTriangle size={16} />
-                    <p>{error}</p>
-                  </div>
-                )}
-
-                <div className="step-section">
-                  <div className="section-header">
-                    <div className="section-header-left">
-                      <div className="step-badge">1</div>
-                      <h4>Client</h4>
-                    </div>
-                    <span className="section-badge required">Requis</span>
-                  </div>
-
-                  <div className="form-grid-2">
-                    <div className="form-group">
-                      <label>Nom du client *</label>
-                      <div className="input-with-icon">
-                        <User size={15} className="input-icon" />
-                        <input
-                          type="text"
-                          name="nomclient"
-                          value={formData.nomclient}
-                          onChange={handleInputChange}
-                          placeholder="Ex: Koné Mondésir"
-                          disabled={saving}
-                          className="form-input-with-icon"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div className="form-group">
-                      <label>Téléphone *</label>
-                      <div className="input-with-icon">
-                        <Phone size={15} className="input-icon" />
-                        <input
-                          type="text"
-                          name="telephone"
-                          value={formData.telephone}
-                          onChange={handleInputChange}
-                          placeholder="Ex: +225 07 00 00 00 00"
-                          disabled={saving}
-                          className="form-input-with-icon"
-                          required
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="step-section">
-                  <div className="section-header">
-                    <div className="section-header-left">
-                      <div className="step-badge">2</div>
-                      <h4>Ajouter des produits</h4>
-                    </div>
-                    <span className="section-badge">
-                      {formData.lignes.length} ajouté(s)
-                    </span>
-                  </div>
-
-                  <div className="produit-search-wrapper">
-                    <div className="combobox-container" ref={dropdownRef}>
-                      <div className="combobox-input-wrapper large">
-                        <SearchIcon size={18} className="combobox-icon" />
-                        <input
-                          type="text"
-                          name="produit_search"
-                          className="combobox-input"
-                          placeholder="Rechercher par nom, modèle ou marque..."
-                          value={produitSearch}
-                          onChange={(e) => rechercherProduits(e.target.value)}
-                          onFocus={() => {
-                            if (produitSearch.length >= 2 && produitSearchResults.length > 0) {
-                              setShowProduitDropdown(true);
-                            }
-                          }}
-                          disabled={saving}
-                          autoComplete="off"
-                        />
-                        {isSearching && <Loader size={16} className="combobox-spinner spinning" />}
-                        <ChevronDown
-                          size={18}
-                          className="combobox-arrow"
-                          onClick={() => {
-                            if (produitSearchResults.length > 0) {
-                              setShowProduitDropdown(!showProduitDropdown);
-                            }
-                          }}
-                        />
-                      </div>
-                      {renderProduitDropdown()}
-                    </div>
-                  </div>
-
-                  {selectedProduit && (
-                    <div className="produit-selection-info">
-                      <div className="produit-selection-badge">
-                        <Check size={16} />
-                        <div className="produit-selection-details">
-                          <strong>{selectedProduit.nom}</strong>
-                          {selectedProduit.modele_nom && (
-                            <span className="produit-selection-modele">
-                              {selectedProduit.modele_nom}
-                            </span>
-                          )}
-                        </div>
-                        <span className="produit-selection-stock">
-                          {selectedProduit.quantite_stock} en stock
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedProduit && (
-                    <div className="unite-vente-section">
-                      <label>Unité de vente *</label>
-
-                      {loadingUnites ? (
-                        <div className="loading-unites">
-                          <Loader size={14} className="spinning" />
-                          <span>Chargement des unités...</span>
-                        </div>
-                      ) : unitesVente.length === 0 ? (
-                        <div className="empty-unites">
-                          <AlertTriangle size={14} />
-                          <span>Aucune unité de vente disponible</span>
-                        </div>
-                      ) : (
-                        <div className="unites-buttons">
-                          {unitesVente.map((unite, idx) => (
-                            <button
-                              key={unite.id_unite_vente ?? `base-${idx}`}
-                              type="button"
-                              className={`unite-btn ${selectedUnite?.id_unite_vente === unite.id_unite_vente ? 'active' : ''}`}
-                              onClick={() => handleUniteChange(unite.id_unite_vente)}
-                              disabled={saving}
-                            >
-                              <Box size={14} />
-                              <div className="unite-btn-content">
-                                <span className="unite-btn-nom">
-                                  {unite.nom}
-                                  {unite.est_unite_base && (
-                                    <small className="badge-base"> (base)</small>
-                                  )}
-                                </span>
-                                {unite.quantite_base > 1 && (
-                                  <span className="unite-btn-base">
-                                    × {unite.quantite_base} unités
-                                  </span>
-                                )}
-                                <span className="unite-btn-prix">
-                                  {formatMontant(unite.prix_vente)}
-                                </span>
-                              </div>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="add-ligne-grid">
-                    <div className="form-group">
-                      <label>Quantité *</label>
-                      <input
-                        type="number"
-                        name="quantite_ajout"
-                        value={quantite}
-                        onChange={(e) => setQuantite(e.target.value)}
-                        placeholder="0"
-                        disabled={saving || !selectedProduit || !selectedUnite}
-                        min="1"
-                        step="1"
-                      />
-                      {quantite && selectedUnite && (
-                        <small className="input-hint">
-                          = {calculerUnitesBase()} unité(s)
-                        </small>
-                      )}
-                    </div>
-
-                    <div className="form-group">
-                      <label>Prix de vente</label>
-                      <input
-                        type="number"
-                        value={prixVente}
-                        onChange={(e) => setPrixVente(e.target.value)}
-                        placeholder="Auto"
-                        disabled={saving || !selectedProduit || !selectedUnite}
-                        step="0.01"
-                      />
-                      {selectedUnite && (
-                        <small className="input-hint">
-                          Prix {selectedUnite.nom}
-                        </small>
-                      )}
-                    </div>
-
-                    <div className="form-group add-button-group">
-                      <label>&nbsp;</label>
-                      <button
-                        type="button"
-                        className="btn-add-produit"
-                        onClick={ajouterProduit}
-                        disabled={saving || !selectedProduit || !selectedUnite || !quantite}
-                      >
-                        <Plus size={16} />
-                        <span>Ajouter</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {quantite && selectedUnite && prixVente && (
-                    <div className="sous-total-preview">
-                      <div className="sous-total-line">
-                        <span>Sous-total :</span>
-                        <strong>{formatMontant(parseFloat(quantite) * parseFloat(prixVente))}</strong>
-                      </div>
-                      {selectedUnite.quantite_base > 1 && (
-                        <div className="sous-total-conversion">
-                          {quantite} {selectedUnite.nom}(s) = {calculerUnitesBase()} unité(s) de base
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="lignes-section">
-                    {renderLignesForm()}
-                  </div>
-                </div>
-              </div>
-
-              <aside className="vente-resume-sidebar">
-                <div className="step-section resume-card">
-                  <div className="section-header">
-                    <div className="section-header-left">
-                      <div className="step-badge">3</div>
-                      <h4>Résumé</h4>
-                    </div>
-                  </div>
-
-                  <div className="resume-content">
-                    <div className="resume-row">
-                      <span className="resume-label">
-                        <UserCheck size={13} /> Client
-                      </span>
-                      <span className="resume-value">
-                        {formData.nomclient || '—'}
-                      </span>
-                    </div>
-
-                    <div className="resume-row">
-                      <span className="resume-label">
-                        <Phone size={13} /> Téléphone
-                      </span>
-                      <span className="resume-value">
-                        {formData.telephone || '—'}
-                      </span>
-                    </div>
-
-                    <div className="resume-row">
-                      <span className="resume-label">
-                        <Package size={13} /> Produits
-                      </span>
-                      <span className="resume-value">
-                        {formData.lignes.length}
-                      </span>
-                    </div>
-
-                    {formData.lignes.length > 0 && (
-                      <div className="resume-lignes">
-                        {formData.lignes.map((l, i) => (
-                          <div key={i} className="resume-ligne-item">
-                            <div className="resume-ligne-info">
-                              <span className="resume-ligne-nom">
-                                {l.quantite} × {l.produit_nom}
-                              </span>
-                              <span className="resume-ligne-unite">
-                                {l.nom_unite_vente}
-                                {l.quantite_base > 1 && ` (${l.quantite_base})`}
-                              </span>
-                            </div>
-                            <span className="resume-ligne-total">
-                              {formatMontant(l.total)}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="resume-total">
-                      <span className="resume-total-label">Total</span>
-                      <span className="resume-total-value">
-                        {formatMontant(calculerTotal())}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </aside>
-            </div>
-
-            <div className="modal-footer vente-footer">
-              <div className="footer-summary">
-                <div className="summary-item">
-                  <span className="summary-label">Produits</span>
-                  <span className="summary-value">{formData.lignes.length}</span>
-                </div>
-                <div className="summary-divider" />
-                <div className="summary-item total">
-                  <span className="summary-label">Total</span>
-                  <span className="summary-value-total">{formatMontant(calculerTotal())}</span>
-                </div>
-              </div>
-
-              <div className="footer-actions">
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setShowModal(false)}
-                  disabled={saving}
-                >
-                  Annuler
-                </button>
-                <button
-                  className="btn btn-success"
-                  onClick={handleFinaliserVente}
-                  disabled={saving || formData.lignes.length === 0 || !formData.nomclient || !formData.telephone}
-                >
-                  {saving ? (
-                    <>
-                      <span className="spinner-small"></span>
-                      <span>Enregistrement...</span>
-                    </>
-                  ) : (
-                    <>
-                      <Check size={18} />
-                      <span>Générer la facture</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ============================================================
-          MODAL - PAIEMENT
-          ============================================================ */}
-      {showPaiementModal && commandeEnCours && factureGeneree && (
-        <div className="modal-overlay">
-          <div className="modal-content paiement-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Paiement de la facture</h2>
-              <button className="modal-close" onClick={() => !saving && setShowPaiementModal(false)}>
-                <X size={22} />
-              </button>
-            </div>
-            <div className="modal-body"> 
+          <div className="vt-sale">
+            <div className="vt-sale-main">
               {error && (
-                <div className="modal-error">
-                  <AlertTriangle size={16} />
-                  <p>{error}</p>
+                <div className="vt-error" role="alert">
+                  <AlertTriangle size={16} /><span>{error}</span>
                 </div>
               )}
 
-              <div className="paiement-resume">
-                <div className="paiement-client">
-                  <User size={20} />
-                  <span>{commandeEnCours.nomclient || 'Client'}</span>
-                </div>
-                <div className="paiement-facture">
-                  <FileText size={18} />
-                  <span>Facture N° {factureGeneree.numero_facture}</span>
-                </div>
-                <div className="paiement-total">
-                  <span className="paiement-label">Montant à payer</span>
-                  <span className="paiement-montant">{formatMontant(factureGeneree.montant_total)}</span>
-                </div>
-                <div className="paiement-commande">
-                  <span>Commande : {commandeEnCours.numero_commande}</span>
-                </div>
-              </div>
-
-              <div className="form-section">
-                <div className="form-group">
-                  <label>Mode de paiement</label>
-                  <div className="paiement-modes">
-                    <button
-                      type="button"
-                      className={`paiement-mode-btn ${paiementData.mode_paiement === 'especes' ? 'active' : ''}`}
-                      onClick={() => setPaiementData({ mode_paiement: 'especes' })}
-                      disabled={saving}
-                    >
-                      <Coins size={24} />
-                      <span>Espèces</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`paiement-mode-btn ${paiementData.mode_paiement === 'carte' ? 'active' : ''}`}
-                      onClick={() => setPaiementData({ mode_paiement: 'carte' })}
-                      disabled={saving}
-                    >
-                      <CreditCard size={24} />
-                      <span>Carte</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`paiement-mode-btn ${paiementData.mode_paiement === 'virement' ? 'active' : ''}`}
-                      onClick={() => setPaiementData({ mode_paiement: 'virement' })}
-                      disabled={saving}
-                    >
-                      <Building size={24} />
-                      <span>Virement</span>
-                    </button>
-                    <button
-                      type="button"
-                      className={`paiement-mode-btn ${paiementData.mode_paiement === 'cheque' ? 'active' : ''}`}
-                      onClick={() => setPaiementData({ mode_paiement: 'cheque' })}
-                      disabled={saving}
-                    >
-                      <FileText size={24} />
-                      <span>Chèque</span>
-                    </button>
+              <section className="vt-section">
+                <h3 className="vt-section-title">Client</h3>
+                <div className="vt-grid-2">
+                  <div className="vt-field">
+                    <label htmlFor="vt-nom">Nom du client</label>
+                    <input
+                      id="vt-nom"
+                      type="text"
+                      name="nomclient"
+                      className="vt-input"
+                      value={formData.nomclient}
+                      onChange={handleInputChange}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); telRef.current?.focus(); } }}
+                      placeholder="Koné Mondésir"
+                      readOnly={saving}
+                      autoComplete="off"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="vt-field">
+                    <label htmlFor="vt-tel">Téléphone</label>
+                    <input
+                      id="vt-tel"
+                      ref={telRef}
+                      type="tel"
+                      inputMode="tel"
+                      name="telephone"
+                      className="vt-input"
+                      value={formData.telephone}
+                      onChange={handleInputChange}
+                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); inputRef.current?.focus(); } }}
+                      placeholder="+225 07 00 00 00 00"
+                      readOnly={saving}
+                      autoComplete="off"
+                    />
                   </div>
                 </div>
-              </div>
-            </div>
+              </section>
 
-            <div className="modal-footer">
-              <button
-                className="btn btn-secondary"
-                onClick={() => {
-                  setShowPaiementModal(false);
-                  setCommandeEnCours(null);
-                }}
-                disabled={saving}
-              >
-                Annuler
-              </button>
-              <button
-                className="btn btn-success"
-                onClick={handlePayer}
-                disabled={saving}
-              >
-                {saving ? (
-                  <>
-                    <span className="spinner-small"></span>
-                    <span>Paiement...</span>
-                  </>
-                ) : (
-                  <>
-                    <Wallet size={18} />
-                    <span>Payer {formatMontant(factureGeneree.montant_total)}</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              <section className="vt-section">
+                <h3 className="vt-section-title">Produit</h3>
 
-      {/* ============================================================
-          MODAL - FACTURE
-          ============================================================ */}
-      {showFactureModal && factureGeneree && (() => {
-        const resteAPayer = factureGeneree.reste_a_payer !== undefined
-          ? parseFloat(factureGeneree.reste_a_payer)
-          : parseFloat(factureGeneree.montant_total) || 0;
+                <div className="vt-combo" ref={comboRef}>
+                  <Search size={16} className="vt-combo-icon" />
+                  <input
+                    ref={inputRef}
+                    type="text"
+                    name="produit_search"
+                    className="vt-input vt-combo-input"
+                    role="combobox"
+                    aria-expanded={showProduitDropdown}
+                    aria-controls="vt-listbox"
+                    aria-autocomplete="list"
+                    placeholder="Rechercher par nom, modèle ou marque"
+                    value={produitSearch}
+                    onChange={(e) => rechercherProduits(e.target.value)}
+                    onFocus={() => {
+                      if (produitSearch.length >= 2 && !selectedProduit) setShowProduitDropdown(true);
+                    }}
+                    onKeyDown={onComboKeyDown}
+                    readOnly={saving}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <span className="vt-combo-end">
+                    {isSearching ? <Loader size={15} className="vt-spin" /> : <ChevronDown size={16} />}
+                  </span>
+                </div>
 
-        const estPayee = factureGeneree.statut === 'payee' || resteAPayer <= 0;
-
-        return (
-          <div className="modal-overlay" >
-            <div className="modal-content facture-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2> Facture N° {factureGeneree.numero_facture}</h2>
-                <button className="modal-close" onClick={() => setShowFactureModal(false)}>
-                  <X size={22} />
-                </button>
-              </div>
-              <div className="modal-body">
-                <div className="facture-header">
-                  <div className="facture-info">
-                    <p><strong>Client :</strong> {factureGeneree.nomclient}</p>
-                    <p><strong>Téléphone :</strong> {factureGeneree.telephone || '-'}</p>
-                    <p><strong>Date :</strong> {formatDateFR(factureGeneree.date_facture)}</p>
-                    <p><strong>Échéance :</strong> {formatDateFR(factureGeneree.date_echeance)}</p>
-                    <p><strong>Commande :</strong> {factureGeneree.numero_commande}</p>
-                  </div>
-                  <div className="facture-status">
-                    {estPayee ? (
-                      <span className="status-badge status-livree">Payée</span>
-                    ) : factureGeneree.statut === 'partiellement_payee' ? (
-                      <span className="status-badge status-preparation">Partiellement payée</span>
+                <AnchoredMenu
+                  open={showProduitDropdown}
+                  anchorRef={comboRef}
+                  onClose={() => setShowProduitDropdown(false)}
+                  matchWidth
+                  keepFocus
+                  estHeight={280}
+                  className="vt-menu--list"
+                >
+                  <div id="vt-listbox" role="listbox">
+                    {isSearching && produitSearchResults.length === 0 ? (
+                      <div className="vt-menu-note"><Loader size={15} className="vt-spin" /> Recherche en cours</div>
+                    ) : produitSearchResults.length === 0 ? (
+                      <div className="vt-menu-note">Aucun produit en stock pour cette recherche</div>
                     ) : (
-                      <span className="status-badge status-en-attente">En attente</span>
+                      produitSearchResults.map((p, i) => (
+                        <button
+                          key={p.id_produit}
+                          id={`vt-opt-${i}`}
+                          type="button"
+                          role="option"
+                          aria-selected={i === activeIdx}
+                          className={`vt-option ${i === activeIdx ? "is-active" : ""}`}
+                          onMouseEnter={() => setActiveIdx(i)}
+                          onClick={() => selectProduit(p)}
+                        >
+                          <span className="vt-option-main">
+                            <span className="vt-option-name">{p.nom}</span>
+                            {p.modele_nom && <span className="vt-option-sub">{p.modele_nom}</span>}
+                          </span>
+                          <span className="vt-option-stock">{p.quantite_stock} en stock</span>
+                          <span className="vt-option-price vt-num">{formatMontant(p.prix_vente)}</span>
+                        </button>
+                      ))
                     )}
                   </div>
-                </div>
+                </AnchoredMenu>
 
-                <table className="facture-lignes">
-                  <thead>
-                    <tr>
-                      <th>Produit</th>
-                      <th>Unité</th>
-                      <th>Qté</th>
-                      <th>Prix unitaire</th>
-                      <th>Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {factureGeneree.lignes?.map((ligne, index) => (
-                      <tr key={index}>
-                        <td>{ligne.produit_nom}</td>
-                        <td>
-                          <span className="unite-badge">
-                            {ligne.nom_unite_vente || 'Unité'}
-                            {ligne.quantite_base > 1 && ` (${ligne.quantite_base})`}
-                          </span>
-                        </td>
-                        <td>{ligne.quantite}</td>
-                        <td>{formatMontant(ligne.prix_vente)}</td>
-                        <td>{formatMontant(ligne.montant_total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="total-row">
-                      <td colSpan="4"><strong>TOTAL</strong></td>
-                      <td><strong>{formatMontant(factureGeneree.montant_total)}</strong></td>
-                    </tr>
-                  </tfoot>
-                </table>
-
-                <div className="facture-actions">
-                  {estPayee ? (
-                    <div className="facture-paid-banner">
-                      <CheckCircle size={18} />
-                      <span>Cette facture est entièrement payée</span>
-                    </div>
-                  ) : (
+                <div className={`vt-picked ${selectedProduit ? "is-set" : ""}`}>
+                  {selectedProduit ? (
                     <>
+                      <Check size={16} />
+                      <div className="vt-picked-name">
+                        <strong>{selectedProduit.nom}</strong>
+                        {selectedProduit.modele_nom && <span>{selectedProduit.modele_nom}</span>}
+                      </div>
+                      <span className="vt-picked-stock">{selectedProduit.quantite_stock} en stock</span>
                       <button
-                        className="btn btn-success btn-payer"
-                        onClick={() => {
-                          setShowFactureModal(false);
-                          setPaiementData({ mode_paiement: "especes" });
-                          setShowPaiementModal(true);
-                        }}
+                        type="button"
+                        className="vt-iconbtn vt-iconbtn--sm"
+                        onClick={() => { resetComposer(); inputRef.current?.focus(); }}
+                        aria-label="Changer de produit"
+                        title="Changer de produit"
                       >
-                        <Wallet size={18} />
-                        <span>
-                          {factureGeneree.statut === 'partiellement_payee'
-                            ? 'Compléter le paiement'
-                            : 'Payer maintenant'}
-                        </span>
-                      </button>
-
-                      <button
-                        className="btn btn-secondary btn-payer-plus-tard"
-                        onClick={async () => {
-                          setShowFactureModal(false);
-                          await loadCommandes();
-                          await loadProduits();
-                          showToast(
-                            `Commande ${commandeEnCours?.numero_commande} enregistrée. ` +
-                            `Facture ${factureGeneree?.numero_facture} en attente de paiement.`,
-                            'success'
-                          );
-                          setCommandeEnCours(null);
-                          setFactureGeneree(null);
-                          setFormData({ nomclient: "", telephone: "", lignes: [] });
-                        }}
-                      >
-                        <Clock size={16} />
-                        <span>Enregistrer sans payer</span>
+                        <X size={14} />
                       </button>
                     </>
+                  ) : (
+                    <span className="vt-muted">Aucun produit sélectionné</span>
                   )}
-
-                  <FacturePDFActions
-                    factureData={factureGeneree}
-                    onClose={() => setShowFactureModal(false)}
-                  />
                 </div>
-              </div>
-              <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setShowFactureModal(false)}>
-                  Fermer
-                </button>
-              </div>
-            </div>
-          </div>
-        );
-      })()}
 
-      {/* ============================================================
-          MODAL - DÉTAILS
-          ============================================================ */}
-      {showDetailModal && selectedCommande && (() => {
-        const facturePayee = isFacturePayee(selectedCommande);
-        const facturePartielle = isFacturePartiellementPayee(selectedCommande);
-        const peutPayer = canManage &&
-          selectedCommande.statut !== 'livree' &&
-          selectedCommande.statut !== 'annulee' &&
-          !facturePayee;
+                <div className="vt-units" role="radiogroup" aria-label="Unité de vente">
+                  {!selectedProduit ? (
+                    <p className="vt-units-note">Les unités de vente du produit apparaîtront ici.</p>
+                  ) : loadingUnites ? (
+                    <>
+                      <span className="vt-unit vt-unit--skel" />
+                      <span className="vt-unit vt-unit--skel" />
+                    </>
+                  ) : unitesVente.length === 0 ? (
+                    <p className="vt-units-note vt-units-note--warn">
+                      <AlertTriangle size={14} /> Aucune unité de vente disponible
+                    </p>
+                  ) : (
+                    unitesVente.map((unite, idx) => (
+                      <button
+                        key={unite.id_unite_vente ?? `base-${idx}`}
+                        type="button"
+                        role="radio"
+                        aria-checked={selectedUnite?.id_unite_vente === unite.id_unite_vente}
+                        className={`vt-unit ${selectedUnite?.id_unite_vente === unite.id_unite_vente ? "is-active" : ""}`}
+                        onClick={() => handleUniteChange(unite.id_unite_vente)}
+                      >
+                        <Box size={15} />
+                        <span className="vt-unit-text">
+                          <span className="vt-unit-name">
+                            {unite.nom}
+                            {unite.est_unite_base && <small>base</small>}
+                          </span>
+                          <span className="vt-unit-price vt-num">{formatMontant(unite.prix_vente)}</span>
+                          {unite.quantite_base > 1 && (
+                            <span className="vt-unit-base">{unite.quantite_base} unités de base</span>
+                          )}
+                        </span>
+                      </button>
+                    ))
+                  )}
+                </div>
 
-        return (
-          <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
-            <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>Détails de la commande</h2>
-                <button className="modal-close" onClick={() => setShowDetailModal(false)}>
-                  <X size={22} />
-                </button>
-              </div>
-              <div className="modal-body">
-                <div className="detail-header">
-                  <div className="detail-header-left">
-                    <div className="detail-icon"><ShoppingBag size={26} /></div>
-                    <div>
-                      <h3 className="detail-numero">{selectedCommande.numero_commande}</h3>
-                      <span className="detail-date">
-                        <Calendar size={14} />
-                        {formatDateFR(selectedCommande.date_commande)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="detail-header-right">
-                    <StatutDropdown
-                      commande={selectedCommande}
-                      onSelect={handleChangeStatut}
-                      updatingStatut={updatingStatut}
-                      canManage={canManage}
+                <div className="vt-add">
+                  <div className="vt-field">
+                    <label htmlFor="vt-qte">Quantité</label>
+                    <input
+                      id="vt-qte"
+                      ref={qteRef}
+                      type="text"
+                      inputMode="decimal"
+                      name="quantite_ajout"
+                      className="vt-input vt-num"
+                      placeholder="0"
+                      value={quantite}
+                      readOnly={!composerReady}
+                      tabIndex={composerReady ? 0 : -1}
+                      onChange={(e) => DECIMAL_RE.test(e.target.value) && setQuantite(e.target.value)}
+                      onKeyDown={onAddKeyDown}
+                      autoComplete="off"
                     />
-                    {selectedCommande.statut_facture && getStatutFactureBadge(selectedCommande.statut_facture)}
                   </div>
-                </div>
-
-                <div className="detail-grid">
-                  <div className="detail-section">
-                    <h4><User size={16} /> Client</h4>
-                    <div className="detail-item">
-                      <label>Nom</label>
-                      <span>{selectedCommande.nomclient || '-'}</span>
-                    </div>
-                    <div className="detail-item">
-                      <label>Téléphone</label>
-                      <span>{selectedCommande.telephone || '-'}</span>
-                    </div>
+                  <div className="vt-field">
+                    <label htmlFor="vt-prix">Prix de vente{selectedUnite ? `, ${selectedUnite.nom}` : ""}</label>
+                    <input
+                      id="vt-prix"
+                      type="text"
+                      inputMode="decimal"
+                      className="vt-input vt-num"
+                      placeholder="Automatique"
+                      value={prixVente}
+                      readOnly={!composerReady}
+                      tabIndex={composerReady ? 0 : -1}
+                      onChange={(e) => DECIMAL_RE.test(e.target.value) && setPrixVente(e.target.value)}
+                      onKeyDown={onAddKeyDown}
+                      autoComplete="off"
+                    />
                   </div>
-                  <div className="detail-section">
-                    <h4><FileText size={16} /> Informations</h4>
-                    <div className="detail-item">
-                      <label>Facture</label>
-                      <span>{selectedCommande.numero_facture || 'Non générée'}</span>
-                    </div>
-                    <div className="detail-item">
-                      <label>Mode de paiement</label>
-                      <span>{selectedCommande.mode_paiement || '-'}</span>
-                    </div>
-                    <div className="detail-item">
-                      <label>Montant total</label>
-                      <span className="montant-total">{formatMontant(selectedCommande.montant_total)}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {selectedCommande.lignes && selectedCommande.lignes.length > 0 && (
-                  <div className="detail-lignes">
-                    <h4>Produits</h4>
-                    <div className="detail-lignes-wrapper">
-                      <table className="detail-lignes-table">
-                        <thead>
-                          <tr>
-                            <th>Produit</th>
-                            <th>Unité</th>
-                            <th>Qté</th>
-                            <th>Prix unitaire</th>
-                            <th>Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedCommande.lignes.map((ligne, index) => (
-                            <tr key={index}>
-                              <td>
-                                <span className="produit-nom">{ligne.produit_nom}</span>
-                                {ligne.marque_nom && <span className="produit-marque"> - {ligne.marque_nom}</span>}
-                              </td>
-                              <td>
-                                <span className="unite-badge">
-                                  <Box size={11} />
-                                  {ligne.nom_unite_vente || 'Unité'}
-                                  {ligne.quantite_base > 1 && ` (${ligne.quantite_base})`}
-                                </span>
-                              </td>
-                              <td>{ligne.quantite}</td>
-                              <td>{formatMontant(ligne.prix_vente)}</td>
-                              <td className="montant-cell">{formatMontant(ligne.montant_total)}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                        <tfoot>
-                          <tr className="total-row">
-                            <td colSpan="4"><strong>Total</strong></td>
-                            <td><strong>{formatMontant(selectedCommande.montant_total)}</strong></td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {selectedCommande.paiements && selectedCommande.paiements.length > 0 && (
-                  <div className="detail-paiements">
-                    <h4>Paiements</h4>
-                    <table className="detail-paiements-table">
-                      <thead>
-                        <tr>
-                          <th>Date</th>
-                          <th>Montant</th>
-                          <th>Mode</th>
-                          <th>Référence</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedCommande.paiements.map((paiement, index) => (
-                          <tr key={index}>
-                            <td>{formatDateFR(paiement.date_paiement)}</td>
-                            <td className="montant-cell">{formatMontant(paiement.montant)}</td>
-                            <td>{paiement.mode_paiement}</td>
-                            <td>{paiement.reference || '-'}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-              <div className="modal-footer">
-                <button className="btn btn-secondary" onClick={() => setShowDetailModal(false)}>
-                  Fermer
-                </button>
-
-                {facturePayee && selectedCommande.statut !== 'annulee' && (
-                  <span className="detail-paid-indicator">
-                    <CheckCircle size={16} />
-                    Payée
-                  </span>
-                )}
-
-                {peutPayer && (
                   <button
-                    className="btn btn-success"
-                    onClick={() => preparerPaiement(selectedCommande)}
+                    type="button"
+                    className="vt-btn vt-btn--primary vt-add-btn"
+                    onClick={ajouterProduit}
+                    disabled={!composerReady || !quantite || adding}
                   >
-                    <Wallet size={16} />
-                    <span>{facturePartielle ? 'Compléter le paiement' : 'Payer'}</span>
+                    {adding ? <Loader size={16} className="vt-spin" /> : <Plus size={16} />}
+                    Ajouter
                   </button>
-                )}
-              </div>
-            </div>
-          </div>
-        );
-      })()}
+                </div>
 
-      {/* ============================================================
-          MODAL - SUPPRESSION
-          ============================================================ */}
-      {showDeleteModal && (
-        <div className="modal-overlay" onClick={() => !deleting && setShowDeleteModal(false)}>
-          <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>🗑️ Confirmer la suppression</h2>
-              <button className="modal-close" onClick={() => !deleting && setShowDeleteModal(false)}>
-                <X size={22} />
-              </button>
+                <p className="vt-add-hint" aria-live="polite">
+                  {composerReady && quantite && !isNaN(toNum(quantite)) && !isNaN(toNum(prixVente))
+                    ? `Sous-total ${formatMontant(toNum(quantite) * toNum(prixVente))}${
+                        selectedUnite.quantite_base > 1 ? `, soit ${calculerUnitesBase()} unité(s) de base` : ""
+                      }`
+                    : "\u00A0"}
+                </p>
+              </section>
             </div>
-            <div className="modal-body">
-              <div className="delete-icon-wrapper">
-                <AlertTriangle size={44} color="#ef4444" />
+
+            {/* ---------- Ticket ---------- */}
+            <aside className="vt-receipt" aria-label="Ticket de la vente">
+              <div className="vt-receipt-head">
+                <span>TICKET DE VENTE</span>
+                <span>{formData.lignes.length} ligne{formData.lignes.length > 1 ? "s" : ""}</span>
               </div>
-              <p>Êtes-vous sûr de vouloir supprimer cette commande ?</p>
-              <p className="delete-item-name">
-                <strong>"{commandeToDelete?.numero_commande}"</strong>
-              </p>
-              <p className="delete-item-detail">
-                Client : {commandeToDelete?.nomclient || 'Client inconnu'}
-              </p>
-              <p className="delete-warning">⚠️ Cette action est irréversible</p>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowDeleteModal(false)} disabled={deleting}>
+              <dl className="vt-receipt-client">
+                <div><dt>Client</dt><dd>{formData.nomclient || "-"}</dd></div>
+                <div><dt>Tél.</dt><dd>{formData.telephone || "-"}</dd></div>
+              </dl>
+
+              <ul className="vt-receipt-lines">
+                {formData.lignes.length === 0 ? (
+                  <li className="vt-receipt-empty">Le ticket est vide.<br />Ajoutez un produit pour commencer.</li>
+                ) : (
+                  formData.lignes.map((l, i) => (
+                    <li key={`${l.id_produit}-${l.id_unite_vente ?? "base"}`} className="vt-rl">
+                      <div className="vt-rl-main">
+                        <span className="vt-rl-name">
+                          {l.produit_nom}{l.modele_nom ? ` ${l.modele_nom}` : ""}
+                        </span>
+                        <span className="vt-rl-meta">
+                          {l.quantite} {l.nom_unite_vente}
+                          {l.quantite_base > 1 ? ` (${l.quantite_base})` : ""} x {formatMontant(l.prix_vente)}
+                        </span>
+                      </div>
+                      <span className="vt-rl-total">{formatMontant(l.total)}</span>
+                      <button
+                        type="button"
+                        className="vt-rl-remove"
+                        onClick={() => removeLigne(i)}
+                        aria-label={`Retirer ${l.produit_nom}`}
+                        title="Retirer"
+                      >
+                        <X size={14} />
+                      </button>
+                    </li>
+                  ))
+                )}
+              </ul>
+
+              <div className="vt-receipt-total">
+                <span>TOTAL</span>
+                <strong>{formatMontant(calculerTotal())}</strong>
+              </div>
+            </aside>
+          </div>
+
+          <div className="vt-modal-foot">
+            <p className="vt-foot-hint" aria-live="polite">
+              {manques.length > 0 ? `Il manque ${manques.join(", ")}.` : "La vente est prête à être facturée."}
+            </p>
+            <div className="vt-foot-actions">
+              <button type="button" className="vt-btn" onClick={() => setShowModal(false)} disabled={saving}>
                 Annuler
               </button>
-              <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
-                {deleting ? (
-                  <>
-                    <span className="spinner-small"></span>
-                    <span>Suppression...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 size={16} />
-                    <span>Supprimer</span>
-                  </>
-                )}
+              <button
+                type="button"
+                className="vt-btn vt-btn--primary"
+                onClick={handleFinaliserVente}
+                disabled={saving || manques.length > 0}
+              >
+                {saving ? <Loader size={16} className="vt-spin" /> : <Check size={16} />}
+                {saving ? "Enregistrement" : "Générer la facture"}
               </button>
             </div>
           </div>
-        </div>
+        </Modal>
       )}
 
       {/* ============================================================
-          MODAL - ALERTE GÉNÉRIQUE (remplace les alert())
+          MODAL : PAIEMENT
           ============================================================ */}
+      {showPaiementModal && commandeEnCours && factureGeneree && (
+        <Modal
+          size="sm"
+          busy={saving}
+          labelledBy="vt-pay-title"
+          dismissable={!saving && !alertModal.isOpen}
+          onClose={() => setShowPaiementModal(false)}
+        >
+          <ModalHead
+            id="vt-pay-title"
+            title="Encaisser la facture"
+            sub={`Facture ${factureGeneree.numero_facture}, commande ${commandeEnCours.numero_commande}`}
+            onClose={() => setShowPaiementModal(false)}
+            disabled={saving}
+          />
+          <div className="vt-modal-body">
+            {error && (
+              <div className="vt-error" role="alert">
+                <AlertTriangle size={16} /><span>{error}</span>
+              </div>
+            )}
+
+            <div className="vt-due">
+              <span className="vt-due-client"><User size={15} /> {commandeEnCours.nomclient || "Client"}</span>
+              <span className="vt-due-label">Reste à payer</span>
+              <strong className="vt-due-amount vt-num">{formatMontant(factureReste)}</strong>
+              <dl className="vt-due-detail">
+                <div><dt>Total facture</dt><dd className="vt-num">{formatMontant(factureGeneree.montant_total)}</dd></div>
+                <div><dt>Déjà payé</dt><dd className="vt-num">{formatMontant(factureGeneree.total_paye || 0)}</dd></div>
+              </dl>
+            </div>
+
+            <div className="vt-field vt-field--spaced">
+              <label htmlFor="vt-montant">Montant encaissé</label>
+              <div className="vt-inline">
+                <input
+                  id="vt-montant"
+                  type="text"
+                  inputMode="decimal"
+                  className="vt-input vt-num"
+                  placeholder={String(Math.round(factureReste))}
+                  value={paiementData.montant}
+                  onChange={(e) =>
+                    DECIMAL_RE.test(e.target.value) &&
+                    setPaiementData((p) => ({ ...p, montant: e.target.value }))
+                  }
+                  readOnly={saving}
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  className="vt-btn"
+                  onClick={() => setPaiementData((p) => ({ ...p, montant: "" }))}
+                  disabled={saving || !paiementData.montant}
+                >
+                  Tout le solde
+                </button>
+              </div>
+              <small className="vt-hint">Laissez vide pour encaisser la totalité du reste à payer.</small>
+            </div>
+
+            <div className="vt-field">
+              <span className="vt-field-label" id="vt-mode-label">Mode de paiement</span>
+              <div className="vt-modes" role="radiogroup" aria-labelledby="vt-mode-label">
+                {MODES_PAIEMENT.map(({ value, label, Icon }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="radio"
+                    aria-checked={paiementData.mode_paiement === value}
+                    className={`vt-mode ${paiementData.mode_paiement === value ? "is-active" : ""}`}
+                    onClick={() => setPaiementData((p) => ({ ...p, mode_paiement: value }))}
+                  >
+                    <Icon size={20} />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div className="vt-modal-foot vt-modal-foot--end">
+            <button
+              type="button"
+              className="vt-btn"
+              onClick={() => { setShowPaiementModal(false); setCommandeEnCours(null); }}
+              disabled={saving}
+            >
+              Annuler
+            </button>
+            <button type="button" className="vt-btn vt-btn--cash vt-btn--lg" onClick={handlePayer} disabled={saving}>
+              {saving ? <Loader size={16} className="vt-spin" /> : <Wallet size={16} />}
+              {saving
+                ? "Paiement en cours"
+                : `Encaisser ${formatMontant(paiementData.montant ? toNum(paiementData.montant) || 0 : factureReste)}`}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ============================================================
+          MODAL : FACTURE
+          ============================================================ */}
+      {showFactureModal && factureGeneree && (
+        <Modal
+          size="lg"
+          labelledBy="vt-fac-title"
+          dismissable={!alertModal.isOpen}
+          onClose={() => setShowFactureModal(false)}
+        >
+          <ModalHead
+            id="vt-fac-title"
+            title={`Facture ${factureGeneree.numero_facture}`}
+            sub={`Commande ${factureGeneree.numero_commande}`}
+            onClose={() => setShowFactureModal(false)}
+          >
+            <PaiementTag
+              info={{
+                key: factureEstPayee ? "payee" : factureGeneree.statut === "partiellement_payee" ? "partiellement_payee" : "en_attente",
+                label: factureEstPayee ? "Soldée" : factureGeneree.statut === "partiellement_payee" ? "Partielle" : "Non payée",
+                ratio: factureEstPayee
+                  ? 1
+                  : factureGeneree.montant_total > 0
+                  ? Math.min(1, (factureGeneree.total_paye || 0) / factureGeneree.montant_total)
+                  : 0,
+              }}
+            />
+          </ModalHead>
+
+          <div className="vt-modal-body">
+            <dl className="vt-facts">
+              <div><dt>Client</dt><dd>{factureGeneree.nomclient}</dd></div>
+              <div><dt>Téléphone</dt><dd>{factureGeneree.telephone || "-"}</dd></div>
+              <div><dt>Date</dt><dd>{formatDateFR(factureGeneree.date_facture)}</dd></div>
+              <div><dt>Échéance</dt><dd>{formatDateFR(factureGeneree.date_echeance)}</dd></div>
+            </dl>
+
+            <div className="vt-doc-scroll">
+              <table className="vt-doc">
+                <thead>
+                  <tr>
+                    <th>Produit</th>
+                    <th>Unité</th>
+                    <th className="vt-th-right">Qté</th>
+                    <th className="vt-th-right">Prix unitaire</th>
+                    <th className="vt-th-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {factureGeneree.lignes?.map((ligne, index) => (
+                    <tr key={index}>
+                      <td>{ligne.produit_nom}</td>
+                      <td>
+                        {ligne.nom_unite_vente || "Unité"}
+                        {ligne.quantite_base > 1 && ` (${ligne.quantite_base})`}
+                      </td>
+                      <td className="vt-td-right vt-num">{ligne.quantite}</td>
+                      <td className="vt-td-right vt-num">{formatMontant(ligne.prix_vente)}</td>
+                      <td className="vt-td-right vt-num">{formatMontant(ligne.montant_total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="vt-sums">
+              <div><span>Total</span><strong className="vt-num">{formatMontant(factureGeneree.montant_total)}</strong></div>
+              {(factureGeneree.total_paye || 0) > 0 && (
+                <div><span>Déjà payé</span><span className="vt-num">{formatMontant(factureGeneree.total_paye)}</span></div>
+              )}
+              <div className="vt-sums-due">
+                <span>Reste à payer</span>
+                <strong className="vt-num">{formatMontant(Math.max(0, factureReste))}</strong>
+              </div>
+            </div>
+
+            <div className="vt-facture-actions">
+              {factureEstPayee ? (
+                <div className="vt-paid-banner">
+                  <CheckCircle size={18} />
+                  <span>Cette facture est entièrement payée</span>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    className="vt-btn vt-btn--cash"
+                    onClick={() => {
+                      setShowFactureModal(false);
+                      setPaiementData({ mode_paiement: "especes", montant: "" });
+                      setShowPaiementModal(true);
+                    }}
+                  >
+                    <Wallet size={16} />
+                    {factureGeneree.statut === "partiellement_payee" ? "Compléter le paiement" : "Encaisser maintenant"}
+                  </button>
+                  <button
+                    type="button"
+                    className="vt-btn"
+                    onClick={async () => {
+                      setShowFactureModal(false);
+                      await loadCommandes();
+                      await loadProduits();
+                      showToast(
+                        `Commande ${commandeEnCours?.numero_commande} enregistrée. Facture ${factureGeneree?.numero_facture} en attente de paiement.`,
+                        "success"
+                      );
+                      setCommandeEnCours(null);
+                      setFactureGeneree(null);
+                      setFormData({ nomclient: "", telephone: "", lignes: [] });
+                    }}
+                  >
+                    Enregistrer sans payer
+                  </button>
+                </>
+              )}
+              <FacturePDFActions factureData={factureGeneree} onClose={() => setShowFactureModal(false)} />
+            </div>
+          </div>
+
+          <div className="vt-modal-foot vt-modal-foot--end">
+            <button type="button" className="vt-btn" onClick={() => setShowFactureModal(false)}>Fermer</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ============================================================
+          MODAL : DÉTAILS
+          ============================================================ */}
+      {showDetailModal && selectedCommande && (
+        <Modal
+          size="lg"
+          labelledBy="vt-det-title"
+          dismissable={!alertModal.isOpen}
+          onClose={() => setShowDetailModal(false)}
+        >
+          <ModalHead
+            id="vt-det-title"
+            title={selectedCommande.numero_commande}
+            sub={`Commande du ${formatDateFR(selectedCommande.date_commande)}`}
+            onClose={() => setShowDetailModal(false)}
+          >
+            <div className="vt-head-tags">
+              <StatutMenu
+                commande={selectedCommande}
+                onSelect={handleChangeStatut}
+                updatingStatut={updatingStatut}
+                canManage={canManage}
+              />
+              <PaiementTag info={paiementInfo(selectedCommande)} />
+            </div>
+          </ModalHead>
+
+          <div className="vt-modal-body">
+            <div className="vt-det-grid">
+              <section>
+                <h3 className="vt-section-title">Client</h3>
+                <dl className="vt-kv">
+                  <div><dt>Nom</dt><dd>{selectedCommande.nomclient || "-"}</dd></div>
+                  <div><dt>Téléphone</dt><dd>{selectedCommande.telephone || "-"}</dd></div>
+                </dl>
+              </section>
+              <section>
+                <h3 className="vt-section-title">Facturation</h3>
+                <dl className="vt-kv">
+                  <div><dt>Facture</dt><dd>{selectedCommande.numero_facture || "Non générée"}</dd></div>
+                  <div><dt>Mode de paiement</dt><dd>{selectedCommande.mode_paiement || "-"}</dd></div>
+                  <div><dt>Montant total</dt><dd className="vt-num vt-kv-strong">{formatMontant(selectedCommande.montant_total)}</dd></div>
+                </dl>
+              </section>
+            </div>
+
+            {selectedCommande.lignes?.length > 0 && (
+              <section className="vt-det-block">
+                <h3 className="vt-section-title">Produits</h3>
+                <div className="vt-doc-scroll">
+                  <table className="vt-doc">
+                    <thead>
+                      <tr>
+                        <th>Produit</th>
+                        <th>Unité</th>
+                        <th className="vt-th-right">Qté</th>
+                        <th className="vt-th-right">Prix unitaire</th>
+                        <th className="vt-th-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedCommande.lignes.map((ligne, index) => (
+                        <tr key={index}>
+                          <td>
+                            {ligne.produit_nom}
+                            {ligne.marque_nom && <span className="vt-muted"> {ligne.marque_nom}</span>}
+                          </td>
+                          <td>
+                            {ligne.nom_unite_vente || "Unité"}
+                            {ligne.quantite_base > 1 && ` (${ligne.quantite_base})`}
+                          </td>
+                          <td className="vt-td-right vt-num">{ligne.quantite}</td>
+                          <td className="vt-td-right vt-num">{formatMontant(ligne.prix_vente)}</td>
+                          <td className="vt-td-right vt-num">{formatMontant(ligne.montant_total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan="4">Total</td>
+                        <td className="vt-td-right vt-num">{formatMontant(selectedCommande.montant_total)}</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </section>
+            )}
+
+            {selectedCommande.paiements?.length > 0 && (
+              <section className="vt-det-block">
+                <h3 className="vt-section-title">Paiements reçus</h3>
+                <div className="vt-doc-scroll">
+                  <table className="vt-doc">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Mode</th>
+                        <th>Référence</th>
+                        <th className="vt-th-right">Montant</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {selectedCommande.paiements.map((paiement, index) => (
+                        <tr key={index}>
+                          <td>{formatDateFR(paiement.date_paiement)}</td>
+                          <td>{paiement.mode_paiement}</td>
+                          <td>{paiement.reference || "-"}</td>
+                          <td className="vt-td-right vt-num">{formatMontant(paiement.montant)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+          </div>
+
+          <div className="vt-modal-foot">
+            <div>
+              {isFacturePayee(selectedCommande) && selectedCommande.statut !== "annulee" && (
+                <span className="vt-paid-banner vt-paid-banner--inline">
+                  <CheckCircle size={16} /> Payée
+                </span>
+              )}
+            </div>
+            <div className="vt-foot-actions">
+              <button type="button" className="vt-btn" onClick={() => setShowDetailModal(false)}>Fermer</button>
+              {canPay(selectedCommande) && (
+                <button type="button" className="vt-btn vt-btn--cash" onClick={() => preparerPaiement(selectedCommande)}>
+                  <Wallet size={16} />
+                  {isFacturePartiellementPayee(selectedCommande) ? "Compléter le paiement" : "Encaisser"}
+                </button>
+              )}
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ============================================================
+          MODAL : SUPPRESSION
+          ============================================================ */}
+      {showDeleteModal && (
+        <Modal
+          size="sm"
+          busy={deleting}
+          labelledBy="vt-del-title"
+          dismissable={!deleting}
+          onClose={() => setShowDeleteModal(false)}
+        >
+          <ModalHead
+            id="vt-del-title"
+            title="Supprimer cette commande ?"
+            onClose={() => setShowDeleteModal(false)}
+            disabled={deleting}
+          />
+          <div className="vt-modal-body">
+            <div className="vt-danger-note">
+              <AlertTriangle size={20} />
+              <div>
+                <p>
+                  La commande <strong>{commandeToDelete?.numero_commande}</strong> de{" "}
+                  <strong>{commandeToDelete?.nomclient || "client inconnu"}</strong> sera supprimée.
+                </p>
+                <p className="vt-danger-warn">Cette action est irréversible.</p>
+              </div>
+            </div>
+          </div>
+          <div className="vt-modal-foot vt-modal-foot--end">
+            <button type="button" className="vt-btn" onClick={() => setShowDeleteModal(false)} disabled={deleting}>
+              Annuler
+            </button>
+            <button type="button" className="vt-btn vt-btn--danger" onClick={handleDelete} disabled={deleting}>
+              {deleting ? <Loader size={16} className="vt-spin" /> : <Trash2 size={16} />}
+              {deleting ? "Suppression" : "Supprimer"}
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {/* ---------- Alerte générique ---------- */}
       <ConfirmModal
         isOpen={alertModal.isOpen}
         onClose={closeAlert}
@@ -2497,33 +2266,13 @@ const handleImprimerDepuisListe = async (commande) => {
         cancelLabel="Fermer"
       />
 
-      {/* ============================================================
-          MODAL - CONFIRMATION GÉNÉRIQUE (pour actions destructives)
-          ============================================================ */}
-      <ConfirmModal
-        isOpen={confirmModal.isOpen}
-        onClose={closeConfirm}
-        onConfirm={confirmModal.onConfirm}
-        title={confirmModal.title}
-        message={confirmModal.message}
-        details={confirmModal.details}
-        type={confirmModal.type}
-        confirmLabel={confirmModal.confirmLabel}
-        loading={saving}
-      />
-
-      {/* ============================================================
-          TOAST
-          ============================================================ */}
+      {/* ---------- Toast ---------- */}
       {toast && (
-        <div className={`ventes-toast ventes-toast-${toast.type}`}>
-          <span className="toast-message">{toast.message}</span>
-          <button
-            className="toast-close"
-            onClick={() => setToast(null)}
-            aria-label="Fermer"
-          >
-            ×
+        <div className="vt-toast" data-type={toast.type} role="status" aria-live="polite">
+          <span className="vt-toast-bar" />
+          <span className="vt-toast-msg">{toast.message}</span>
+          <button type="button" className="vt-iconbtn vt-iconbtn--sm" onClick={() => setToast(null)} aria-label="Fermer">
+            <X size={14} />
           </button>
         </div>
       )}

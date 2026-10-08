@@ -353,7 +353,7 @@ const Employes = () => {
             <div className="employes-filters">
                 <div className="search-box">
                     <Search size={18}/>
-                    <input
+                    <input 
                         type="text"
                         placeholder="Rechercher par nom ou téléphone..."
                         value={searchTerm}
