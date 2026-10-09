@@ -38,6 +38,7 @@ import ProtectedRouteByRole from "./components/ProtectedRouteByRole";
 import AssistantAchat from "./pages/AssistantAchat/AssistantAchat";
 import Inventaires from "./pages/Inventaires/Inventaires";
 import InventaireDetail from "./pages/Inventaires/InventaireDetail";
+import MonProfil from "./pages/Profil/MonProfil";
 
 // ==================== COMPOSANTS UTILITAIRES ====================
 
@@ -100,6 +101,7 @@ function AppContent() {
                 {/* Redirection racine */}
                 <Route path="/" element={<RedirectToDashboard />} />
                 <Route path="/dashboard" element={<RedirectWithSlug />} />
+                
 
                 {/* ==================== ROUTES PROTÉGÉES ==================== */}
                 <Route
@@ -111,6 +113,7 @@ function AppContent() {
                     }
                 >
 
+
                     <Route
                         path="assistant-achat"
                         element={
@@ -118,6 +121,10 @@ function AppContent() {
                                 <AssistantAchat />
                             </ProtectedRouteByRole>
                         }
+                    />
+                    <Route
+                    path="mon-profil"
+                    element={<MonProfil />}  
                     />
                     <Route index element={<Dashboard />} />
 

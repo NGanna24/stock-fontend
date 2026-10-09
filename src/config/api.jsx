@@ -38,6 +38,7 @@ SEARCH: {
         LOGIN: `${BASE_URL}/api/utilisateur/login`,         
         PROFILE: `${BASE_URL}/api/utilisateur/profile`,     
         PROFILE_BY_SLUG: (slug) => `${BASE_URL}/api/utilisateur/profile/${slug}`,
+        UPDATE_PROFILE: `${BASE_URL}/api/utilisateur/profile`,
         LOGOUT: `${BASE_URL}/api/utilisateur/logout`,       
         CHANGE_PASSWORD: `${BASE_URL}/api/utilisateur/change-password`, 
         FORGOT_PASSWORD: `${BASE_URL}/api/utilisateur/forgot-password`,

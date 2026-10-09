@@ -10,7 +10,7 @@ import {
   ClipboardList, Layers, AlertTriangle, TrendingDown, CreditCard,
   BarChart3, TrendingUp, Banknote, Shield, Settings,
   PanelLeftClose, PanelLeftOpen, LogOut, Store, Ruler,
-  Bot,
+  Bot,User,
 } from "lucide-react";
 import ConfirmModal from "../../ConfirmModal/ConfirmModal";
 import "./Sidebar.css";
@@ -76,6 +76,7 @@ const MENU_CONFIG = [
     icon: Settings,
     allowedRoles: ["admin"],
     items: [
+      { id: "mon-profil",  title: "Mon profil",  icon: User,  path: "/mon-profil" },
       { id: "mon-magasin",  title: "Mon magasin",         icon: Store,    path: "/mon-magasin" },
       { id: "employes",     title: "Employés",            icon: Users,    path: "/employes" },
       { id: "paiements",    title: "Paiements",           icon: CreditCard, path: "/paiements" },
@@ -323,6 +324,7 @@ const Sidebar = () => {
             </span>
           </button>
         </div>
+        
       </aside>
 
       {/* ============================================================

@@ -936,7 +936,7 @@ const MonMagasin = () => {
               </div>
 
               <div className="mg-form-grid mg-form-grid--3">
-                <div className="mg-field">
+                <div className="mg-field"> 
                   <label htmlFor="numero_rccm">N° RCCM</label>
                   <div className="mg-input-wrap">
                     <Hash size={16} className="mg-input-icon" />
