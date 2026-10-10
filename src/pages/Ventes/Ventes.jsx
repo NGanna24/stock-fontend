@@ -1532,7 +1532,6 @@ const preparerPaiement = async (commande) => {
       {/* ---------- Recherche ---------- */}
       <div className="vt-toolbar">
         <div className="vt-search">
-          <Search size={16} className="vt-search-icon" />
           <input
             ref={searchRef}
             type="text"
