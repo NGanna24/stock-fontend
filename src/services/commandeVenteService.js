@@ -7,7 +7,7 @@ class CommandeVenteService {
     /**
      * Récupérer toutes les commandes clients
      */
-    static async getAllCommandes(token, params = {}) {
+    static async getAllCommandes(token, params = {}) { 
         try {
             const response = await axios.get(API_URL.COMMANDE_VENTE.GET_ALL, {
                 headers: {

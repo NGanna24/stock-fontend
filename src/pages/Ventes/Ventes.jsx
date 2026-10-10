@@ -50,12 +50,43 @@ const toNum = (v) => {
 };
 const DECIMAL_RE = /^\d*[.,]?\d*$/;
 
+// ============================================================
+// ✅ HELPERS DE PAIEMENT (alignés sur Factures.jsx)
+// ============================================================
+
+/**
+ * Retourne le montant payé d'une commande/facture.
+ * Priorité : somme des paiements détaillés > total_paye (backend).
+ */
+const getMontantPaye = (commande) => {
+  if (!commande) return 0;
+  // 1. Si des paiements détaillés sont présents, on les somme
+  if (Array.isArray(commande.paiements) && commande.paiements.length > 0) {
+    return commande.paiements.reduce(
+      (sum, p) => sum + (parseFloat(p.montant) || 0),
+      0
+    );
+  }
+  // 2. Sinon on utilise total_paye (calculé par le backend)
+  return parseFloat(commande.total_paye) || 0;
+};
+
+/**
+ * Retourne le reste à payer d'une commande/facture.
+ */
+const getResteAPayer = (commande) => {
+  if (!commande) return 0;
+  const total = parseFloat(commande.montant_total) || 0;
+  const paye = getMontantPaye(commande);
+  return Math.max(0, total - paye);
+};
+
 // ---------- Logique de paiement centralisée ----------
 const isFacturePayee = (commande) => {
   if (!commande) return false;
   if (commande.statut_facture === "payee") return true;
   const montant = parseFloat(commande.montant_total) || 0;
-  const paye = parseFloat(commande.total_paye) || 0;
+  const paye = getMontantPaye(commande);
   return montant > 0 && paye >= montant;
 };
 
@@ -63,7 +94,7 @@ const isFacturePartiellementPayee = (commande) => {
   if (!commande) return false;
   if (commande.statut_facture === "partiellement_payee") return true;
   const montant = parseFloat(commande.montant_total) || 0;
-  const paye = parseFloat(commande.total_paye) || 0;
+  const paye = getMontantPaye(commande);
   return montant > 0 && paye > 0 && paye < montant;
 };
 
@@ -83,7 +114,7 @@ const paiementInfo = (c) => {
     key = "partiellement_payee";
   }
   const montant = parseFloat(c.montant_total) || 0;
-  const paye = parseFloat(c.total_paye) || 0;
+  const paye = getMontantPaye(c);   // ✅ utilise paiements ou total_paye
   const ratio = key === "payee" ? 1 : montant > 0 ? Math.min(1, paye / montant) : 0;
   let label = PAIEMENT_LABELS[key] || PAIEMENT_LABELS.en_attente;
   if (key === "partiellement_payee" && ratio > 0) label = `${label}${NBSP}${Math.round(ratio * 100)}${NBSP}%`;
@@ -131,7 +162,7 @@ const unlockScroll = () => {
 };
 
 // ============================================================
-// MENU ANCRÉ (position: fixed — jamais rogné, se retourne vers le haut si besoin)
+// MENU ANCRÉ
 // ============================================================
 const AnchoredMenu = ({
   open, anchorRef, onClose, width = 200, align = "left",
@@ -208,7 +239,7 @@ const AnchoredMenu = ({
 };
 
 // ============================================================
-// MODAL (focus restauré, Échap, clic extérieur, scroll verrouillé)
+// MODAL
 // ============================================================
 const Modal = ({ onClose, dismissable = true, size = "md", busy = false, labelledBy, children }) => {
   const ref = useRef(null);
@@ -508,7 +539,6 @@ const Ventes = () => {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  // Focus quantité dès que l'unité est prête (au lieu d'un setTimeout fragile)
   useEffect(() => {
     if (selectedProduit && !loadingUnites && selectedUnite) {
       qteRef.current?.focus();
@@ -602,7 +632,7 @@ const Ventes = () => {
     searchDebounce.current = setTimeout(async () => {
       try {
         const response = await ProduitService.getProduitsByModele(token, texte);
-        if (rid !== searchReq.current) return; // réponse périmée
+        if (rid !== searchReq.current) return;
         if (response.success && response.data) {
           setProduitSearchResults(
             response.data.filter((p) => (parseFloat(p.quantite_stock) || 0) > 0)
@@ -964,6 +994,9 @@ const Ventes = () => {
     }
   };
 
+  // ============================================================
+  // ✅ PAIEMENT — corrigé pour propager la mise à jour partout
+  // ============================================================
   const handlePayer = async () => {
     if (!commandeEnCours || !factureGeneree) {
       showAlert("Aucune facture", "Aucune facture à payer.");
@@ -1010,30 +1043,72 @@ const Ventes = () => {
         throw new Error(paiementResponse.message || "Erreur lors du paiement");
       }
 
+      // ✅ Récupérer l'état FRAIS de la commande
       const completeRes = await CommandeVenteService.getCommandeById(token, commandeEnCours.id_commande);
 
       let nouveauTotalPaye = 0;
       let nouveauStatutFacture = "en_attente";
       let nouveauReste = 0;
+      let donneesFraiches = null;
 
       if (completeRes.success) {
-        const d = completeRes.data;
-        nouveauTotalPaye = d.total_paye || 0;
-        const nouveauMontantTotal = parseFloat(d.montant_total) || 0;
-        nouveauStatutFacture = d.statut_facture || "en_attente";
-        nouveauReste = nouveauMontantTotal - nouveauTotalPaye;
+        donneesFraiches = completeRes.data;
+        nouveauTotalPaye = parseFloat(donneesFraiches.total_paye) || 0;
+        const nouveauMontantTotal = parseFloat(donneesFraiches.montant_total) || 0;
+        nouveauStatutFacture = donneesFraiches.statut_facture || "en_attente";
+        nouveauReste = Math.max(0, nouveauMontantTotal - nouveauTotalPaye);
 
+        // 1) Mettre à jour la facture affichée dans le modal
         setFactureGeneree((prev) => ({
           ...prev,
           statut: nouveauStatutFacture,
           total_paye: nouveauTotalPaye,
           reste_a_payer: nouveauReste,
-          paiements: d.paiements || [],
-          lignes: mapLignesFacture(d.lignes),
+          paiements: donneesFraiches.paiements || [],
+          lignes: mapLignesFacture(donneesFraiches.lignes),
           magasin,
         }));
+
+        // 2) ✅ Mettre à jour la commande sélectionnée (modale détail)
+        setSelectedCommande((prev) =>
+          prev && prev.id_commande === donneesFraiches.id_commande
+            ? {
+                ...prev,
+                ...donneesFraiches,
+                total_paye: nouveauTotalPaye,
+                statut_facture: nouveauStatutFacture,
+                paiements: donneesFraiches.paiements || [],
+              }
+            : prev
+        );
+
+        // 3) ✅ Mettre à jour commandeEnCours
+        setCommandeEnCours((prev) =>
+          prev
+            ? {
+                ...prev,
+                ...donneesFraiches,
+                total_paye: nouveauTotalPaye,
+                statut_facture: nouveauStatutFacture,
+              }
+            : prev
+        );
+
+        // 4) ✅ Mettre à jour la LISTE localement (mise à jour optimiste)
+        setCommandes((prev) =>
+          prev.map((c) =>
+            c.id_commande === donneesFraiches.id_commande
+              ? {
+                  ...c,
+                  statut_facture: nouveauStatutFacture,
+                  total_paye: nouveauTotalPaye,
+                }
+              : c
+          )
+        );
       }
 
+      // 5) Recharger depuis le serveur (par sécurité)
       await loadCommandes();
 
       if (nouveauStatutFacture === "payee" || nouveauReste <= 0) {
@@ -1055,57 +1130,64 @@ const Ventes = () => {
     }
   };
 
-  const preparerPaiement = async (commande) => {
-    if (!commande?.id_commande) {
-      showAlert("Commande invalide", "Impossible de préparer le paiement pour cette commande.", "danger");
+const preparerPaiement = async (commande) => {
+  if (!commande?.id_commande) {
+    showAlert("Commande invalide", "Impossible de préparer le paiement pour cette commande.", "danger");
+    return;
+  }
+  try {
+    const fullResponse = await CommandeVenteService.getCommandeById(token, commande.id_commande);
+    if (!fullResponse.success) throw new Error("Commande non trouvée");
+    const c = fullResponse.data;
+
+    if (!c.id_facture) {
+      showAlert("Facture manquante", "Aucune facture n'est associée à cette commande.");
       return;
     }
-    try {
-      const fullResponse = await CommandeVenteService.getCommandeById(token, commande.id_commande);
-      if (!fullResponse.success) throw new Error("Commande non trouvée");
-      const c = fullResponse.data;
 
-      if (!c.id_facture) {
-        showAlert("Facture manquante", "Aucune facture n'est associée à cette commande.");
-        return;
-      }
+    const montantTotal = parseFloat(c.montant_total) || 0;
 
-      const montantTotal = parseFloat(c.montant_total) || 0;
-      const totalPaye = parseFloat(c.total_paye) || 0;
-      const reste = montantTotal - totalPaye;
+    // ✅ Utiliser getMontantPaye : priorité aux paiements détaillés, fallback sur total_paye
+    const totalPaye = getMontantPaye(c);
+    const reste = Math.max(0, montantTotal - totalPaye);
 
-      if (reste <= 0) {
-        showAlert("Facture déjà payée", "Cette facture est déjà totalement payée.", "success");
-        return;
-      }
-
-      setCommandeEnCours(c);
-      setFactureGeneree({
-        id_facture: c.id_facture,
-        numero_facture: c.numero_facture,
-        date_facture: c.date_facture,
-        date_echeance: c.date_echeance,
-        nomclient: c.nomclient,
-        telephone: c.telephone,
-        montant_total: montantTotal,
-        statut: c.statut_facture || "en_attente",
-        lignes: mapLignesFacture(c.lignes),
-        paiements: c.paiements || [],
-        total_paye: totalPaye,
-        reste_a_payer: reste,
-        numero_commande: c.numero_commande,
-        id_commande: c.id_commande,
-        mode_paiement: c.mode_paiement || "especes",
-        magasin,
-      });
-      setPaiementData({ mode_paiement: "especes", montant: "" });
-      setShowPaiementModal(true);
-      setShowDetailModal(false);
-    } catch (err) {
-      console.error("preparerPaiement:", err);
-      showAlert("Erreur", err.message || "Erreur lors de la préparation du paiement.", "danger");
+    if (reste <= 0) {
+      showAlert("Facture déjà payée", "Cette facture est déjà totalement payée.", "success");
+      return;
     }
-  };
+
+    setCommandeEnCours(c);
+    setFactureGeneree({
+      id_facture: c.id_facture,
+      numero_facture: c.numero_facture,
+      date_facture: c.date_facture,
+      date_echeance: c.date_echeance,
+      nomclient: c.nomclient,
+      telephone: c.telephone,
+      montant_total: montantTotal,
+      statut: c.statut_facture || "en_attente",
+      lignes: mapLignesFacture(c.lignes),
+      paiements: c.paiements || [],
+      total_paye: totalPaye,          // ✅ cohérent avec getMontantPaye
+      reste_a_payer: reste,           // ✅ cohérent : 45000 - 1500 = 43500
+      numero_commande: c.numero_commande,
+      id_commande: c.id_commande,
+      mode_paiement: c.mode_paiement || "especes",
+      magasin,
+    });
+
+    setSelectedCommande((prev) =>
+      prev && prev.id_commande === c.id_commande ? { ...prev, ...c } : prev
+    );
+
+    setPaiementData({ mode_paiement: "especes", montant: "" });
+    setShowPaiementModal(true);
+    setShowDetailModal(false);
+  } catch (err) {
+    console.error("preparerPaiement:", err);
+    showAlert("Erreur", err.message || "Erreur lors de la préparation du paiement.", "danger");
+  }
+};
 
   const confirmDelete = (commande) => {
     setCommandeToDelete(commande);
@@ -1877,7 +1959,7 @@ const Ventes = () => {
               <strong className="vt-due-amount vt-num">{formatMontant(factureReste)}</strong>
               <dl className="vt-due-detail">
                 <div><dt>Total facture</dt><dd className="vt-num">{formatMontant(factureGeneree.montant_total)}</dd></div>
-                <div><dt>Déjà payé</dt><dd className="vt-num">{formatMontant(factureGeneree.total_paye || 0)}</dd></div>
+                <div><dt>Déjà payé</dt><dd className="vt-num">{formatMontant(getMontantPaye(factureGeneree))}</dd></div>
               </dl>
             </div>
 
@@ -1971,7 +2053,7 @@ const Ventes = () => {
                 ratio: factureEstPayee
                   ? 1
                   : factureGeneree.montant_total > 0
-                  ? Math.min(1, (factureGeneree.total_paye || 0) / factureGeneree.montant_total)
+                  ? Math.min(1, getMontantPaye(factureGeneree) / factureGeneree.montant_total)
                   : 0,
               }}
             />
@@ -2015,8 +2097,8 @@ const Ventes = () => {
 
             <div className="vt-sums">
               <div><span>Total</span><strong className="vt-num">{formatMontant(factureGeneree.montant_total)}</strong></div>
-              {(factureGeneree.total_paye || 0) > 0 && (
-                <div><span>Déjà payé</span><span className="vt-num">{formatMontant(factureGeneree.total_paye)}</span></div>
+              {getMontantPaye(factureGeneree) > 0 && (
+                <div><span>Déjà payé</span><span className="vt-num">{formatMontant(getMontantPaye(factureGeneree))}</span></div>
               )}
               <div className="vt-sums-due">
                 <span>Reste à payer</span>
@@ -2116,6 +2198,13 @@ const Ventes = () => {
                   <div><dt>Facture</dt><dd>{selectedCommande.numero_facture || "Non générée"}</dd></div>
                   <div><dt>Mode de paiement</dt><dd>{selectedCommande.mode_paiement || "-"}</dd></div>
                   <div><dt>Montant total</dt><dd className="vt-num vt-kv-strong">{formatMontant(selectedCommande.montant_total)}</dd></div>
+                  <div><dt>Déjà payé</dt><dd className="vt-num">{formatMontant(getMontantPaye(selectedCommande))}</dd></div>
+                  <div>
+                    <dt>Reste à payer</dt>
+                    <dd className="vt-num" style={{ color: getResteAPayer(selectedCommande) > 0 ? "#dc2626" : "#16a34a" }}>
+                      {formatMontant(getResteAPayer(selectedCommande))}
+                    </dd>
+                  </div>
                 </dl>
               </section>
             </div>
