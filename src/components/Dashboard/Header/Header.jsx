@@ -2,859 +2,526 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import "./Header.css";
 import { useUser } from "../../../context/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import AlerteService from "../../../services/alerteService";
 import MagasinService from "../../../services/magasinService";
 import SearchService from "../../../services/searchService";
 import ConfirmModal from "../../ConfirmModal/ConfirmModal";
+import { MENU_CONFIG, findMenuEntry } from "../Sidebar/Sidebar";
 
 import {
-    Search,
-    Bell,
-    Moon,
-    Sun,
-    Settings,
-    Warehouse,
-    TriangleAlert,
-    ChevronDown,
-    LogOut,
-    User,
-    Package,
-    Receipt,
-    ShoppingCart,
-    Truck,
-    Users,
-    Loader,
-    X,
-    ArrowRight,
+  Search, Bell, Moon, Sun, Settings, LayoutDashboard, TriangleAlert, ChevronDown,
+  LogOut, User, Package, Receipt, ShoppingCart, ShoppingBasket, Truck, Users, Loader, X,
+  ArrowRight,
 } from "lucide-react";
 
 const isLocal =
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1" ||
-        window.location.hostname.startsWith("192.168."));
+  typeof window !== "undefined" &&
+  (window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1" ||
+    window.location.hostname.startsWith("192.168."));
 
-const API_BASE_URL = isLocal
-    ? "http://192.168.187.1:8080"
-    : "https://miyo.n-double.com";
+const API_BASE_URL = isLocal ? "http://192.168.187.1:8080" : "https://miyo.n-double.com";
 
 // ============ HELPERS ============
-const formatMontant = (v) => {
-    const n = parseFloat(v) || 0;
-    return Math.round(n).toLocaleString('fr-FR') + ' FCFA';
+const formatMontant = (v) => (Math.round(parseFloat(v) || 0)).toLocaleString("fr-FR") + " FCFA";
+const formatDate = (d) => {
+  if (!d) return "-";
+  const date = new Date(d);
+  return isNaN(date) ? "-" : date.toLocaleDateString("fr-FR");
 };
 
-const formatDate = (d) => {
-    if (!d) return '-';
-    return new Date(d).toLocaleDateString('fr-FR');
+const ROLE_LABELS = {
+  admin: "Administrateur", client: "Client", user: "Utilisateur",
+  manager: "Gestionnaire", caissier: "Caissier", magasinier: "Magasinier",
 };
+
+// Pages hors menu latéral
+const EXTRA_TITLES = { "/profile": "Mon profil", "/settings": "Paramètres" };
+
+// Description de chaque famille de résultats de recherche
+const SEARCH_SECTIONS = [
+  {
+    key: "produits", type: "produit", label: "Produits", icon: Package,
+    describe: (p) => ({
+      title: p.nom, titleSmall: p.modele_nom,
+      sub: `${p.categorie_nom || "Sans catégorie"}${p.marque_nom ? ` • ${p.marque_nom}` : ""}`,
+      right: formatMontant(p.prix_vente),
+      rightSub: `Stock : ${p.quantite_stock}`, rightSubLow: Number(p.quantite_stock) <= 0,
+    }),
+  },
+  {
+    key: "clients", type: "client", label: "Clients", icon: Users,
+    describe: (c) => ({
+      title: c.nom,
+      sub: `${c.telephone || "Sans téléphone"}${c.ville ? ` • ${c.ville}` : ""}`,
+      right: `${c.nb_commandes} cmd`,
+    }),
+  },
+  {
+    key: "factures", type: "facture", label: "Factures", icon: Receipt,
+    describe: (f) => ({ title: f.numero, sub: `${f.client || "-"} • ${formatDate(f.date)}`, right: formatMontant(f.montant) }),
+  },
+  {
+    key: "commandes", type: "commande", label: "Commandes", icon: ShoppingCart,
+    describe: (c) => ({ title: c.numero, sub: `${c.client || "-"} • ${formatDate(c.date)}`, right: formatMontant(c.montant) }),
+  },
+  {
+    key: "commandes_achat", type: "commande_achat", label: "Commandes d'achat", icon: ShoppingBasket,
+    describe: (c) => ({ title: c.numero, sub: `${c.fournisseur || "-"} • ${formatDate(c.date)}`, right: formatMontant(c.montant) }),
+  },
+  {
+    key: "fournisseurs", type: "fournisseur", label: "Fournisseurs", icon: Truck,
+    describe: (f) => ({ title: f.nom, sub: `${f.ville || "-"}${f.telephone ? ` • ${f.telephone}` : ""}` }),
+  },
+];
 
 const Header = () => {
-    const { user, logout } = useUser();
-    const navigate = useNavigate();
-    const [showDropdown, setShowDropdown] = useState(false);
-    const [alertesCount, setAlertesCount] = useState(0);
-    const [notificationsCount, setNotificationsCount] = useState(0);
-    const [darkMode, setDarkMode] = useState(false);
+  const { user, logout } = useUser();
+  const navigate = useNavigate();
+  const location = useLocation();
 
-    // État magasin
-    const [magasin, setMagasin] = useState(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [alertesCount, setAlertesCount] = useState(0);
+  const notificationsCount = 0;
+  const [darkMode, setDarkMode] = useState(false);
+  const [magasin, setMagasin] = useState(null);
+  const [logoFailed, setLogoFailed] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
-    // État modal déconnexion
-    const [showLogoutModal, setShowLogoutModal] = useState(false);
-    const [loggingOut, setLoggingOut] = useState(false);
+  // Recherche
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState(null);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const reqRef = useRef(0);
+  const searchRef = useRef(null);
+  const inputRef = useRef(null);
+  const listRef = useRef(null);
+  const profileRef = useRef(null);
 
-    // États recherche dynamique
-    const [searchTerm, setSearchTerm] = useState("");
-    const [searchResults, setSearchResults] = useState(null);
-    const [searchLoading, setSearchLoading] = useState(false);
-    const [searchOpen, setSearchOpen] = useState(false);
-    const [selectedIndex, setSelectedIndex] = useState(-1);
+  const userFullname = user?.fullname || "Utilisateur";
+  const userRole = user?.role || "client";
+  const userSlug = user?.slug || "";
+  const userTelephone = user?.telephone || "";
+  const roleLabel = ROLE_LABELS[userRole] || userRole;
 
-    const searchDebounce = useRef(null);
-    const searchRef = useRef(null);
-    const inputRef = useRef(null);
+  /* ---------- Fil d'Ariane ---------- */
+  const crumb = useMemo(() => {
+    const entry = findMenuEntry(location.pathname, userSlug, MENU_CONFIG);
+    if (entry) return { section: entry.section.section === "Principal" ? null : entry.section.section, title: entry.item.title };
+    const rel = location.pathname.replace(userSlug ? `/${userSlug}` : "", "").replace(/\/+$/, "");
+    return EXTRA_TITLES[rel] ? { section: null, title: EXTRA_TITLES[rel] } : null;
+  }, [location.pathname, userSlug]);
 
-    // Infos utilisateur
-    const userFullname = user?.fullname || "Utilisateur";
-    const userRole = user?.role || "client";
-    const userSlug = user?.slug || "";
-    const userTelephone = user?.telephone || "";
+  /* ---------- Magasin ---------- */
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token || !user?.slug) return;
+    (async () => {
+      try {
+        const res = await MagasinService.getMonMagasin(token);
+        if (res.success) setMagasin(res.magasin || res.data);
+      } catch (e) {
+        console.error("❌ Erreur chargement magasin:", e);
+      }
+    })();
+  }, [user?.slug]);
 
-    // ==================== CHARGEMENT MAGASIN ====================
-    useEffect(() => {
-        const loadMagasin = async () => {
-            const token = localStorage.getItem('token');
-            if (!token || !user?.slug) return;
+  const logoUrl = useMemo(() => {
+    if (!magasin?.logo_url) return null;
+    return magasin.logo_url.startsWith("http") ? magasin.logo_url : `${API_BASE_URL}${magasin.logo_url}`;
+  }, [magasin?.logo_url]);
+  useEffect(() => { setLogoFailed(false); }, [logoUrl]);
+  const showLogo = !!logoUrl && !logoFailed;
 
-            try {
-                const res = await MagasinService.getMonMagasin(token);
-                if (res.success) {
-                    const mag = res.magasin || res.data;
-                    setMagasin(mag);
-                }
-            } catch (e) {
-                console.error('❌ Erreur chargement magasin:', e);
-            }
-        };
-        loadMagasin();
-    }, [user?.slug]);
+  const magasinInitiales = useMemo(
+    () => (magasin?.nom_commercial || "Mon magasin").split(" ").filter(Boolean).map((w) => w[0]).join("").substring(0, 2).toUpperCase(),
+    [magasin?.nom_commercial]
+  );
 
-    // ==================== CHARGEMENT ALERTES ====================
-    useEffect(() => {
-        const loadAlertesCount = async () => {
-            const token = localStorage.getItem('token');
-            if (!token || !user?.slug) return;
-
-            try {
-                const res = await AlerteService.getStats(token);
-                if (res.success && res.data) {
-                    const total =
-                        (res.data.total_rupture || 0) +
-                        (res.data.total_stock_bas || 0);
-                    setAlertesCount(total);
-                }
-            } catch (e) {
-                console.error('❌ Erreur chargement alertes:', e);
-            }
-        };
-
-        loadAlertesCount();
-        const interval = setInterval(loadAlertesCount, 60000);
-        return () => clearInterval(interval);
-    }, [user?.slug]);
-
-    // ==================== MODE SOMBRE ====================
-    useEffect(() => {
-        const saved = localStorage.getItem('darkMode');
-        if (saved === 'true') {
-            setDarkMode(true);
-            document.body.classList.add('dark-mode');
+  /* ---------- Alertes (diffusées aussi à la sidebar) ---------- */
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token || !user?.slug) return undefined;
+    const load = async () => {
+      try {
+        const res = await AlerteService.getStats(token);
+        if (res.success && res.data) {
+          const total = (res.data.total_rupture || 0) + (res.data.total_stock_bas || 0);
+          setAlertesCount(total);
+          window.__miyoAlertes = total;
+          window.dispatchEvent(new CustomEvent("miyo:alertes-count", { detail: total }));
         }
-    }, []);
-
-    // ==================== RECHERCHE DYNAMIQUE ====================
-    const performSearch = useCallback(async (query) => {
-        const token = localStorage.getItem('token');
-        if (!token || !query || query.trim().length < 2) {
-            setSearchResults(null);
-            setSearchLoading(false);
-            return;
-        }
-
-        setSearchLoading(true);
-        try {
-            const res = await SearchService.searchGlobal(token, query.trim(), 5);
-            if (res.success) {
-                setSearchResults(res.data);
-                setSelectedIndex(-1);
-            }
-        } catch (e) {
-            console.error('❌ search error:', e);
-        } finally {
-            setSearchLoading(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        if (searchDebounce.current) clearTimeout(searchDebounce.current);
-
-        if (!searchTerm || searchTerm.trim().length < 2) {
-            setSearchResults(null);
-            setSearchOpen(false);
-            return;
-        }
-
-        setSearchOpen(true);
-        setSearchLoading(true);
-
-        searchDebounce.current = setTimeout(() => {
-            performSearch(searchTerm);
-        }, 300);
-
-        return () => {
-            if (searchDebounce.current) clearTimeout(searchDebounce.current);
-        };
-    }, [searchTerm, performSearch]);
-
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (searchRef.current && !searchRef.current.contains(e.target)) {
-                setSearchOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
-
-    // ==================== LISTE PLATE DES RÉSULTATS ====================
-    const flatResults = useMemo(() => {
-        if (!searchResults) return [];
-        const items = [];
-
-        (searchResults.produits || []).forEach(p => {
-            items.push({ type: 'produit', data: p });
-        });
-        (searchResults.clients || []).forEach(c => {
-            items.push({ type: 'client', data: c });
-        });
-        (searchResults.factures || []).forEach(f => {
-            items.push({ type: 'facture', data: f });
-        });
-        (searchResults.commandes || []).forEach(c => {
-            items.push({ type: 'commande', data: c });
-        });
-        (searchResults.commandes_achat || []).forEach(c => {
-            items.push({ type: 'commande_achat', data: c });
-        });
-        (searchResults.fournisseurs || []).forEach(f => {
-            items.push({ type: 'fournisseur', data: f });
-        });
-
-        return items;
-    }, [searchResults]);
-
-    // ==================== NAVIGATION RÉSULTAT ====================
-    const goToResult = useCallback((item) => {
-        if (!item) return;
-
-        switch (item.type) {
-            case 'produit':
-                navigate(`/${userSlug}/produits`);
-                break;
-            case 'client':
-                if (item.data.telephone) {
-                    navigate(`/${userSlug}/clients/${encodeURIComponent(item.data.telephone)}`);
-                } else {
-                    navigate(`/${userSlug}/clients`);
-                }
-                break;
-            case 'facture':
-                navigate(`/${userSlug}/factures`);
-                break;
-            case 'commande':
-                navigate(`/${userSlug}/commandes-clients`);
-                break;
-            case 'commande_achat':
-                navigate(`/${userSlug}/commandes-achat`);
-                break;
-            case 'fournisseur':
-                navigate(`/${userSlug}/fournisseurs`);
-                break;
-            default:
-                break;
-        }
-
-        setSearchOpen(false);
-        setSearchTerm("");
-        setSearchResults(null);
-    }, [navigate, userSlug]);
-
-    // ==================== CLAVIER ====================
-    const handleKeyDown = (e) => {
-        if (!searchOpen) return;
-
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            setSelectedIndex(prev => Math.min(prev + 1, flatResults.length - 1));
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            setSelectedIndex(prev => Math.max(prev - 1, -1));
-        } else if (e.key === 'Enter' && selectedIndex >= 0) {
-            e.preventDefault();
-            goToResult(flatResults[selectedIndex]);
-        } else if (e.key === 'Escape') {
-            setSearchOpen(false);
-            inputRef.current?.blur();
-        }
+      } catch (e) {
+        console.error("❌ Erreur chargement alertes:", e);
+      }
     };
+    load();
+    const interval = setInterval(load, 60000);
+    return () => clearInterval(interval);
+  }, [user?.slug]);
 
-    // ==================== CLEAR ====================
-    const clearSearch = () => {
-        setSearchTerm("");
-        setSearchResults(null);
-        setSearchOpen(false);
+  /* ---------- Mode sombre ---------- */
+  useEffect(() => {
+    if (localStorage.getItem("darkMode") === "true") {
+      setDarkMode(true);
+      document.body.classList.add("dark-mode");
+    }
+  }, []);
+
+  const toggleDarkMode = () => {
+    const next = !darkMode;
+    setDarkMode(next);
+    document.body.classList.toggle("dark-mode", next);
+    localStorage.setItem("darkMode", String(next));
+  };
+
+  /* ---------- Recherche dynamique ---------- */
+  useEffect(() => {
+    const q = searchTerm.trim();
+    if (q.length < 2) {
+      reqRef.current += 1;
+      setSearchResults(null);
+      setSearchOpen(false);
+      setSearchLoading(false);
+      return undefined;
+    }
+    setSearchOpen(true);
+    setSearchLoading(true);
+    const id = ++reqRef.current;
+    const timer = setTimeout(async () => {
+      const token = localStorage.getItem("token");
+      if (!token) { if (id === reqRef.current) setSearchLoading(false); return; }
+      try {
+        const res = await SearchService.searchGlobal(token, q, 5);
+        if (id !== reqRef.current) return; // réponse obsolète
+        setSearchResults(res.success ? res.data : null);
+        setSelectedIndex(-1);
+      } catch (e) {
+        console.error("❌ search error:", e);
+        if (id === reqRef.current) setSearchResults(null);
+      } finally {
+        if (id === reqRef.current) setSearchLoading(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  // Fermeture au clic extérieur (recherche + profil) et raccourcis clavier
+  useEffect(() => {
+    const onDown = (e) => {
+      if (searchRef.current && !searchRef.current.contains(e.target)) setSearchOpen(false);
+      if (profileRef.current && !profileRef.current.contains(e.target)) setShowDropdown(false);
+    };
+    const onKey = (e) => {
+      if (e.key === "Escape") setShowDropdown(false);
+      const tag = e.target.tagName;
+      const typing = ["INPUT", "TEXTAREA", "SELECT"].includes(tag) || e.target.isContentEditable;
+      const isSlash = e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey;
+      const isK = (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k";
+      if (isSlash || isK) {
+        e.preventDefault();
         inputRef.current?.focus();
+        inputRef.current?.select();
+      }
     };
-
-    // ==================== NAVIGATIONS ====================
-    const goToProfile = () => {
-        navigate(`/${userSlug}/profile`);
-        setShowDropdown(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
     };
+  }, []);
 
-    const goToSettings = () => {
-        navigate(`/${userSlug}/settings`);
-        setShowDropdown(false);
+  const flatResults = useMemo(() => {
+    if (!searchResults) return [];
+    return SEARCH_SECTIONS.flatMap((s) => (searchResults[s.key] || []).map((data) => ({ type: s.type, data })));
+  }, [searchResults]);
+
+  useEffect(() => {
+    if (selectedIndex < 0 || !listRef.current) return;
+    listRef.current.querySelector(`[data-idx="${selectedIndex}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
+
+  const goToResult = useCallback((item) => {
+    if (!item) return;
+    const base = `/${userSlug}`;
+    const routes = {
+      produit: `${base}/produits`,
+      facture: `${base}/factures`,
+      commande: `${base}/commandes-clients`,
+      commande_achat: `${base}/commandes-achat`,
+      fournisseur: `${base}/fournisseurs`,
+      client: item.data?.telephone ? `${base}/clients/${encodeURIComponent(item.data.telephone)}` : `${base}/clients`,
     };
+    if (routes[item.type]) navigate(routes[item.type]);
+    setSearchOpen(false);
+    setSearchTerm("");
+    setSearchResults(null);
+  }, [navigate, userSlug]);
 
-    const goToDashboard = () => {
-        navigate(`/${userSlug}/dashboard`);
-        setShowDropdown(false);
-    };
+  const handleKeyDown = (e) => {
+    if (e.key === "Escape") {
+      if (searchOpen) { setSearchOpen(false); } else { inputRef.current?.blur(); }
+      return;
+    }
+    if (!searchOpen) {
+      if (e.key === "ArrowDown" && flatResults.length > 0) { e.preventDefault(); setSearchOpen(true); }
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedIndex((p) => Math.min(p + 1, flatResults.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedIndex((p) => Math.max(p - 1, -1));
+    } else if (e.key === "Enter" && flatResults.length > 0) {
+      e.preventDefault();
+      goToResult(flatResults[selectedIndex >= 0 ? selectedIndex : 0]);
+    }
+  };
 
-    const goToAlertes = () => {
-        navigate(`/${userSlug}/alertes`);
-    };
+  const clearSearch = () => {
+    setSearchTerm("");
+    setSearchResults(null);
+    setSearchOpen(false);
+    inputRef.current?.focus();
+  };
 
-    const goToNotifications = () => {
-        navigate(`/${userSlug}/commandes-clients`);
-    };
+  /* ---------- Navigation ---------- */
+  const go = (path) => { navigate(`/${userSlug}${path}`); setShowDropdown(false); };
 
-    const toggleDarkMode = () => {
-        const newValue = !darkMode;
-        setDarkMode(newValue);
-        if (newValue) {
-            document.body.classList.add('dark-mode');
-        } else {
-            document.body.classList.remove('dark-mode');
-        }
-        localStorage.setItem('darkMode', newValue.toString());
-    };
+  const handleLogoutConfirm = async () => {
+    setLoggingOut(true);
+    try {
+      await logout();
+      navigate("/login");
+    } catch (err) {
+      console.error("Erreur déconnexion:", err);
+    } finally {
+      setLoggingOut(false);
+      setShowLogoutModal(false);
+    }
+  };
 
-    // ==================== DÉCONNEXION ====================
-    const handleLogoutClick = () => {
-        setShowLogoutModal(true);
-        setShowDropdown(false);
-    };
+  /* ---------- Rendu de la recherche ---------- */
+  const renderSearchDropdown = () => {
+    if (!searchOpen) return null;
+    const total = flatResults.length;
 
-    const handleLogoutConfirm = async () => {
-        setLoggingOut(true);
-        try {
-            await logout();
-            navigate('/login');
-        } catch (err) {
-            console.error('Erreur déconnexion:', err);
-        } finally {
-            setLoggingOut(false);
-            setShowLogoutModal(false);
-        }
-    };
+    if (searchLoading && !searchResults) {
+      return (
+        <div className="hd-results">
+          <div className="hd-results-state"><Loader size={18} className="hd-spin" /><span>Recherche en cours…</span></div>
+        </div>
+      );
+    }
+    if (!searchLoading && total === 0) {
+      return (
+        <div className="hd-results">
+          <div className="hd-results-state hd-results-state--empty">
+            <Search size={30} />
+            <p>Aucun résultat pour « {searchTerm.trim()} »</p>
+            <small>Essayez un autre mot-clé ou un numéro.</small>
+          </div>
+        </div>
+      );
+    }
 
-    // ==================== HELPERS ====================
-    const getRoleLabel = (role) => {
-        const roles = {
-            'admin': 'Administrateur',
-            'client': 'Client',
-            'user': 'Utilisateur',
-            'manager': 'Gestionnaire',
-            'caissier': 'Caissier',
-            'magasinier': 'Magasinier'
-        };
-        return roles[role] || role;
-    };
-
-    const getLogoUrl = () => {
-        if (!magasin?.logo_url) return null;
-        if (magasin.logo_url.startsWith('http')) return magasin.logo_url;
-        return `${API_BASE_URL}${magasin.logo_url}`;
-    };
-
-    const getMagasinInitiales = () => {
-        const nom = magasin?.nom_commercial || 'Mon magasin';
-        return nom
-            .split(' ')
-            .map(w => w[0])
-            .join('')
-            .substring(0, 2)
-            .toUpperCase();
-    };
-
-    const toggleDropdown = () => {
-        setShowDropdown(!showDropdown);
-    };
-
-    // ==================== RENDER DROPDOWN RECHERCHE ====================
-    const renderSearchDropdown = () => {
-        if (!searchOpen) return null;
-
-        const counts = {
-            produits: searchResults?.produits?.length || 0,
-            clients: searchResults?.clients?.length || 0,
-            factures: searchResults?.factures?.length || 0,
-            commandes: searchResults?.commandes?.length || 0,
-            commandes_achat: searchResults?.commandes_achat?.length || 0,
-            fournisseurs: searchResults?.fournisseurs?.length || 0,
-        };
-        const totalResults = Object.values(counts).reduce((a, b) => a + b, 0);
-
-        if (searchLoading && !searchResults) {
-            return (
-                <div className="search-dropdown">
-                    <div className="search-loading">
-                        <Loader size={18} className="spinning" />
-                        <span>Recherche en cours...</span>
-                    </div>
-                </div>
-            );
-        }
-
-        if (!searchLoading && totalResults === 0) {
-            return (
-                <div className="search-dropdown">
-                    <div className="search-empty">
-                        <Search size={32} />
-                        <p>Aucun résultat pour "{searchTerm}"</p>
-                        <small>Essayez un autre mot-clé</small>
-                    </div>
-                </div>
-            );
-        }
-
-        let flatIndex = -1;
-
-        return (
-            <div className="search-dropdown">
-                {/* PRODUITS */}
-                {counts.produits > 0 && (
-                    <div className="search-section">
-                        <div className="search-section-header">
-                            <Package size={14} />
-                            <span>Produits</span>
-                            <span className="search-count">{counts.produits}</span>
-                        </div>
-                        {searchResults.produits.map(p => {
-                            flatIndex++;
-                            const idx = flatIndex;
-                            return (
-                                <button
-                                    key={`p-${p.id}`}
-                                    className={`search-item ${selectedIndex === idx ? 'selected' : ''}`}
-                                    onClick={() => goToResult({ type: 'produit', data: p })}
-                                    onMouseEnter={() => setSelectedIndex(idx)}
-                                >
-                                    <div className="search-item-icon produit">
-                                        <Package size={16} />
-                                    </div>
-                                    <div className="search-item-content">
-                                        <span className="search-item-title">
-                                            {p.nom}
-                                            {p.modele_nom && <small> · {p.modele_nom}</small>}
-                                        </span>
-                                        <span className="search-item-sub">
-                                            {p.categorie_nom || 'Sans catégorie'}
-                                            {p.marque_nom && ` • ${p.marque_nom}`}
-                                        </span>
-                                    </div>
-                                    <div className="search-item-right">
-                                        <span className="search-item-montant">
-                                            {formatMontant(p.prix_vente)}
-                                        </span>
-                                        <span className={`search-item-stock ${p.quantite_stock <= 0 ? 'low' : ''}`}>
-                                            Stock: {p.quantite_stock}
-                                        </span>
-                                    </div>
-                                    <ArrowRight size={14} className="search-item-arrow" />
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* CLIENTS */}
-                {counts.clients > 0 && (
-                    <div className="search-section">
-                        <div className="search-section-header">
-                            <Users size={14} />
-                            <span>Clients</span>
-                            <span className="search-count">{counts.clients}</span>
-                        </div>
-                        {searchResults.clients.map((c) => {
-                            flatIndex++;
-                            const idx = flatIndex;
-                            return (
-                                <button
-                                    key={`c-${c.id}`}
-                                    className={`search-item ${selectedIndex === idx ? 'selected' : ''}`}
-                                    onClick={() => goToResult({ type: 'client', data: c })}
-                                    onMouseEnter={() => setSelectedIndex(idx)}
-                                >
-                                    <div className="search-item-icon client">
-                                        <Users size={16} />
-                                    </div>
-                                    <div className="search-item-content">
-                                        <span className="search-item-title">{c.nom}</span>
-                                        <span className="search-item-sub">
-                                            {c.telephone || 'Sans téléphone'}
-                                            {c.ville && ` • ${c.ville}`}
-                                        </span>
-                                    </div>
-                                    <div className="search-item-right">
-                                        <span className="search-item-montant">
-                                            {c.nb_commandes} cmd
-                                        </span>
-                                    </div>
-                                    <ArrowRight size={14} className="search-item-arrow" />
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* FACTURES */}
-                {counts.factures > 0 && (
-                    <div className="search-section">
-                        <div className="search-section-header">
-                            <Receipt size={14} />
-                            <span>Factures</span>
-                            <span className="search-count">{counts.factures}</span>
-                        </div>
-                        {searchResults.factures.map(f => {
-                            flatIndex++;
-                            const idx = flatIndex;
-                            return (
-                                <button
-                                    key={`f-${f.id}`}
-                                    className={`search-item ${selectedIndex === idx ? 'selected' : ''}`}
-                                    onClick={() => goToResult({ type: 'facture', data: f })}
-                                    onMouseEnter={() => setSelectedIndex(idx)}
-                                >
-                                    <div className="search-item-icon facture">
-                                        <Receipt size={16} />
-                                    </div>
-                                    <div className="search-item-content">
-                                        <span className="search-item-title">{f.numero}</span>
-                                        <span className="search-item-sub">
-                                            {f.client || '-'} • {formatDate(f.date)}
-                                        </span>
-                                    </div>
-                                    <div className="search-item-right">
-                                        <span className="search-item-montant">
-                                            {formatMontant(f.montant)}
-                                        </span>
-                                    </div>
-                                    <ArrowRight size={14} className="search-item-arrow" />
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* COMMANDES DE VENTE */}
-                {counts.commandes > 0 && (
-                    <div className="search-section">
-                        <div className="search-section-header">
-                            <ShoppingCart size={14} />
-                            <span>Commandes</span>
-                            <span className="search-count">{counts.commandes}</span>
-                        </div>
-                        {searchResults.commandes.map(c => {
-                            flatIndex++;
-                            const idx = flatIndex;
-                            return (
-                                <button
-                                    key={`cmd-${c.id}`}
-                                    className={`search-item ${selectedIndex === idx ? 'selected' : ''}`}
-                                    onClick={() => goToResult({ type: 'commande', data: c })}
-                                    onMouseEnter={() => setSelectedIndex(idx)}
-                                >
-                                    <div className="search-item-icon commande">
-                                        <ShoppingCart size={16} />
-                                    </div>
-                                    <div className="search-item-content">
-                                        <span className="search-item-title">{c.numero}</span>
-                                        <span className="search-item-sub">
-                                            {c.client || '-'} • {formatDate(c.date)}
-                                        </span>
-                                    </div>
-                                    <div className="search-item-right">
-                                        <span className="search-item-montant">
-                                            {formatMontant(c.montant)}
-                                        </span>
-                                    </div>
-                                    <ArrowRight size={14} className="search-item-arrow" />
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* COMMANDES D'ACHAT */}
-                {counts.commandes_achat > 0 && (
-                    <div className="search-section">
-                        <div className="search-section-header">
-                            <Package size={14} />
-                            <span>Commandes d'achat</span>
-                            <span className="search-count">{counts.commandes_achat}</span>
-                        </div>
-                        {searchResults.commandes_achat.map(c => {
-                            flatIndex++;
-                            const idx = flatIndex;
-                            return (
-                                <button
-                                    key={`ca-${c.id}`}
-                                    className={`search-item ${selectedIndex === idx ? 'selected' : ''}`}
-                                    onClick={() => goToResult({ type: 'commande_achat', data: c })}
-                                    onMouseEnter={() => setSelectedIndex(idx)}
-                                >
-                                    <div className="search-item-icon commande-achat">
-                                        <Package size={16} />
-                                    </div>
-                                    <div className="search-item-content">
-                                        <span className="search-item-title">{c.numero}</span>
-                                        <span className="search-item-sub">
-                                            {c.fournisseur || '-'} • {formatDate(c.date)}
-                                        </span>
-                                    </div>
-                                    <div className="search-item-right">
-                                        <span className="search-item-montant">
-                                            {formatMontant(c.montant)}
-                                        </span>
-                                    </div>
-                                    <ArrowRight size={14} className="search-item-arrow" />
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* FOURNISSEURS */}
-                {counts.fournisseurs > 0 && (
-                    <div className="search-section">
-                        <div className="search-section-header">
-                            <Truck size={14} />
-                            <span>Fournisseurs</span>
-                            <span className="search-count">{counts.fournisseurs}</span>
-                        </div>
-                        {searchResults.fournisseurs.map(f => {
-                            flatIndex++;
-                            const idx = flatIndex;
-                            return (
-                                <button
-                                    key={`four-${f.id}`}
-                                    className={`search-item ${selectedIndex === idx ? 'selected' : ''}`}
-                                    onClick={() => goToResult({ type: 'fournisseur', data: f })}
-                                    onMouseEnter={() => setSelectedIndex(idx)}
-                                >
-                                    <div className="search-item-icon fournisseur">
-                                        <Truck size={16} />
-                                    </div>
-                                    <div className="search-item-content">
-                                        <span className="search-item-title">{f.nom}</span>
-                                        <span className="search-item-sub">
-                                            {f.ville || '-'}
-                                            {f.telephone && ` • ${f.telephone}`}
-                                        </span>
-                                    </div>
-                                    <ArrowRight size={14} className="search-item-arrow" />
-                                </button>
-                            );
-                        })}
-                    </div>
-                )}
-
-                {/* FOOTER */}
-                <div className="search-dropdown-footer">
-                    <span>
-                        {totalResults} résultat{totalResults > 1 ? 's' : ''}
-                        {' '}pour "<strong>{searchTerm}</strong>"
-                    </span>
-                    <div className="search-hints">
-                        <kbd>↑</kbd><kbd>↓</kbd> naviguer
-                        <kbd>↵</kbd> ouvrir
-                        <kbd>Échap</kbd> fermer
-                    </div>
-                </div>
-            </div>
-        );
-    };
-
+    let offset = 0;
     return (
-        <>
-            <header className="header">
-                <div className="headerleft">
-                    {/* SEARCH BOX AVEC DROPDOWN */}
-                    <div className="search-box" ref={searchRef}>
-                        <Search size={18} />
-                        <input
-                            ref={inputRef}
-                            type="text"
-                            placeholder="Rechercher un produit, un client, une facture..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                            onFocus={() => {
-                                if (searchTerm.trim().length >= 2) setSearchOpen(true);
-                            }}
-                            onKeyDown={handleKeyDown}
-                        />
-                        {searchLoading && (
-                            <Loader size={16} className="search-loading-icon spinning" />
-                        )}
-                        {searchTerm && !searchLoading && (
-                            <button
-                                className="search-clear"
-                                onClick={clearSearch}
-                                aria-label="Effacer"
-                            >
-                                <X size={14} />
-                            </button>
-                        )}
-                        {renderSearchDropdown()}
-                    </div>
-                </div>
-
-                <div className="header-right">
-                    {/* ICÔNE 1 : Alertes de stock */}
-                    <button
-                        className="icon-btn"
-                        onClick={goToAlertes}
-                        title={`${alertesCount} alerte(s) de stock`}
-                        aria-label="Alertes de stock"
-                    >
-                        <TriangleAlert size={20} />
-                        {alertesCount > 0 && (
-                            <span className="badge red">{alertesCount}</span>
-                        )}
-                    </button>
-
-                    <button
-                        className="icon-btn"
-                        onClick={goToNotifications}
-                        title={`${notificationsCount} notification(s)`}
-                        aria-label="Notifications"
-                    >
-                        <Bell size={20} />
-                        {notificationsCount > 0 && (
-                            <span className="badge">{notificationsCount}</span>
-                        )}
-                    </button>
-
-                    <button
-                        className="icon-btn"
-                        onClick={toggleDarkMode}
-                        title={darkMode ? "Mode clair" : "Mode sombre"}
-                        aria-label="Basculer le thème"
-                    >
-                        {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-                    </button>
-
-                    <button
-                        className="icon-btn"
-                        onClick={goToSettings}
-                        title="Paramètres"
-                        aria-label="Paramètres"
-                    >
-                        <Settings size={20} />
-                    </button>
-
-                    {/* PROFIL */}
-                    <div className="profile-container">
-                        <div className="profile" onClick={toggleDropdown}>
-                            <div className="profile-logo">
-                                {getLogoUrl() ? (
-                                    <img
-                                        src={getLogoUrl()}
-                                        alt={magasin?.nom_commercial || 'Logo'}
-                                        onError={(e) => {
-                                            e.target.style.display = 'none';
-                                            if (e.target.nextSibling) {
-                                                e.target.nextSibling.style.display = 'flex';
-                                            }
-                                        }}
-                                    />
-                                ) : null}
-                                <span
-                                    className="profile-logo-initials"
-                                    style={{ display: getLogoUrl() ? 'none' : 'flex' }}
-                                >
-                                    {getMagasinInitiales()}
-                                </span>
-                            </div>
-
-                            <div className="profile-info">
-                                <h4>{magasin?.nom_commercial || userFullname}</h4>
-                                <p>{getRoleLabel(userRole)}</p>
-                            </div>
-
-                            <ChevronDown
-                                size={18}
-                                className={`dropdown-arrow ${showDropdown ? 'rotated' : ''}`}
-                            />
-                        </div>
-
-                        {showDropdown && (
-                            <div className="profile-dropdown">
-                                <div className="dropdown-header">
-                                    <div className="dropdown-logo">
-                                        {getLogoUrl() ? (
-                                            <img
-                                                src={getLogoUrl()}
-                                                alt={magasin?.nom_commercial || 'Logo'}
-                                                onError={(e) => {
-                                                    e.target.style.display = 'none';
-                                                    e.target.nextSibling.style.display = 'flex';
-                                                }}
-                                            />
-                                        ) : null}
-                                        <span
-                                            className="dropdown-logo-initials"
-                                            style={{ display: getLogoUrl() ? 'none' : 'flex' }}
-                                        >
-                                            {getMagasinInitiales()}
-                                        </span>
-                                    </div>
-
-                                    <div className="dropdown-user-info">
-                                        <h4>{magasin?.nom_commercial || 'Mon magasin'}</h4>
-                                        <p>{userFullname}</p>
-                                        <small>{getRoleLabel(userRole)} • {userTelephone}</small>
-                                    </div>
-                                </div>
-
-                                <div className="dropdown-divider"></div>
-
-                                <button className="dropdown-item" onClick={goToProfile}>
-                                    <User size={18} />
-                                    <span>Mon profil</span>
-                                </button>
-
-                                <button className="dropdown-item" onClick={goToSettings}>
-                                    <Settings size={18} />
-                                    <span>Paramètres</span>
-                                </button>
-
-                                <button className="dropdown-item" onClick={goToDashboard}>
-                                    <Warehouse size={18} />
-                                    <span>Tableau de bord</span>
-                                </button>
-
-                                <button className="dropdown-item" onClick={goToAlertes}>
-                                    <TriangleAlert size={18} />
-                                    <span>Alertes de stock</span>
-                                    {alertesCount > 0 && (
-                                        <span className="dropdown-badge">{alertesCount}</span>
-                                    )}
-                                </button>
-
-                                <div className="dropdown-divider"></div>
-
-                                <button className="dropdown-item logout" onClick={handleLogoutClick}>
-                                    <LogOut size={18} />
-                                    <span>Déconnexion</span>
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </header>
-
-            {/* ============================================================
-                MODAL DE DÉCONNEXION
-                ============================================================ */}
-            <ConfirmModal
-                isOpen={showLogoutModal}
-                onClose={() => !loggingOut && setShowLogoutModal(false)}
-                onConfirm={handleLogoutConfirm}
-                title="Se déconnecter ?"
-                message="Vous allez être redirigé vers la page de connexion. Toute modification non enregistrée sera perdue."
-                type="warning"
-                confirmLabel="Se déconnecter"
-                cancelLabel="Annuler"
-                loading={loggingOut}
-            />
-        </>
+      <div className={`hd-results ${searchLoading ? "is-refreshing" : ""}`} role="listbox" ref={listRef}>
+        {SEARCH_SECTIONS.map((sec) => {
+          const rows = searchResults?.[sec.key] || [];
+          if (rows.length === 0) return null;
+          const Icon = sec.icon;
+          const start = offset;
+          offset += rows.length;
+          return (
+            <section className="hd-group" key={sec.key}>
+              <h4 className="hd-group-head">
+                <Icon size={14} /> {sec.label}
+                <span className="hd-group-count">{rows.length}</span>
+              </h4>
+              {rows.map((row, i) => {
+                const idx = start + i;
+                const d = sec.describe(row);
+                return (
+                  <button
+                    key={`${sec.key}-${row.id ?? i}`}
+                    data-idx={idx}
+                    role="option"
+                    aria-selected={selectedIndex === idx}
+                    className={`hd-result ${selectedIndex === idx ? "is-selected" : ""}`}
+                    onClick={() => goToResult({ type: sec.type, data: row })}
+                    onMouseEnter={() => setSelectedIndex(idx)}
+                  >
+                    <span className="hd-result-icon"><Icon size={16} /></span>
+                    <span className="hd-result-main">
+                      <strong>{d.title}{d.titleSmall && <small> · {d.titleSmall}</small>}</strong>
+                      <span>{d.sub}</span>
+                    </span>
+                    {(d.right || d.rightSub) && (
+                      <span className="hd-result-right">
+                        {d.right && <b>{d.right}</b>}
+                        {d.rightSub && <small className={d.rightSubLow ? "is-low" : ""}>{d.rightSub}</small>}
+                      </span>
+                    )}
+                    <ArrowRight size={14} className="hd-result-arrow" />
+                  </button>
+                );
+              })}
+            </section>
+          );
+        })}
+        <div className="hd-results-foot">
+          <span>{total} résultat{total > 1 ? "s" : ""} pour « <strong>{searchTerm.trim()}</strong> »</span>
+          <span className="hd-hints"><kbd>↑</kbd><kbd>↓</kbd> naviguer <kbd>↵</kbd> ouvrir <kbd>Échap</kbd> fermer</span>
+        </div>
+      </div>
     );
+  };
+
+  const renderLogo = (cls) => (
+    <span className={cls}>
+      {showLogo ? (
+        <img src={logoUrl} alt={magasin?.nom_commercial || "Logo"} onError={() => setLogoFailed(true)} />
+      ) : (
+        <b>{magasinInitiales}</b>
+      )}
+    </span>
+  );
+
+  return (
+    <>
+      <header className="hd">
+        {/* Fil d'Ariane */}
+        <div className="hd-crumb">
+          {crumb ? (
+            <>
+              {crumb.section && <span className="hd-crumb-section">{crumb.section}</span>}
+              <h1>{crumb.title}</h1>
+            </>
+          ) : (
+            <h1>{magasin?.nom_commercial || "Miyo"}</h1>
+          )}
+        </div>
+
+        {/* Recherche globale */}
+        <div className="hd-search" ref={searchRef}>
+          <Search size={18} className="hd-search-icon" />
+          <input
+            ref={inputRef}
+            type="text"
+            placeholder="Rechercher un produit, un client, une facture…"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            onFocus={() => { if (searchTerm.trim().length >= 2) setSearchOpen(true); }}
+            onKeyDown={handleKeyDown}
+            role="combobox"
+            aria-expanded={searchOpen}
+            aria-label="Recherche globale"
+            autoComplete="off"
+          />
+          {searchLoading && <Loader size={16} className="hd-search-spin hd-spin" />}
+          {searchTerm && !searchLoading && (
+            <button className="hd-search-clear" onClick={clearSearch} aria-label="Effacer la recherche"><X size={14} /></button>
+          )}
+          {!searchTerm && <kbd className="hd-search-kbd" aria-hidden="true">/</kbd>}
+          {renderSearchDropdown()}
+        </div>
+
+        {/* Actions */}
+        <div className="hd-actions">
+          <button
+            className={`hd-btn ${alertesCount > 0 ? "has-alert" : ""}`}
+            onClick={() => navigate(`/${userSlug}/alertes`)}
+            title={`${alertesCount} alerte(s) de stock`}
+            aria-label={`Alertes de stock : ${alertesCount}`}
+          >
+            <TriangleAlert size={20} />
+            {alertesCount > 0 && <span className="hd-count">{alertesCount > 99 ? "99+" : alertesCount}</span>}
+          </button>
+
+          <button
+            className="hd-btn"
+            onClick={() => navigate(`/${userSlug}/commandes-clients`)}
+            title={`${notificationsCount} notification(s)`}
+            aria-label="Notifications"
+          >
+            <Bell size={20} />
+            {notificationsCount > 0 && <span className="hd-count hd-count--plain">{notificationsCount}</span>}
+          </button>
+
+          <button className="hd-btn" onClick={toggleDarkMode} title={darkMode ? "Mode clair" : "Mode sombre"} aria-label="Basculer le thème" aria-pressed={darkMode}>
+            {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+          </button>
+
+          <button className="hd-btn hd-btn--settings" onClick={() => go("/settings")} title="Paramètres" aria-label="Paramètres">
+            <Settings size={20} />
+          </button>
+
+          {/* Profil */}
+          <div className="hd-profile" ref={profileRef}>
+            <button
+              className={`hd-profile-btn ${showDropdown ? "is-open" : ""}`}
+              onClick={() => setShowDropdown((s) => !s)}
+              aria-haspopup="menu"
+              aria-expanded={showDropdown}
+            >
+              {renderLogo("hd-logo")}
+              <span className="hd-profile-text">
+                <strong>{magasin?.nom_commercial || userFullname}</strong>
+                <small>{roleLabel}</small>
+              </span>
+              <ChevronDown size={17} className={`hd-chev ${showDropdown ? "is-open" : ""}`} />
+            </button>
+
+            {showDropdown && (
+              <div className="hd-menu" role="menu">
+                <div className="hd-menu-head">
+                  {renderLogo("hd-logo hd-logo--lg")}
+                  <div>
+                    <strong>{magasin?.nom_commercial || "Mon magasin"}</strong>
+                    <span>{userFullname}</span>
+                    <small>{roleLabel}{userTelephone ? ` • ${userTelephone}` : ""}</small>
+                  </div>
+                </div>
+                <div className="hd-menu-body">
+                  <button className="hd-menu-item" role="menuitem" onClick={() => go("/profile")}><User size={17} /><span>Mon profil</span></button>
+                  <button className="hd-menu-item" role="menuitem" onClick={() => go("/settings")}><Settings size={17} /><span>Paramètres</span></button>
+                  <button className="hd-menu-item" role="menuitem" onClick={() => go("/dashboard")}><LayoutDashboard size={17} /><span>Tableau de bord</span></button>
+                  <button className="hd-menu-item" role="menuitem" onClick={() => go("/alertes")}>
+                    <TriangleAlert size={17} /><span>Alertes de stock</span>
+                    {alertesCount > 0 && <em className="hd-menu-badge">{alertesCount}</em>}
+                  </button>
+                  <div className="hd-menu-sep" />
+                  <button className="hd-menu-item hd-menu-item--logout" role="menuitem" onClick={() => { setShowDropdown(false); setShowLogoutModal(true); }}>
+                    <LogOut size={17} /><span>Déconnexion</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <ConfirmModal
+        isOpen={showLogoutModal}
+        onClose={() => !loggingOut && setShowLogoutModal(false)}
+        onConfirm={handleLogoutConfirm}
+        title="Se déconnecter ?"
+        message="Vous allez être redirigé vers la page de connexion. Toute modification non enregistrée sera perdue."
+        type="warning"
+        confirmLabel="Se déconnecter"
+        cancelLabel="Annuler"
+        loading={loggingOut}
+      />
+    </>
+  );
 };
 
 export default Header;

@@ -225,6 +225,8 @@ const CommandesAchat = () => {
   const [magasin, setMagasin] = useState(null);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
 
   // ---------- Liste ----------
   const [searchTerm, setSearchTerm] = useState("");
@@ -700,11 +702,15 @@ const CommandesAchat = () => {
   const handleView = async (commande) => {
     setSelectedCommande(commande);
     setShowDetailModal(true);
+      setLoadingDetails(true);
     try {
       const res = await CommandeAchatService.getCommandeById(token, commande.id_commande_achat);
       if (res.success && res.data) setSelectedCommande(res.data);
-    } catch (e) {
+    } 
+    catch (e) {
       console.error("❌ Impossible de charger la commande complète :", e);
+    } finally {
+      setLoadingDetails(false);
     }
   };
 
@@ -838,7 +844,7 @@ const CommandesAchat = () => {
     showNotification(`${sel.length} commande(s) exportée(s)`, "success");
   };
 
-  const toggleSelect = (id) =>
+const toggleSelect = (id) =>
     setSelectedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
 
   const toggleSelectPage = () => {
@@ -1448,104 +1454,156 @@ const CommandesAchat = () => {
       {/* ============================================================
           MODAL : DÉTAILS
           ============================================================ */}
-      {showDetailModal && selectedCommande && (
-        <div className="ca-overlay" onClick={() => setShowDetailModal(false)} role="dialog" aria-modal="true" aria-label="Détails de la commande">
-          <div className="ca-detail" onClick={(e) => e.stopPropagation()}>
+{showDetailModal && selectedCommande && (
+    <div
+        className="ca-overlay"
+        onClick={() => !loadingDetails && setShowDetailModal(false)}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Détails de la commande"
+    >
+        <div className="ca-detail" onClick={(e) => e.stopPropagation()}>
             <header className="ca-sheet-head">
-              <div className="ca-sheet-title">
-                <span className="ca-sheet-mark"><FileText size={21} /></span>
-                <div>
-                  <h2>{selectedCommande.numero_commande}</h2>
-                  <p><Calendar size={13} /> {formatDate(selectedCommande.date_commande)}</p>
+                <div className="ca-sheet-title">
+                    <span className="ca-sheet-mark"><FileText size={21} /></span>
+                    <div>
+                        <h2>{selectedCommande.numero_commande}</h2>
+                        <p><Calendar size={13} /> {formatDate(selectedCommande.date_commande)}</p>
+                    </div>
                 </div>
-              </div>
-              <div className="ca-detail-status">
-                <StatusTag statut={selectedCommande.statut} />
-                <button className="ca-sheet-close" onClick={() => setShowDetailModal(false)} aria-label="Fermer"><X size={20} /></button>
-              </div>
+                <div className="ca-detail-status">
+                    <StatusTag statut={selectedCommande.statut} />
+                    <button
+                        className="ca-sheet-close"
+                        onClick={() => !loadingDetails && setShowDetailModal(false)}
+                        disabled={loadingDetails}
+                        aria-label="Fermer"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
             </header>
 
             <div className="ca-detail-body">
-              <div className="ca-detail-cols">
-                <section>
-                  <h4><Building size={15} /> Fournisseur</h4>
-                  <dl>
-                    <div><dt>Nom</dt><dd>{selectedCommande.fournisseur_nom || "-"}</dd></div>
-                    <div><dt>Téléphone</dt><dd>{selectedCommande.fournisseur_telephone || "-"}</dd></div>
-                    <div><dt>Email</dt><dd>{selectedCommande.fournisseur_email || "-"}</dd></div>
-                    <div><dt>Ville</dt><dd>{selectedCommande.fournisseur_ville || "-"}</dd></div>
-                  </dl>
-                </section>
-                <section>
-                  <h4><FileText size={15} /> Informations</h4>
-                  <dl>
-                    <div><dt>Créée par</dt><dd>{selectedCommande.utilisateur_nom || "-"}</dd></div>
-                    <div>
-                      <dt>Montant total</dt>
-                      <dd className="ca-detail-total">
-                        {num(selectedCommande.montant_total) > 0 ? formatMontant(selectedCommande.montant_total) : <em className="ca-undef">À définir</em>}
-                      </dd>
+                {loadingDetails ? (
+                    <div className="ca-state">
+                        <span className="ca-loader" />
+                        <p>Chargement des détails de la commande…</p>
                     </div>
-                  </dl>
-                </section>
-              </div>
+                ) : (
+                    <>
+                        <div className="ca-detail-cols">
+                            <section>
+                                <h4><Building size={15} /> Fournisseur</h4>
+                                <dl>
+                                    <div><dt>Nom</dt><dd>{selectedCommande.fournisseur_nom || "-"}</dd></div>
+                                    <div><dt>Téléphone</dt><dd>{selectedCommande.fournisseur_telephone || "-"}</dd></div>
+                                    <div><dt>Email</dt><dd>{selectedCommande.fournisseur_email || "-"}</dd></div>
+                                    <div><dt>Ville</dt><dd>{selectedCommande.fournisseur_ville || "-"}</dd></div>
+                                </dl>
+                            </section>
+                            <section>
+                                <h4><FileText size={15} /> Informations</h4>
+                                <dl>
+                                    <div><dt>Créée par</dt><dd>{selectedCommande.utilisateur_nom || "-"}</dd></div>
+                                    <div>
+                                        <dt>Montant total</dt>
+                                        <dd className="ca-detail-total">
+                                            {num(selectedCommande.montant_total) > 0
+                                                ? formatMontant(selectedCommande.montant_total)
+                                                : <em className="ca-undef">À définir</em>}
+                                        </dd>
+                                    </div>
+                                </dl>
+                            </section>
+                        </div>
 
-              {selectedCommande.lignes && selectedCommande.lignes.length > 0 && (
-                <section className="ca-detail-lines">
-                  <h4><Package size={15} /> Produits commandés</h4>
-                  <div className="ca-tablewrap ca-tablewrap--flat">
-                    <table className="ca-table ca-table--compact">
-                      <thead>
-                        <tr><th>Produit</th><th>Unité</th><th className="ca-num">Qté</th><th className="ca-num">Prix unit.</th><th className="ca-num">Total</th></tr>
-                      </thead>
-                      <tbody>
-                        {selectedCommande.lignes.map((l, idx) => {
-                          const qte = num(l.quantite);
-                          const prix = l.prix_achat !== null && l.prix_achat !== undefined ? parseFloat(l.prix_achat) : null;
-                          const total = prix !== null ? qte * prix : null;
-                          const qteBase = parseFloat(l.quantite_totale_base) || qte * (parseFloat(l.quantite_base) || 1);
-                          return (
-                            <tr key={idx}>
-                              <td>
-                                <div className="ca-strong">{l.produit_nom}</div>
-                                {l.modele_nom && <div className="ca-muted ca-small">{l.modele_nom}</div>}
-                              </td>
-                              <td>
-                                <span className="ca-unit"><Box size={12} />{l.nom_unite_vente || "Unité"}{l.quantite_base > 1 && <small>({l.quantite_base})</small>}</span>
-                              </td>
-                              <td className="ca-num">
-                                <strong>{qte}</strong>
-                                {l.quantite_base > 1 && <div className="ca-muted ca-small">= {qteBase} unités</div>}
-                              </td>
-                              <td className="ca-num">{prix !== null ? formatMontant(prix) : <em className="ca-undef">À définir</em>}</td>
-                              <td className="ca-num">{total !== null ? <strong>{formatMontant(total)}</strong> : <em className="ca-undef">—</em>}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                      <tfoot>
-                        <tr>
-                          <td colSpan="4"><strong>Total commande</strong></td>
-                          <td className="ca-num">
-                            {num(selectedCommande.montant_total) > 0 ? <strong>{formatMontant(selectedCommande.montant_total)}</strong> : <em className="ca-undef">À définir à la réception</em>}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
-                  </div>
-                </section>
-              )}
+                        {selectedCommande.lignes && selectedCommande.lignes.length > 0 && (
+                            <section className="ca-detail-lines">
+                                <h4><Package size={15} /> Produits commandés</h4>
+                                <div className="ca-tablewrap ca-tablewrap--flat">
+                                    <table className="ca-table ca-table--compact">
+                                        <thead>
+                                            <tr>
+                                                <th>Produit</th>
+                                                <th>Unité</th>
+                                                <th className="ca-num">Qté</th>
+                                                <th className="ca-num">Prix unit.</th>
+                                                <th className="ca-num">Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {selectedCommande.lignes.map((l, idx) => {
+                                                const qte = num(l.quantite);
+                                                const prix = l.prix_achat !== null && l.prix_achat !== undefined
+                                                    ? parseFloat(l.prix_achat)
+                                                    : null;
+                                                const total = prix !== null ? qte * prix : null;
+                                                const qteBase = parseFloat(l.quantite_totale_base)
+                                                    || qte * (parseFloat(l.quantite_base) || 1);
+                                                return (
+                                                    <tr key={idx}>
+                                                        <td>
+                                                            <div className="ca-strong">{l.produit_nom}</div>
+                                                            {l.modele_nom && (
+                                                                <div className="ca-muted ca-small">{l.modele_nom}</div>
+                                                            )}
+                                                        </td>
+                                                        <td>
+                                                            <span className="ca-unit">
+                                                                <Box size={12} />
+                                                                {l.nom_unite_vente || "Unité"}
+                                                                {l.quantite_base > 1 && <small>({l.quantite_base})</small>}
+                                                            </span>
+                                                        </td>
+                                                        <td className="ca-num">
+                                                            <strong>{qte}</strong>
+                                                            {l.quantite_base > 1 && (
+                                                                <div className="ca-muted ca-small">= {qteBase} unités</div>
+                                                            )}
+                                                        </td>
+                                                        <td className="ca-num">
+                                                            {prix !== null
+                                                                ? formatMontant(prix)
+                                                                : <em className="ca-undef">À définir</em>}
+                                                        </td>
+                                                        <td className="ca-num">
+                                                            {total !== null
+                                                                ? <strong>{formatMontant(total)}</strong>
+                                                                : <em className="ca-undef">—</em>}
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                        <tfoot>
+                                            <tr>
+                                                <td colSpan="4"><strong>Total commande</strong></td>
+                                                <td className="ca-num">
+                                                    {num(selectedCommande.montant_total) > 0
+                                                        ? <strong>{formatMontant(selectedCommande.montant_total)}</strong>
+                                                        : <em className="ca-undef">À définir à la réception</em>}
+                                                </td>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </section>
+                        )}
+                    </>
+                )}
             </div>
 
             <div className="ca-detail-foot">
-              <BonCommandePDFActions
-                commandeData={{ ...selectedCommande, magasin }}
-                onClose={() => setShowDetailModal(false)}
-              />
+                <BonCommandePDFActions
+                    commandeData={{ ...selectedCommande, magasin }}
+                    loading={loadingDetails}
+                    onClose={() => !loadingDetails && setShowDetailModal(false)}
+                />
             </div>
-          </div>
         </div>
-      )}
+    </div>
+)}
 
       <ConfirmModal
         isOpen={!!confirm}

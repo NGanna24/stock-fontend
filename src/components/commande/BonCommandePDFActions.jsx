@@ -4,29 +4,37 @@ import { Download, Printer, X, MessageCircle, Send } from 'lucide-react';
 import BonCommandePDFService from '../../services/bonCommandePDFService';
 import './BonCommandePDFActions.css';
 
-const BonCommandePDFActions = ({ commandeData, onClose }) => {
-    const [loading, setLoading] = useState(false);
+const BonCommandePDFActions = ({ commandeData, loading = false, onClose }) => {
+    // ⚠️ On renomme l'état local en "busy" pour éviter le conflit avec la prop "loading"
+    const [busy, setBusy] = useState(false);
     const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
     const [whatsappPhone, setWhatsappPhone] = useState('');
     const [whatsappMessage, setWhatsappMessage] = useState('');
     const [sendingWhatsApp, setSendingWhatsApp] = useState(false);
 
+    // Le PDF est prêt seulement si :
+    //   - les détails sont chargés (loading === false)
+    //   - les lignes existent (commandeData.lignes non vide)
+    const hasLignes = Array.isArray(commandeData?.lignes) && commandeData.lignes.length > 0;
+    const isReady = !loading && hasLignes;
+    const isDisabled = busy || !isReady;
+
     // ============================================================
     // TÉLÉCHARGER
     // ============================================================
     const handleDownload = async () => {
-        if (!commandeData) {
-            alert('Aucune commande à télécharger');
+        if (!isReady) {
+            alert('Veuillez patienter, les détails de la commande sont en cours de chargement.');
             return;
         }
-        setLoading(true);
+        setBusy(true);
         try {
             await BonCommandePDFService.downloadPDF(commandeData);
         } catch (error) {
             console.error('❌ Download error:', error);
             alert('Erreur lors du téléchargement du PDF');
         } finally {
-            setLoading(false);
+            setBusy(false);
         }
     };
 
@@ -34,18 +42,18 @@ const BonCommandePDFActions = ({ commandeData, onClose }) => {
     // IMPRIMER
     // ============================================================
     const handlePrint = async () => {
-        if (!commandeData) {
-            alert('Aucune commande à imprimer');
+        if (!isReady) {
+            alert('Veuillez patienter, les détails de la commande sont en cours de chargement.');
             return;
         }
-        setLoading(true);
+        setBusy(true);
         try {
             await BonCommandePDFService.print(commandeData);
         } catch (error) {
             console.error('❌ Print error:', error);
             alert('Erreur lors de l\'impression');
         } finally {
-            setLoading(false);
+            setBusy(false);
         }
     };
 
@@ -53,8 +61,8 @@ const BonCommandePDFActions = ({ commandeData, onClose }) => {
     // WHATSAPP — OUVRIR LE MODAL
     // ============================================================
     const handleOpenWhatsApp = () => {
-        if (!commandeData) {
-            alert('Aucune commande à envoyer');
+        if (!isReady) {
+            alert('Veuillez patienter, les détails de la commande sont en cours de chargement.');
             return;
         }
         setWhatsappPhone(commandeData.fournisseur_telephone || '');
@@ -79,14 +87,12 @@ const BonCommandePDFActions = ({ commandeData, onClose }) => {
             });
 
             if (result.cancelled) {
-                // L'utilisateur a annulé le partage, on ne fait rien
                 return;
             }
 
             if (result.success) {
                 setShowWhatsAppModal(false);
                 if (result.message) {
-                    // Message informatif (cas desktop)
                     setTimeout(() => {
                         alert(result.message);
                     }, 300);
@@ -103,10 +109,25 @@ const BonCommandePDFActions = ({ commandeData, onClose }) => {
     return (
         <>
             <div className="facture-pdf-actions-container">
+
+                {loading && (
+                    <div className="pdf-actions-status">
+                        <span className="spinner-small spinner-dark"></span>
+                        <span>Chargement des détails…</span>
+                    </div>
+                )}
+
+                {!loading && !hasLignes && (
+                    <div className="pdf-actions-status pdf-actions-status--warning">
+                        <span>⚠️ Aucun produit dans cette commande</span>
+                    </div>
+                )}
+
                 <button
                     className="pdf-btn pdf-btn-download"
                     onClick={handleDownload}
-                    disabled={loading}
+                    disabled={isDisabled}
+                    title={!isReady ? 'Chargement des détails en cours…' : 'Télécharger le PDF'}
                 >
                     <Download size={18} />
                     <span>Télécharger PDF</span>
@@ -115,7 +136,8 @@ const BonCommandePDFActions = ({ commandeData, onClose }) => {
                 <button
                     className="pdf-btn pdf-btn-print"
                     onClick={handlePrint}
-                    disabled={loading}
+                    disabled={isDisabled}
+                    title={!isReady ? 'Chargement des détails en cours…' : 'Imprimer'}
                 >
                     <Printer size={18} />
                     <span>Imprimer</span>
@@ -124,7 +146,8 @@ const BonCommandePDFActions = ({ commandeData, onClose }) => {
                 <button
                     className="pdf-btn pdf-btn-whatsapp"
                     onClick={handleOpenWhatsApp}
-                    disabled={loading}
+                    disabled={isDisabled}
+                    title={!isReady ? 'Chargement des détails en cours…' : 'Envoyer par WhatsApp'}
                 >
                     <MessageCircle size={18} />
                     <span>WhatsApp</span>
@@ -133,15 +156,15 @@ const BonCommandePDFActions = ({ commandeData, onClose }) => {
                 <button
                     className="pdf-btn pdf-btn-close"
                     onClick={onClose}
-                    disabled={loading}
+                    disabled={busy}
                 >
                     <X size={18} />
                     <span>Fermer</span>
                 </button>
             </div>
 
-            {/* Loading overlay */}
-            {loading && (
+            {/* Loading overlay pendant la génération du PDF */}
+            {busy && (
                 <div className="pdf-loading-overlay">
                     <div className="pdf-loading-spinner"></div>
                     <p>Génération du PDF...</p>
