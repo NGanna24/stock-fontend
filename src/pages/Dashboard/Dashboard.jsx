@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import useAlertSound from "../../hooks/useAlertSound";
 import StockSelector from "../../components/StockSelector/StockSelector";
 
+
 import {
   Package, Users, ShoppingCart, AlertCircle, RefreshCw, ArrowDownCircle, ArrowUpCircle,
   SlidersHorizontal, Repeat, FileText, ChevronRight, TrendingDown, Clock, Volume2, VolumeX,
@@ -327,7 +328,7 @@ const Dashboard = () => {
           </div>
           <button className="db-btn db-btn--signal" onClick={() => go("/produits?filtre=sans_cout")}>Compléter maintenant</button>
         </div>
-      )}
+      )} 
 
       {/* ---------- Registre du jour ---------- */}
       <section className="db-ledger" aria-label="Synthèse financière">

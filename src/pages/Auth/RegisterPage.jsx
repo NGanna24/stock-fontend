@@ -2,11 +2,11 @@
 import React, { useState } from 'react';
 import { useUser } from '../../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import { 
-    User, 
-    Phone, 
-    Lock, 
-    Eye, 
+import CountrySelect, { COUNTRIES } from '../../components/CountrySelect';
+import {
+    User,
+    Lock,
+    Eye,
     EyeOff,
     ArrowRight,
     CheckCircle,
@@ -19,90 +19,133 @@ function RegisterPage() {
     const logoMiyo = '/logo/logo-miyo.png';
     const { register, loading, error } = useUser();
     const navigate = useNavigate();
-    
+
     const [formData, setFormData] = useState({
         fullname: '',
-        telephone: '',
+        telephone: '', // ← chiffres bruts, ex: "0140010385"
         password: ''
     });
-    
+
+    const [country, setCountry] = useState('CI');
     const [showPassword, setShowPassword] = useState(false);
     const [touched, setTouched] = useState({});
     const [successMessage, setSuccessMessage] = useState('');
 
-    // Validation des champs
+    // ============================================================
+    // VALIDATION TÉLÉPHONE — SIMPLE
+    // ============================================================
+    const validatePhone = (value) => {
+        if (!value || value.trim() === '') {
+            return 'Numéro de téléphone requis';
+        }
+        const cleaned = value.replace(/[\s\-().]/g, '');
+        // 8 à 15 chiffres, le 0 initial est OK
+        if (!/^\d{8,15}$/.test(cleaned)) {
+            return 'Le numéro doit contenir 8 à 15 chiffres';
+        }
+        return '';
+    };
+
+    // ============================================================
+    // VALIDATION DES CHAMPS
+    // ============================================================
     const validateField = (name, value) => {
-        switch(name) {
+        switch (name) {
             case 'fullname':
-                return value.length >= 2 ? '' : 'Le nom doit contenir au moins 2 caractères';
+                return value.length >= 2
+                    ? ''
+                    : 'Le nom doit contenir au moins 2 caractères';
             case 'telephone':
-                return /^[0-9]{10,}$/.test(value.replace(/\s/g, '')) ? '' : 'Numéro de téléphone invalide';
+                return validatePhone(value);
             case 'password':
-                if (!/^\d{4}$/.test(value)) {
-                    return 'Le mot de passe doit contenir exactement 4 chiffres';
-                }
-                return '';
+                return /^\d{4}$/.test(value)
+                    ? ''
+                    : 'Le mot de passe doit contenir exactement 4 chiffres';
             default:
                 return '';
         }
     };
 
+    // ============================================================
+    // HANDLERS
+    // ============================================================
     const handleChange = (e) => {
         const { name, value } = e.target;
+
+        if (name === 'telephone') {
+            // Autoriser uniquement chiffres, espaces, tirets
+            const cleaned = value.replace(/[^\d\s\-]/g, '');
+            setFormData(prev => ({ ...prev, telephone: cleaned }));
+            return;
+        }
+
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
     const handleBlur = (e) => {
-        const { name, value } = e.target;
+        const { name } = e.target;
         setTouched(prev => ({ ...prev, [name]: true }));
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        
-        // Valider tous les champs avant soumission
+
         const errors = {};
         Object.keys(formData).forEach(key => {
-            const error = validateField(key, formData[key]);
-            if (error) errors[key] = error;
+            const err = validateField(key, formData[key]);
+            if (err) errors[key] = err;
         });
 
         if (Object.keys(errors).length > 0) {
-            setTouched(Object.keys(formData).reduce((acc, key) => ({ ...acc, [key]: true }), {}));
+            setTouched(
+                Object.keys(formData).reduce(
+                    (acc, key) => ({ ...acc, [key]: true }),
+                    {}
+                )
+            );
             return;
         }
 
+        // Compose le numéro complet : +225 + 0140010385 = +2250140010385
+        const dial = COUNTRIES.find(c => c.code === country)?.dial || '+225';
+        const cleanedPhone = formData.telephone.replace(/[\s\-().]/g, '');
+        const fullPhone = `${dial}${cleanedPhone}`;
+
         setSuccessMessage('');
-        const result = await register(formData);
-        
+        const result = await register({
+            ...formData,
+            telephone: fullPhone
+        });
+
         if (result.success) {
             setSuccessMessage('Inscription réussie !');
-            setTimeout(() => {
-                navigate('/dashboard');
-            }, 1500);
+            setTimeout(() => navigate('/dashboard'), 1500);
         }
     };
 
     const getFieldError = (name) => {
-        if (touched[name]) {
-            return validateField(name, formData[name]);
-        }
-        return ''; 
+        if (touched[name]) return validateField(name, formData[name]);
+        return '';
     };
 
     const isFieldValid = (name) => {
-        return touched[name] && !validateField(name, formData[name]) && formData[name].length > 0;
+        return (
+            touched[name] &&
+            !validateField(name, formData[name]) &&
+            formData[name].length > 0
+        );
     };
 
+    const currentCountry = COUNTRIES.find(c => c.code === country);
+
+    // ============================================================
+    // RENDER
+    // ============================================================
     return (
         <div className="auth-page-split">
-            {/* ============================================ */}
-            {/* PARTIE GAUCHE - FORMULAIRE                   */}
-            {/* ============================================ */}
             <div className="auth-form-section">
                 <div className="auth-form-container">
 
-                    {/* Petit badge Miyo */}
                     <div className="auth-brand">
                         <div className="auth-brand-logo">
                             <img src={logoMiyo} alt="Miyo" />
@@ -110,13 +153,11 @@ function RegisterPage() {
                         <span className="auth-brand-name">Miyo Stock</span>
                     </div>
 
-                    {/* En-tête */}
                     <div className="auth-header-split">
                         <h2>Créer un compte</h2>
                         <p>Rejoignez la nouvelle génération de gestion de stock.</p>
                     </div>
 
-                    {/* Messages */}
                     {successMessage && (
                         <div className="auth-success-split">
                             <CheckCircle size={20} />
@@ -131,8 +172,8 @@ function RegisterPage() {
                         </div>
                     )}
 
-                    {/* Formulaire */}
                     <form onSubmit={handleSubmit} className="auth-form-split">
+
                         {/* Nom complet */}
                         <div className="form-group-split">
                             <div className="input-wrapper-split">
@@ -156,34 +197,40 @@ function RegisterPage() {
                                 )}
                             </div>
                             {touched.fullname && getFieldError('fullname') && (
-                                <span className="field-error-split">{getFieldError('fullname')}</span>
+                                <span className="field-error-split">
+                                    {getFieldError('fullname')}
+                                </span>
                             )}
                         </div>
 
                         {/* Téléphone */}
                         <div className="form-group-split">
-                            <div className="input-wrapper-split">
-                                <Phone size={18} className="input-icon-left" />
+                            <div className={`phone-input-wrapper ${touched.telephone && getFieldError('telephone') ? 'error' : ''} ${isFieldValid('telephone') ? 'valid' : ''}`}>
+                                <CountrySelect
+                                    value={country}
+                                    onChange={setCountry}
+                                    disabled={loading}
+                                />
                                 <input
                                     type="tel"
                                     name="telephone"
-                                    placeholder="Numéro de téléphone"
+                                    placeholder={currentCountry?.example || '01 40 01 03 85'}
                                     value={formData.telephone}
                                     onChange={handleChange}
                                     onBlur={handleBlur}
                                     disabled={loading}
-                                    className={`
-                                        ${touched.telephone ? (getFieldError('telephone') ? 'error' : '') : ''}
-                                        ${isFieldValid('telephone') ? 'valid' : ''}
-                                    `}
+                                    maxLength={20}
+                                    className="phone-input"
                                     required
                                 />
                                 {isFieldValid('telephone') && (
-                                    <CheckCircle size={18} className="input-icon-right valid-icon" />
+                                    <CheckCircle size={18} className="phone-valid-icon" />
                                 )}
                             </div>
                             {touched.telephone && getFieldError('telephone') && (
-                                <span className="field-error-split">{getFieldError('telephone')}</span>
+                                <span className="field-error-split">
+                                    {getFieldError('telephone')}
+                                </span>
                             )}
                         </div>
 
@@ -199,7 +246,6 @@ function RegisterPage() {
                                     onChange={handleChange}
                                     onBlur={handleBlur}
                                     maxLength="4"
-                                    pattern="\d{4}"
                                     disabled={loading}
                                     className={`
                                         ${touched.password ? (getFieldError('password') ? 'error' : '') : ''}
@@ -220,13 +266,14 @@ function RegisterPage() {
                                 )}
                             </div>
                             {touched.password && getFieldError('password') && (
-                                <span className="field-error-split">{getFieldError('password')}</span>
+                                <span className="field-error-split">
+                                    {getFieldError('password')}
+                                </span>
                             )}
                         </div>
 
-                        {/* Bouton d'inscription */}
-                        <button 
-                            type="submit" 
+                        <button
+                            type="submit"
                             className={`auth-button-split ${loading ? 'loading' : ''}`}
                             disabled={loading}
                         >
@@ -241,10 +288,9 @@ function RegisterPage() {
                         </button>
                     </form>
 
-                    {/* Lien vers login */}
                     <div className="auth-footer-split">
                         <p>
-                            Vous avez déjà un compte ? 
+                            Vous avez déjà un compte ?
                             <Link to="/login" className="auth-link-split">
                                 Se connecter
                             </Link>
@@ -253,18 +299,12 @@ function RegisterPage() {
                 </div>
             </div>
 
-            {/* ============================================ */}
-            {/* PARTIE DROITE - PANNEAU PRODUIT              */}
-            {/* ============================================ */}
             <div className="auth-info-section">
                 <div className="auth-info-content">
-
-                    {/* Logo Miyo (le singe) — agrandi */}
                     <div className="auth-info-logo">
                         <img src={logoMiyo} alt="Miyo Stock" />
                     </div>
 
-                    {/* Titre */}
                     <div className="auth-info-title">
                         <h2>
                             Gérez votre stock <br />
@@ -276,13 +316,11 @@ function RegisterPage() {
                         </p>
                     </div>
 
-                    {/* Bouton login */}
                     <Link to="/login" className="info-login-btn">
                         SE CONNECTER
                         <ArrowRight size={18} />
                     </Link>
 
-                    {/* Footer */}
                     <div className="info-footer">
                         <p>© 2026 Miyo Stock. Tous droits réservés.</p>
                     </div>

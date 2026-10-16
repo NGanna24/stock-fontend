@@ -2,8 +2,8 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../../context/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
+import CountrySelect, { COUNTRIES } from '../../components/CountrySelect';
 import {
-    Phone,
     Lock,
     Eye,
     EyeOff,
@@ -24,14 +24,14 @@ function LoginPage() {
         telephone: '',
         password: ''
     });
+
+    const [country, setCountry] = useState('CI');
     const [showPassword, setShowPassword] = useState(false);
 
-    // États pour les animations du singe
-    const [monkeyState, setMonkeyState] = useState('idle'); // 'idle' | 'error' | 'success'
+    const [monkeyState, setMonkeyState] = useState('idle');
     const [statusMessage, setStatusMessage] = useState('');
     const [showTransition, setShowTransition] = useState(false);
 
-    // Reset l'état du singe après une erreur
     useEffect(() => {
         if (monkeyState === 'error') {
             const timer = setTimeout(() => {
@@ -46,28 +46,27 @@ function LoginPage() {
     const handleSubmit = async (e) => {
         e.preventDefault();
 
-        const result = await login(credentials);
+        // Compose le numéro complet : +225 + 0140010385 = +2250140010385
+        const dial = COUNTRIES.find(c => c.code === country)?.dial || '+225';
+        const cleanedPhone = credentials.telephone.replace(/[\s\-().]/g, '');
+        const fullPhone = `${dial}${cleanedPhone}`;
+
+        const result = await login({
+            telephone: fullPhone,
+            password: credentials.password
+        });
 
         if (result.success && result.data?.user?.slug) {
-            // ✅ SUCCÈS avec slug
             setMonkeyState('success');
             setStatusMessage('Connexion réussie');
 
-            // Séquence :
-            // 1. Animation du singe (900ms)
-            // 2. Overlay de transition (2500ms)
-            // 3. Redirection dashboard
             setTimeout(() => {
                 setShowTransition(true);
-
                 setTimeout(() => {
                     navigate(`/${result.data.user.slug}/dashboard`);
                 }, 2500);
-
             }, 900);
-
         } else if (result.success) {
-            // ✅ SUCCÈS sans slug (fallback)
             setMonkeyState('success');
             setStatusMessage('Connexion réussie');
 
@@ -75,41 +74,38 @@ function LoginPage() {
                 setShowTransition(true);
                 setTimeout(() => navigate('/dashboard'), 2500);
             }, 900);
-
         } else {
-            // ❌ ÉCHEC
             setMonkeyState('error');
             setStatusMessage(result?.error || 'Identifiants incorrects');
-            // Le reset est géré par useEffect (3s)
         }
     };
 
     // ==================== CHANGEMENT DE CHAMP ====================
     const handleChange = (e) => {
         const { name, value } = e.target;
-        setCredentials({
-            ...credentials,
-            [name]: value
-        });
 
-        // Effacer l'état d'erreur dès que l'utilisateur retape
+        if (name === 'telephone') {
+            const cleaned = value.replace(/[^\d\s\-]/g, '');
+            setCredentials(prev => ({ ...prev, telephone: cleaned }));
+        } else {
+            setCredentials(prev => ({ ...prev, [name]: value }));
+        }
+
         if (monkeyState === 'error') {
             setMonkeyState('idle');
             setStatusMessage('');
         }
     };
 
+    const currentCountry = COUNTRIES.find(c => c.code === country);
+
     // ==================== RENDER ====================
     return (
         <div className="auth-page-split">
 
-            {/* ============================================ */}
-            {/* PARTIE GAUCHE — FORMULAIRE                   */}
-            {/* ============================================ */}
             <div className="auth-form-section">
                 <div className="auth-form-container">
 
-                    {/* Petit badge Miyo */}
                     <div className="auth-brand">
                         <div className="auth-brand-logo">
                             <img src={logoMiyo} alt="Miyo" />
@@ -117,13 +113,11 @@ function LoginPage() {
                         <span className="auth-brand-name">Miyo Stock</span>
                     </div>
 
-                    {/* En-tête */}
                     <div className="auth-header-split">
                         <h2>Connexion</h2>
                         <p>Connectez-vous à votre compte</p>
                     </div>
 
-                    {/* Message d'erreur global (AuthContext) */}
                     {error && monkeyState !== 'error' && (
                         <div className="auth-error-split">
                             <AlertCircle size={20} />
@@ -131,22 +125,27 @@ function LoginPage() {
                         </div>
                     )}
 
-                   
-                    {/* Formulaire */}
                     <form onSubmit={handleSubmit} className="auth-form-split">
+
                         {/* Téléphone */}
                         <div className="form-group-split">
-                            <div className="input-wrapper-split">
-                                <Phone size={18} className="input-icon-left" />
+                            <div className="phone-input-wrapper">
+                                <CountrySelect
+                                    value={country}
+                                    onChange={setCountry}
+                                    disabled={loading || monkeyState === 'success'}
+                                />
                                 <input
                                     type="tel"
                                     name="telephone"
-                                    placeholder="Numéro de téléphone"
+                                    placeholder={currentCountry?.example || '01 40 01 03 85'}
                                     value={credentials.telephone}
                                     onChange={handleChange}
                                     disabled={loading || monkeyState === 'success'}
-                                    required
+                                    maxLength={20}
+                                    className="phone-input"
                                     autoFocus
+                                    required
                                 />
                             </div>
                         </div>
@@ -177,14 +176,12 @@ function LoginPage() {
                             </div>
                         </div>
 
-                        {/* ✅ Lien Mot de passe oublié */}
                         <div className="forgot-password-link">
                             <Link to="/forgot-password" className="auth-link-split">
                                 Mot de passe oublié ?
                             </Link>
                         </div>
 
-                        {/* Bouton de connexion */}
                         <button
                             type="submit"
                             className={`auth-button-split ${loading ? 'loading' : ''}`}
@@ -209,7 +206,6 @@ function LoginPage() {
                         </button>
                     </form>
 
-                    {/* Lien vers inscription */}
                     <div className="auth-footer-split">
                         <p>
                             Pas encore de compte ?
@@ -221,20 +217,15 @@ function LoginPage() {
                 </div>
             </div>
 
-            {/* ============================================ */}
-            {/* PARTIE DROITE — PANNEAU AVEC LE SINGE         */}
-            {/* ============================================ */}
             <div className="auth-info-section">
                 <div className="auth-info-content">
 
-                    {/* Le singe animé */}
                     <div className={`monkey-wrapper ${monkeyState === 'error' ? 'is-error' : ''} ${monkeyState === 'success' ? 'is-success' : ''}`}>
                         <div className="monkey-circle">
                             <img src={logoMiyo} alt="Miyo Stock" />
                         </div>
                     </div>
 
-                    {/* Message d'état (erreur ou succès) */}
                     {statusMessage && (
                         <div className={`monkey-status ${monkeyState === 'error' ? 'is-error' : ''} ${monkeyState === 'success' ? 'is-success' : ''}`}>
                             {monkeyState === 'error' && (
@@ -252,7 +243,6 @@ function LoginPage() {
                         </div>
                     )}
 
-                    {/* Titre */}
                     <div className="auth-info-title">
                         <h2>
                             Gérez votre stock <br />
@@ -264,30 +254,23 @@ function LoginPage() {
                         </p>
                     </div>
 
-                    {/* Footer */}
                     <div className="info-footer">
                         <p>© 2026 Miyo Stock. Tous droits réservés.</p>
                     </div>
                 </div>
             </div>
 
-            {/* ============================================ */}
-            {/* OVERLAY DE TRANSITION (après succès)         */}
-            {/* ============================================ */}
             {showTransition && (
                 <div className="auth-transition-overlay">
                     <div className="auth-transition-monkey">
                         <img src={logoMiyo} alt="Miyo" />
                     </div>
-
                     <div className="auth-transition-text">
                         Miyo est content de vous revoir !
                     </div>
-
                     <p className="auth-transition-subtext">
                         Préparation de votre tableau de bord...
                     </p>
-
                     <div className="auth-transition-bar">
                         <div className="auth-transition-bar-fill" />
                     </div>

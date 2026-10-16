@@ -10,7 +10,7 @@ const AuthContext = createContext();
 // 2. Créer le Provider
 export function AuthContextProvider({ children }) {
     const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(false); 
     const [error, setError] = useState(null);
     const [isInitialized, setIsInitialized] = useState(false);
 

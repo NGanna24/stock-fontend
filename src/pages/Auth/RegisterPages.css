@@ -17,7 +17,6 @@ body:has(.auth-page-split) {
    PAGE PRINCIPALE — 100vh, pas de scroll
    ============================================================ */
 .auth-page-split {
-  /* Couleurs du logo Miyo (singe) */
   --auth-brown: #8B5A2B;
   --auth-brown-dark: #6B4520;
   --auth-brown-light: #A87548;
@@ -56,7 +55,6 @@ body:has(.auth-page-split) {
   --auth-font-display: 'Bricolage Grotesque', system-ui, sans-serif;
   --auth-font-body: 'Instrument Sans', system-ui, -apple-system, sans-serif;
 
-  /* ✅ Hauteur fixe = 100vh, pas de scroll */
   height: 100vh;
   max-height: 100vh;
   width: 100%;
@@ -76,7 +74,6 @@ body:has(.auth-page-split) {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* ✅ Paddings réduits + clamp pour s'adapter aux petits écrans */
   padding: clamp(24px, 4vh, 48px) clamp(28px, 4vw, 56px);
   background: var(--auth-paper);
   position: relative;
@@ -88,13 +85,11 @@ body:has(.auth-page-split) {
   max-width: 400px;
   display: flex;
   flex-direction: column;
-  /* ✅ Gap adaptatif selon la hauteur d'écran */
   gap: clamp(12px, 2vh, 20px);
-  /* ✅ Limite la hauteur max pour ne jamais dépasser */
   max-height: 100%;
 }
 
-/* Petit badge "Miyo" en haut */
+/* Petit badge "Miyo" */
 .auth-page-split .auth-brand {
   display: inline-flex;
   align-items: center;
@@ -142,7 +137,6 @@ body:has(.auth-page-split) {
 
 .auth-page-split .auth-header-split h2 {
   font-family: var(--auth-font-display);
-  /* ✅ Taille adaptative */
   font-size: clamp(22px, 3vh, 30px);
   font-weight: 800;
   letter-spacing: -0.03em;
@@ -193,7 +187,6 @@ body:has(.auth-page-split) {
 .auth-page-split .auth-form-split {
   display: flex;
   flex-direction: column;
-  /* ✅ Gap plus compact */
   gap: clamp(10px, 1.6vh, 16px);
   flex-shrink: 0;
 }
@@ -225,7 +218,6 @@ body:has(.auth-page-split) {
 
 .auth-page-split .input-wrapper-split input {
   width: 100%;
-  /* ✅ Hauteur adaptative */
   height: clamp(42px, 5.5vh, 48px);
   padding: 0 44px 0 44px;
   border: 1.5px solid var(--auth-line);
@@ -269,7 +261,7 @@ body:has(.auth-page-split) {
   cursor: not-allowed;
 }
 
-/* Icône de validation à droite */
+/* Icône de validation */
 .auth-page-split .input-icon-right {
   position: absolute;
   right: 14px;
@@ -319,7 +311,6 @@ body:has(.auth-page-split) {
 
 /* Bouton de soumission */
 .auth-page-split .auth-button-split {
-  /* ✅ Hauteur adaptative */
   height: clamp(42px, 5.5vh, 50px);
   border: none;
   border-radius: var(--auth-radius);
@@ -412,7 +403,6 @@ body:has(.auth-page-split) {
   display: flex;
   align-items: center;
   justify-content: center;
-  /* ✅ Paddings adaptatifs */
   padding: clamp(24px, 4vh, 56px) clamp(28px, 4vw, 48px);
   background:
     radial-gradient(circle at 20% 20%, rgba(245, 213, 168, 0.18) 0%, transparent 45%),
@@ -457,14 +447,12 @@ body:has(.auth-page-split) {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  /* ✅ Gap adaptatif selon la hauteur */
   gap: clamp(16px, 3vh, 32px);
   max-height: 100%;
 }
 
-/* Logo principal (le singe) — adaptatif à la hauteur */
+/* Logo principal (le singe) */
 .auth-page-split .auth-info-logo {
-  /* ✅ Taille fluide : min 120px, max 200px selon la hauteur */
   width: clamp(120px, 22vh, 200px);
   height: clamp(120px, 22vh, 200px);
   border-radius: 32px;
@@ -504,7 +492,6 @@ body:has(.auth-page-split) {
 
 .auth-page-split .auth-info-title h2 {
   font-family: var(--auth-font-display);
-  /* ✅ Taille adaptative */
   font-size: clamp(22px, 3.6vh, 36px);
   font-weight: 800;
   letter-spacing: -0.03em;
@@ -521,7 +508,6 @@ body:has(.auth-page-split) {
 }
 
 .auth-page-split .info-subtitle {
-  /* ✅ Taille adaptative */
   font-size: clamp(13px, 1.6vh, 15px);
   color: rgba(255, 248, 238, 0.75);
   margin: 0;
@@ -580,7 +566,7 @@ body:has(.auth-page-split) {
 }
 
 /* ============================================================
-   ÉCRANS TRÈS COURTS (ex: laptops 768px de hauteur)
+   ÉCRANS TRÈS COURTS
    ============================================================ */
 @media (max-height: 700px) {
   .auth-page-split .auth-info-logo {
@@ -610,7 +596,6 @@ body:has(.auth-page-split) {
    RESPONSIVE — MOBILE
    ============================================================ */
 @media (max-width: 1024px) {
-  /* Sur tablette/mobile, on autorise le scroll car 2 panneaux empilés ne tiennent pas */
   html:has(.auth-page-split),
   body:has(.auth-page-split) {
     overflow: auto !important;
@@ -699,4 +684,68 @@ body:has(.auth-page-split) {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ============================================================
+   PHONE INPUT (CountrySelect + input simple)
+   ============================================================ */
+
+.phone-input-wrapper {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    height: clamp(42px, 5.5vh, 48px);
+    background: var(--auth-bg);
+    border: 1.5px solid var(--auth-line);
+    border-radius: var(--auth-radius);
+    transition: all var(--auth-ease);
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.phone-input-wrapper:focus-within {
+    border-color: var(--auth-brown);
+    background: var(--auth-paper);
+    box-shadow: 0 0 0 4px rgba(139, 90, 43, 0.12);
+}
+
+.phone-input-wrapper.valid {
+    border-color: var(--auth-success);
+}
+
+.phone-input-wrapper.error {
+    border-color: var(--auth-danger);
+}
+
+/* Input téléphone (à droite du CountrySelect) */
+.phone-input {
+    flex: 1;
+    height: 100%;
+    padding: 0 14px;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-family: var(--auth-font-body);
+    font-size: 14.5px;
+    font-weight: 500;
+    color: var(--auth-ink);
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+.phone-input::placeholder {
+    color: var(--auth-ink-4);
+    font-weight: 400;
+}
+
+.phone-input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.phone-valid-icon {
+    margin-right: 14px;
+    color: var(--auth-success);
+    pointer-events: none;
+    flex-shrink: 0;
 }

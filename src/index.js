@@ -3,6 +3,13 @@ import ReactDOM from 'react-dom/client';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import { MIYO_VARS } from './styles/colors';
+
+// ✅ Injection globale des variables CSS Miyo sur <html>
+const htmlRoot = document.documentElement;
+Object.entries(MIYO_VARS).forEach(([key, value]) => {
+  htmlRoot.style.setProperty(key, value);
+});
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
