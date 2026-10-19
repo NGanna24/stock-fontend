@@ -8,7 +8,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  X,
+  X, 
   Grid,
   List,
   RefreshCw,
@@ -55,8 +55,15 @@ const Modeles = () => {
   const canManage = user && ["admin", "manager"].includes(user.role);
 
   // ========== FERMER LE DROPDOWN AU CLIC EXTÉRIEUR ==========
+  // ✅ CORRECTION : on ignore les clics dans le trigger ou dans le menu
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (e) => {
+      if (
+        e.target.closest(".dropdown-trigger") ||
+        e.target.closest(".dropdown-menu")
+      ) {
+        return;
+      }
       setOpenDropdown(null);
     };
     document.addEventListener("click", handleClickOutside);
@@ -129,7 +136,7 @@ const Modeles = () => {
 
   // ========== TOGGLE DROPDOWN ==========
   const toggleDropdown = (id) => {
-    setOpenDropdown(openDropdown === id ? null : id);
+    setOpenDropdown((prev) => (prev === id ? null : id));
   };
 
   // ========== HANDLERS FORMULAIRE ==========
@@ -256,7 +263,7 @@ const Modeles = () => {
     const isOpen = openDropdown === key;
 
     return (
-      <div className="">
+      <div className="dropdown-container">
         <button
           type="button"
           className="dropdown-trigger"
@@ -324,13 +331,16 @@ const Modeles = () => {
           <span>Essayez de modifier votre recherche</span>
         </div>
       ) : (
-        currentItems.map((modele) => (
+        currentItems.map((modele, index) => (
           <div key={modele.id_modele} className="modele-card">
             <div className="modele-card-header">
               <div className="modele-icon">
                 <Cpu size={28} />
               </div>
               <div className="modele-actions">
+                <span className="modele-index-badge">
+                  {(currentPage - 1) * itemsPerPage + index + 1}
+                </span>
                 {canManage && renderDropdown(modele, "grid-")}
               </div>
             </div>
@@ -340,7 +350,12 @@ const Modeles = () => {
             </div>
 
             <div className="modele-card-footer">
-              <span className="modele-id">ID: #{modele.id_modele}</span>
+              <span className="modele-date">
+                Créé le{" "}
+                {modele.date_creation
+                  ? new Date(modele.date_creation).toLocaleDateString("fr-FR")
+                  : "N/A"}
+              </span>
             </div>
           </div>
         ))
@@ -354,7 +369,8 @@ const Modeles = () => {
       <table className="modeles-table">
         <thead>
           <tr>
-            <th>ID</th>
+            {/* ✅ Remplacement de "ID" par "#" pour le numéro de ligne */}
+            <th className="num-col">#</th>
             <th>Nom</th>
             <th className="actions-header">Actions</th>
           </tr>
@@ -367,9 +383,12 @@ const Modeles = () => {
               </td>
             </tr>
           ) : (
-            currentItems.map((modele) => (
+            currentItems.map((modele, index) => (
               <tr key={modele.id_modele}>
-                <td className="id-cell">#{modele.id_modele}</td>
+                {/* ✅ Affichage du numéro séquentiel (1, 2, 3...) au lieu de l'ID */}
+                <td className="num-cell">
+                  {(currentPage - 1) * itemsPerPage + index + 1}
+                </td>
                 <td className="name-cell">
                   <div className="modele-name-with-icon">
                     <Cpu size={18} className="modele-icon-small" />
@@ -429,7 +448,7 @@ const Modeles = () => {
       {/* Filtres et recherche */}
       <div className="modeles-filters">
         <div className="search-box">
-          <Search size={20}  />
+          <Search size={20} className="" />
           <input
             type="text"
             placeholder="Rechercher un modèle..."
@@ -515,9 +534,7 @@ const Modeles = () => {
 
       {/* Modal d'ajout/édition */}
       {showModal && (
-        <div
-          className="modal-overlay"
-        >
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>

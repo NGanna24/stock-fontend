@@ -58,6 +58,86 @@ class MagasinService {
     }
 
     /**
+     * Uploader le logo du magasin
+     */
+    static async uploadLogo(token, file) {
+        try {
+            const formData = new FormData();
+            formData.append('logo', file);
+
+            const res = await axios.post(API_URL.MAGASIN.UPLOAD_LOGO, formData, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'multipart/form-data'
+                }
+            });
+            return res.data;
+        } catch (error) {
+            console.error('❌ UploadLogo error:', error);
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * Supprimer le logo
+     */
+    static async deleteLogo(token) {
+        try {
+            const res = await axios.delete(API_URL.MAGASIN.DELETE_LOGO, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            return res.data;
+        } catch (error) {
+            console.error('❌ DeleteLogo error:', error);
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * 🆕 Géocoder une adresse → lat/lon
+     */
+    static async geocoder(token, { adresse, ville, pays }) {
+        try {
+            const res = await axios.post(
+                API_URL.MAGASIN.GEOCODER,
+                { adresse, ville, pays },
+                {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                }
+            );
+            return res.data;
+        } catch (error) {
+            console.error('❌ Geocoder error:', error);
+            throw this.handleError(error);
+        }
+    }
+
+    /**
+     * 🆕 Magasins proches d'un point GPS
+     */
+    static async getProches(token, latitude, longitude, rayonKm = 10) {
+        try {
+            const res = await axios.get(API_URL.MAGASIN.PROCHES, {
+                params: { lat: latitude, lon: longitude, rayon: rayonKm },
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            return res.data;
+        } catch (error) {
+            console.error('❌ GetProches error:', error);
+            throw this.handleError(error);
+        }
+    }
+
+    /**
      * Gestion des erreurs
      */
     static handleError(error) {
@@ -73,45 +153,6 @@ class MagasinService {
             return new Error(error.message || 'Erreur inattendue');
         }
     }
-
-    /**
- * Uploader le logo du magasin
- */
-static async uploadLogo(token, file) {
-    try {
-        const formData = new FormData();
-        formData.append('logo', file);
-
-        const res = await axios.post(API_URL.MAGASIN.UPLOAD_LOGO, formData, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'multipart/form-data'
-            }
-        });
-        return res.data;
-    } catch (error) {
-        console.error('❌ UploadLogo error:', error);
-        throw this.handleError(error);
-    }
-}
-
-/**
- * Supprimer le logo
- */
-static async deleteLogo(token) {
-    try {
-        const res = await axios.delete(API_URL.MAGASIN.DELETE_LOGO, {
-            headers: {
-                'Authorization': `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            }
-        });
-        return res.data;
-    } catch (error) {
-        console.error('❌ DeleteLogo error:', error);
-        throw this.handleError(error);
-    }
-}
 }
 
 export default MagasinService;

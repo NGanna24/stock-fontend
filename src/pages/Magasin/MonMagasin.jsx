@@ -1,4 +1,4 @@
-// pages/Magasin/MonMagasin.jsx — Refonte complète
+// pages/Magasin/MonMagasin.jsx — Refonte complète + Géolocalisation silencieuse
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
@@ -7,7 +7,7 @@ import {
   User, Hash, ArrowLeft, MessageCircle, FileText,
   ScrollText, IdCard, Palette, Tag,
   Upload, Image as ImageIcon, Trash2, Camera,
-  Sparkles, Circle, Check
+  Circle, Check, Crosshair, Navigation, Lock
 } from "lucide-react";
 import MagasinService from "../../services/magasinService";
 import API_URL from "../../config/api";
@@ -23,10 +23,18 @@ const INITIAL_FORM = {
   quartier: '',
   ville: '',
   pays: '',
+  // GÉOLOCALISATION (invisible pour l'utilisateur, gérée par l'overlay)
+  latitude: '',
+  longitude: '',
+  adresse_complete: '',
+  position_source: 'manuel',
+  precision_gps: '',
+  // Contact
   telephone: '',
   telephone2: '',
   whatsapp: '',
   email: '',
+  // Légal
   numero_rccm: '',
   numero_nif: '',
   numero_contribuable: '',
@@ -98,6 +106,12 @@ const MonMagasin = () => {
   const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef(null);
 
+  // 🆕 Blocage géolocalisation obligatoire (silencieuse)
+  const [geoBlocked, setGeoBlocked] = useState(false);
+  const [geoGateStatus, setGeoGateStatus] = useState('idle'); // 'idle' | 'asking' | 'denied' | 'error'
+  const [geoGateMessage, setGeoGateMessage] = useState('');
+  const [geoGateLoading, setGeoGateLoading] = useState(false);
+
   // Navigation section active
   const [activeSection, setActiveSection] = useState('identity');
   const sectionRefs = {
@@ -127,6 +141,14 @@ const MonMagasin = () => {
           quartier: res.magasin.quartier || '',
           ville: res.magasin.ville || '',
           pays: res.magasin.pays || '',
+          latitude: (res.magasin.latitude !== null && res.magasin.latitude !== undefined)
+            ? String(res.magasin.latitude) : '',
+          longitude: (res.magasin.longitude !== null && res.magasin.longitude !== undefined)
+            ? String(res.magasin.longitude) : '',
+          adresse_complete: res.magasin.adresse_complete || '',
+          position_source: res.magasin.position_source || 'manuel',
+          precision_gps: (res.magasin.precision_gps !== null && res.magasin.precision_gps !== undefined)
+            ? String(res.magasin.precision_gps) : '',
           telephone: res.magasin.telephone || '',
           telephone2: res.magasin.telephone2 || '',
           whatsapp: res.magasin.whatsapp || '',
@@ -139,6 +161,19 @@ const MonMagasin = () => {
         setFormData(loaded);
         setInitialData(loaded);
         setLogoPreview(null);
+
+        // 🆕 BLOQUAGE : si aucune coordonnée → forcer la géolocalisation
+        const hasCoords =
+          (res.magasin.latitude !== null && res.magasin.latitude !== undefined) &&
+          (res.magasin.longitude !== null && res.magasin.longitude !== undefined);
+
+        if (!hasCoords) {
+          setGeoBlocked(true);
+          setGeoGateStatus('idle');
+          setGeoGateMessage('');
+        } else {
+          setGeoBlocked(false);
+        }
       } else {
         setError('Magasin introuvable');
       }
@@ -308,6 +343,96 @@ const MonMagasin = () => {
     return null;
   };
 
+  // ==================== 🆕 GATE GÉOLOCALISATION OBLIGATOIRE (silencieux) ====================
+  const gateGetPosition = () => {
+    if (!navigator.geolocation) {
+      setGeoGateStatus('error');
+      setGeoGateMessage("La géolocalisation n'est pas supportée par ce navigateur.");
+      return;
+    }
+
+    setGeoGateLoading(true);
+    setGeoGateStatus('asking');
+    setGeoGateMessage('');
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude, accuracy } = position.coords;
+
+        try {
+          // Envoi silencieux au backend
+          const payload = {
+            latitude: latitude.toFixed(8),
+            longitude: longitude.toFixed(8),
+            precision_gps: String(Math.round(accuracy)),
+            position_source: 'gps',
+          };
+
+          // Réinjecte les champs déjà saisis (pour ne rien écraser)
+          if (formData.nom_commercial) payload.nom_commercial = formData.nom_commercial;
+          if (formData.ville) payload.ville = formData.ville;
+          if (formData.pays) payload.pays = formData.pays;
+          if (formData.quartier) payload.quartier = formData.quartier;
+          if (formData.telephone) payload.telephone = formData.telephone;
+          if (formData.email) payload.email = formData.email;
+
+          const res = await MagasinService.updateMonMagasin(token, payload);
+
+          if (res.success) {
+            setMagasin(res.magasin);
+            setFormData(prev => ({
+              ...prev,
+              latitude: payload.latitude,
+              longitude: payload.longitude,
+              precision_gps: payload.precision_gps,
+              position_source: 'gps',
+            }));
+            setInitialData(prev => ({
+              ...prev,
+              latitude: payload.latitude,
+              longitude: payload.longitude,
+              precision_gps: payload.precision_gps,
+              position_source: 'gps',
+            }));
+
+            setGeoGateLoading(false);
+            setGeoBlocked(false);
+            setGeoGateStatus('idle');
+            setSuccessMessage('Position enregistrée avec succès');
+            setTimeout(() => setSuccessMessage(''), 3000);
+          } else {
+            setGeoGateStatus('error');
+            setGeoGateMessage("Impossible d'enregistrer la position. Réessayez.");
+            setGeoGateLoading(false);
+          }
+        } catch (err) {
+          console.error('❌ Enregistrement position:', err);
+          setGeoGateStatus('error');
+          setGeoGateMessage(err.message || "Erreur lors de l'enregistrement.");
+          setGeoGateLoading(false);
+        }
+      },
+      (error) => {
+        let message = "Impossible d'obtenir votre position.";
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            message = "Vous avez refusé la géolocalisation. Autorisez-la pour continuer.";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            message = "Position indisponible. Vérifiez que votre GPS est activé.";
+            break;
+          case error.TIMEOUT:
+            message = "Délai dépassé. Vérifiez votre connexion puis réessayez.";
+            break;
+        }
+        setGeoGateStatus('denied');
+        setGeoGateMessage(message);
+        setGeoGateLoading(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
+
   // ==================== SOUMISSION ====================
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
@@ -385,641 +510,647 @@ const MonMagasin = () => {
   // ==================== RENDER PRINCIPAL ====================
   return (
     <div className="mg-page">
-      {/* ==================== HEADER ==================== */}
-      <header className="mg-header">
-        <div className="mg-header-left">
-          <div className="mg-header-icon">
-            <Store size={22} />
-          </div>
-          <div>
-            <h1 className="mg-title">Mon magasin</h1>
-            <p className="mg-subtitle">
-              Personnalisez l'identité de votre établissement
-            </p>
-          </div>
-        </div>
-
-        <div className="mg-header-actions">
-          {isDirty && (
-            <span className="mg-dirty-badge">
-              <span className="mg-dirty-dot" />
-              Modifications en cours
-            </span>
-          )}
-          <button
-            className="mg-btn mg-btn--ghost mg-btn--icon"
-            onClick={loadMagasin}
-            disabled={loading}
-            title="Rafraîchir"
-            aria-label="Rafraîchir"
-          >
-            <RefreshCw size={16} className={loading ? 'mg-spin' : ''} />
-          </button>
-        </div>
-      </header>
-
-      {/* ==================== MESSAGES ==================== */}
-      {successMessage && (
-        <div className="mg-alert mg-alert--success">
-          <CheckCircle size={18} />
-          <span>{successMessage}</span>
-        </div>
+      {/* 🆕 OVERLAY BLOQUANT — tant que la position n'est pas renseignée */}
+      {geoBlocked && (
+        <GeoGateOverlay
+          status={geoGateStatus}
+          message={geoGateMessage}
+          loading={geoGateLoading}
+          onConfirm={gateGetPosition}
+        />
       )}
 
-      {error && magasin && (
-        <div className="mg-alert mg-alert--error">
-          <AlertCircle size={18} />
-          <span>{error}</span>
-        </div>
-      )}
-
-      {/* ==================== HERO — VITRINE ==================== */}
-      <section className="mg-hero">
-        <div className="mg-hero-layout">
-          {/* Logo */}
-          <div
-            className="mg-hero-logo"
-            onClick={handleLogoClick}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            {getLogoFullUrl() ? (
-              <img src={getLogoFullUrl()} alt="Logo du magasin" />
-            ) : (
-              <div className="mg-hero-logo-empty">
-                <ImageIcon size={26} />
-                <span>Ajouter un logo</span>
-              </div>
-            )}
-            <div className="mg-hero-logo-overlay">
-              <Camera size={16} />
-              <span>{getLogoFullUrl() ? 'Changer' : 'Ajouter'}</span>
+      {/* Contenu (rendu inerte quand bloqué) */}
+      <div style={geoBlocked ? { filter: 'blur(4px)', pointerEvents: 'none', userSelect: 'none' } : undefined}>
+        {/* ==================== HEADER ==================== */}
+        <header className="mg-header">
+          <div className="mg-header-left">
+            <div className="mg-header-icon">
+              <Store size={22} />
             </div>
-            {uploadingLogo && (
-              <div className="mg-logo-uploading">
-                <Loader2 size={20} className="mg-spin" />
-                <span>Upload...</span>
-              </div>
-            )}
-          </div>
-
-          {/* Infos */}
-          <div className="mg-hero-info">
-            <h2 className={`mg-hero-name ${!formData.nom_commercial ? 'mg-hero-name--placeholder' : ''}`}>
-              {formData.nom_commercial || 'Nom de votre magasin'}
-            </h2>
-            {(formData.slogan || !formData.nom_commercial) && (
-              <p className="mg-hero-slogan">
-                {formData.slogan || 'Votre slogan apparaîtra ici'}
+            <div>
+              <h1 className="mg-title">Mon magasin</h1>
+              <p className="mg-subtitle">
+                Personnalisez l'identité de votre établissement
               </p>
+            </div>
+          </div>
+
+          <div className="mg-header-actions">
+            {isDirty && (
+              <span className="mg-dirty-badge">
+                <span className="mg-dirty-dot" />
+                Modifications en cours
+              </span>
             )}
-            <div className="mg-hero-meta">
-              {(formData.ville || formData.pays) && (
-                <span className="mg-hero-meta-item">
-                  <MapPin size={13} />
-                  {[formData.quartier, formData.ville, formData.pays].filter(Boolean).join(', ')}
-                </span>
-              )}
-              {formData.telephone && (
-                <span className="mg-hero-meta-item">
-                  <Phone size={13} />
-                  {formData.telephone}
-                </span>
-              )}
-              {formData.email && (
-                <span className="mg-hero-meta-item">
-                  <Mail size={13} />
-                  {formData.email}
-                </span>
-              )}
-            </div>
+            <button
+              className="mg-btn mg-btn--ghost mg-btn--icon"
+              onClick={loadMagasin}
+              disabled={loading}
+              title="Rafraîchir"
+              aria-label="Rafraîchir"
+            >
+              <RefreshCw size={16} className={loading ? 'mg-spin' : ''} />
+            </button>
           </div>
-        </div>
+        </header>
 
-        {/* Barre de progression globale */}
-        <div className="mg-hero-progress">
-          <span className="mg-hero-progress-label">
-            Complétion du profil
-          </span>
-          <div className="mg-hero-progress-track">
+        {/* ==================== MESSAGES ==================== */}
+        {successMessage && (
+          <div className="mg-alert mg-alert--success">
+            <CheckCircle size={18} />
+            <span>{successMessage}</span>
+          </div>
+        )}
+
+        {error && magasin && (
+          <div className="mg-alert mg-alert--error">
+            <AlertCircle size={18} />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* ==================== HERO — VITRINE ==================== */}
+        <section className="mg-hero">
+          <div className="mg-hero-layout">
             <div
-              className="mg-hero-progress-fill"
-              style={{ width: `${globalProgress}%` }}
-            />
-          </div>
-          <span className="mg-hero-progress-percent">{globalProgress}%</span>
-        </div>
-      </section>
-
-      {/* ==================== LAYOUT ==================== */}
-      <div className="mg-layout">
-        {/* SIDEBAR */}
-        <nav className="mg-sidebar" aria-label="Sections">
-          {SECTIONS.map(section => {
-            const progress = getSectionProgress(section);
-            const isDone = progress.percent === 100;
-            const isPartial = progress.percent > 0 && !isDone;
-            const Icon = section.icon;
-
-            return (
-              <button
-                key={section.id}
-                className={`mg-nav-item ${activeSection === section.id ? 'is-active' : ''}`}
-                onClick={() => scrollToSection(section.id)}
-              >
-                <span className="mg-nav-icon">
-                  <Icon size={16} />
-                </span>
-                <span className="mg-nav-content">
-                  <span className="mg-nav-label">{section.label}</span>
-                  <span className="mg-nav-hint">
-                    {progress.filled}/{progress.total} champs
-                  </span>
-                </span>
-                <span
-                  className={`mg-nav-check ${isDone ? 'is-done' : ''} ${isPartial ? 'is-partial' : ''}`}
-                  aria-hidden="true"
-                >
-                  {isDone ? <Check size={11} /> : <Circle size={9} />}
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-
-        {/* CONTENU */}
-        <form className="mg-content" onSubmit={handleSubmit}>
-          {/* ==================== SECTION IDENTITÉ ==================== */}
-          <section
-            ref={sectionRefs.identity}
-            className={`mg-section ${activeSection === 'identity' ? 'is-highlighted' : ''}`}
-          >
-            <div className="mg-section-head">
-              <div className="mg-section-icon mg-section-icon--identity">
-                <Palette size={18} />
+              className="mg-hero-logo"
+              onClick={handleLogoClick}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              {getLogoFullUrl() ? (
+                <img src={getLogoFullUrl()} alt="Logo du magasin" />
+              ) : (
+                <div className="mg-hero-logo-empty">
+                  <ImageIcon size={26} />
+                  <span>Ajouter un logo</span>
+                </div>
+              )}
+              <div className="mg-hero-logo-overlay">
+                <Camera size={16} />
+                <span>{getLogoFullUrl() ? 'Changer' : 'Ajouter'}</span>
               </div>
-              <div className="mg-section-title-group">
-                <h3 className="mg-section-title">Identité commerciale</h3>
-                <p className="mg-section-desc">Comment votre magasin se présente</p>
-              </div>
-              <SectionCounter section={SECTIONS[0]} formData={formData} />
+              {uploadingLogo && (
+                <div className="mg-logo-uploading">
+                  <Loader2 size={20} className="mg-spin" />
+                  <span>Upload...</span>
+                </div>
+              )}
             </div>
 
-            <div className="mg-section-body">
-              {/* Ligne Logo */}
-              <div className="mg-logo-row">
-                <div
-                  className={`mg-logo-drop ${dragOver ? 'is-drag-over' : ''} ${uploadingLogo ? 'is-uploading' : ''} ${getLogoFullUrl() ? 'has-image' : ''}`}
-                  onClick={handleLogoClick}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  {getLogoFullUrl() ? (
-                    <img src={getLogoFullUrl()} alt="Logo" />
-                  ) : (
-                    <div className="mg-logo-drop-empty">
-                      <ImageIcon size={24} />
-                      <span>Déposer ici</span>
-                      <small>ou cliquer</small>
-                    </div>
-                  )}
-                  <div className="mg-logo-hover">
-                    <Camera size={18} />
-                    <span>{getLogoFullUrl() ? 'Changer' : 'Ajouter'}</span>
-                  </div>
-                  {uploadingLogo && (
-                    <div className="mg-logo-uploading">
-                      <Loader2 size={22} className="mg-spin" />
-                      <span>Upload...</span>
-                    </div>
-                  )}
-                </div>
+            <div className="mg-hero-info">
+              <h2 className={`mg-hero-name ${!formData.nom_commercial ? 'mg-hero-name--placeholder' : ''}`}>
+                {formData.nom_commercial || 'Nom de votre magasin'}
+              </h2>
+              {(formData.slogan || !formData.nom_commercial) && (
+                <p className="mg-hero-slogan">
+                  {formData.slogan || 'Votre slogan apparaîtra ici'}
+                </p>
+              )}
+              <div className="mg-hero-meta">
+                {(formData.ville || formData.pays) && (
+                  <span className="mg-hero-meta-item">
+                    <MapPin size={13} />
+                    {[formData.quartier, formData.ville, formData.pays].filter(Boolean).join(', ')}
+                  </span>
+                )}
+                {formData.telephone && (
+                  <span className="mg-hero-meta-item">
+                    <Phone size={13} />
+                    {formData.telephone}
+                  </span>
+                )}
+                {formData.email && (
+                  <span className="mg-hero-meta-item">
+                    <Mail size={13} />
+                    {formData.email}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
 
-                <div className="mg-logo-info">
-                  <h4>Logo du magasin</h4>
-                  <p>
-                    Ce logo apparaîtra sur vos factures, tickets et documents officiels.
-                    Format carré recommandé.
-                  </p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept={ALLOWED_TYPES.join(',')}
-                    onChange={handleLogoChange}
-                    style={{ display: 'none' }}
-                  />
-                  <div className="mg-logo-actions">
-                    <button
-                      type="button"
-                      className="mg-btn mg-btn--primary mg-btn--sm"
-                      onClick={handleLogoClick}
-                      disabled={uploadingLogo}
-                    >
-                      <Upload size={14} />
-                      {getLogoFullUrl() ? 'Changer' : 'Choisir un fichier'}
-                    </button>
-                    {getLogoFullUrl() && (
+          <div className="mg-hero-progress">
+            <span className="mg-hero-progress-label">
+              Complétion du profil
+            </span>
+            <div className="mg-hero-progress-track">
+              <div
+                className="mg-hero-progress-fill"
+                style={{ width: `${globalProgress}%` }}
+              />
+            </div>
+            <span className="mg-hero-progress-percent">{globalProgress}%</span>
+          </div>
+        </section>
+
+        {/* ==================== LAYOUT ==================== */}
+        <div className="mg-layout">
+          {/* SIDEBAR */}
+          <nav className="mg-sidebar" aria-label="Sections">
+            {SECTIONS.map(section => {
+              const progress = getSectionProgress(section);
+              const isDone = progress.percent === 100;
+              const isPartial = progress.percent > 0 && !isDone;
+              const Icon = section.icon;
+
+              return (
+                <button
+                  key={section.id}
+                  className={`mg-nav-item ${activeSection === section.id ? 'is-active' : ''}`}
+                  onClick={() => scrollToSection(section.id)}
+                >
+                  <span className="mg-nav-icon">
+                    <Icon size={16} />
+                  </span>
+                  <span className="mg-nav-content">
+                    <span className="mg-nav-label">{section.label}</span>
+                    <span className="mg-nav-hint">
+                      {progress.filled}/{progress.total} champs
+                    </span>
+                  </span>
+                  <span
+                    className={`mg-nav-check ${isDone ? 'is-done' : ''} ${isPartial ? 'is-partial' : ''}`}
+                    aria-hidden="true"
+                  >
+                    {isDone ? <Check size={11} /> : <Circle size={9} />}
+                  </span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* CONTENU */}
+          <form className="mg-content" onSubmit={handleSubmit}>
+            {/* ==================== SECTION IDENTITÉ ==================== */}
+            <section
+              ref={sectionRefs.identity}
+              className={`mg-section ${activeSection === 'identity' ? 'is-highlighted' : ''}`}
+            >
+              <div className="mg-section-head">
+                <div className="mg-section-icon mg-section-icon--identity">
+                  <Palette size={18} />
+                </div>
+                <div className="mg-section-title-group">
+                  <h3 className="mg-section-title">Identité commerciale</h3>
+                  <p className="mg-section-desc">Comment votre magasin se présente</p>
+                </div>
+                <SectionCounter section={SECTIONS[0]} formData={formData} />
+              </div>
+
+              <div className="mg-section-body">
+                <div className="mg-logo-row">
+                  <div
+                    className={`mg-logo-drop ${dragOver ? 'is-drag-over' : ''} ${uploadingLogo ? 'is-uploading' : ''} ${getLogoFullUrl() ? 'has-image' : ''}`}
+                    onClick={handleLogoClick}
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                  >
+                    {getLogoFullUrl() ? (
+                      <img src={getLogoFullUrl()} alt="Logo" />
+                    ) : (
+                      <div className="mg-logo-drop-empty">
+                        <ImageIcon size={24} />
+                        <span>Déposer ici</span>
+                        <small>ou cliquer</small>
+                      </div>
+                    )}
+                    <div className="mg-logo-hover">
+                      <Camera size={18} />
+                      <span>{getLogoFullUrl() ? 'Changer' : 'Ajouter'}</span>
+                    </div>
+                    {uploadingLogo && (
+                      <div className="mg-logo-uploading">
+                        <Loader2 size={22} className="mg-spin" />
+                        <span>Upload...</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mg-logo-info">
+                    <h4>Logo du magasin</h4>
+                    <p>
+                      Ce logo apparaîtra sur vos factures, tickets et documents officiels.
+                      Format carré recommandé.
+                    </p>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept={ALLOWED_TYPES.join(',')}
+                      onChange={handleLogoChange}
+                      style={{ display: 'none' }}
+                    />
+                    <div className="mg-logo-actions">
                       <button
                         type="button"
-                        className="mg-btn mg-btn--danger-outline mg-btn--sm"
-                        onClick={handleDeleteLogo}
+                        className="mg-btn mg-btn--primary mg-btn--sm"
+                        onClick={handleLogoClick}
                         disabled={uploadingLogo}
-                        title="Supprimer le logo"
                       >
-                        <Trash2 size={14} />
+                        <Upload size={14} />
+                        {getLogoFullUrl() ? 'Changer' : 'Choisir un fichier'}
                       </button>
+                      {getLogoFullUrl() && (
+                        <button
+                          type="button"
+                          className="mg-btn mg-btn--danger-outline mg-btn--sm"
+                          onClick={handleDeleteLogo}
+                          disabled={uploadingLogo}
+                          title="Supprimer le logo"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mg-form-grid">
+                  <div className="mg-field mg-field--full">
+                    <label htmlFor="nom_commercial">Nom commercial</label>
+                    <div className="mg-input-wrap">
+                      <Store size={16} className="mg-input-icon" />
+                      <input
+                        type="text"
+                        id="nom_commercial"
+                        name="nom_commercial"
+                        className={`mg-input ${getFieldError('nom_commercial') ? 'has-error' : ''}`}
+                        placeholder="Ex: Boutique Miyo"
+                        value={formData.nom_commercial}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        disabled={saving}
+                        maxLength={200}
+                      />
+                    </div>
+                    {getFieldError('nom_commercial') ? (
+                      <span className="mg-field-error">
+                        <AlertCircle size={12} />
+                        {getFieldError('nom_commercial')}
+                      </span>
+                    ) : (
+                      <span className="mg-field-hint">
+                        Le nom qui apparaîtra sur vos factures
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mg-field mg-field--full">
+                    <label htmlFor="slogan">Slogan</label>
+                    <div className="mg-input-wrap">
+                      <Tag size={16} className="mg-input-icon" />
+                      <input
+                        type="text"
+                        id="slogan"
+                        name="slogan"
+                        className={`mg-input ${getFieldError('slogan') ? 'has-error' : ''}`}
+                        placeholder="Ex: Votre partenaire de confiance"
+                        value={formData.slogan}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        disabled={saving}
+                        maxLength={200}
+                      />
+                    </div>
+                    {getFieldError('slogan') && (
+                      <span className="mg-field-error">
+                        <AlertCircle size={12} />
+                        {getFieldError('slogan')}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mg-field mg-field--full">
+                    <label htmlFor="description">Description</label>
+                    <div className="mg-input-wrap">
+                      <ScrollText size={16} className="mg-input-icon" />
+                      <textarea
+                        id="description"
+                        name="description"
+                        className="mg-textarea"
+                        placeholder="Présentation courte de votre activité..."
+                        value={formData.description}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        disabled={saving}
+                        rows={3}
+                      />
+                    </div>
+                    <span className="mg-field-hint">
+                      Quelques phrases pour décrire votre activité
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* ==================== SECTION LOCALISATION ==================== */}
+            <section
+              ref={sectionRefs.location}
+              className={`mg-section ${activeSection === 'location' ? 'is-highlighted' : ''}`}
+            >
+              <div className="mg-section-head">
+                <div className="mg-section-icon mg-section-icon--location">
+                  <MapPin size={18} />
+                </div>
+                <div className="mg-section-title-group">
+                  <h3 className="mg-section-title">Localisation</h3>
+                  <p className="mg-section-desc">Où se trouve votre magasin</p>
+                </div>
+                <SectionCounter section={SECTIONS[1]} formData={formData} />
+              </div>
+
+              <div className="mg-section-body">
+                <div className="mg-form-grid">
+                  <div className="mg-field">
+                    <label htmlFor="quartier">Quartier</label>
+                    <div className="mg-input-wrap">
+                      <MapPin size={16} className="mg-input-icon" />
+                      <input
+                        type="text"
+                        id="quartier"
+                        name="quartier"
+                        className="mg-input"
+                        placeholder="Ex: Cocody"
+                        value={formData.quartier}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        disabled={saving}
+                        maxLength={100}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mg-field">
+                    <label htmlFor="ville">Ville</label>
+                    <div className="mg-input-wrap">
+                      <Building2 size={16} className="mg-input-icon" />
+                      <input
+                        type="text"
+                        id="ville"
+                        name="ville"
+                        className="mg-input"
+                        placeholder="Ex: Abidjan"
+                        value={formData.ville}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        disabled={saving}
+                        maxLength={100}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mg-field mg-field--full">
+                    <label htmlFor="pays">Pays</label>
+                    <div className="mg-input-wrap">
+                      <MapPin size={16} className="mg-input-icon" />
+                      <input
+                        type="text"
+                        id="pays"
+                        name="pays"
+                        className="mg-input"
+                        placeholder="Ex: Côte d'Ivoire"
+                        value={formData.pays}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        disabled={saving}
+                        maxLength={100}
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            {/* ==================== SECTION CONTACT ==================== */}
+            <section
+              ref={sectionRefs.contact}
+              className={`mg-section ${activeSection === 'contact' ? 'is-highlighted' : ''}`}
+            >
+              <div className="mg-section-head">
+                <div className="mg-section-icon mg-section-icon--contact">
+                  <Phone size={18} />
+                </div>
+                <div className="mg-section-title-group">
+                  <h3 className="mg-section-title">Contact</h3>
+                  <p className="mg-section-desc">Comment vos clients vous joignent</p>
+                </div>
+                <SectionCounter section={SECTIONS[2]} formData={formData} />
+              </div>
+
+              <div className="mg-section-body">
+                <div className="mg-form-grid">
+                  <div className="mg-field">
+                    <label htmlFor="telephone">Téléphone principal</label>
+                    <div className="mg-input-wrap">
+                      <Phone size={16} className="mg-input-icon" />
+                      <input
+                        type="tel"
+                        id="telephone"
+                        name="telephone"
+                        className={`mg-input ${getFieldError('telephone') ? 'has-error' : ''}`}
+                        placeholder="Ex: 0707070707"
+                        value={formData.telephone}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        disabled={saving}
+                      />
+                    </div>
+                    {getFieldError('telephone') && (
+                      <span className="mg-field-error">
+                        <AlertCircle size={12} />
+                        {getFieldError('telephone')}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mg-field">
+                    <label htmlFor="telephone2">Téléphone secondaire</label>
+                    <div className="mg-input-wrap">
+                      <Phone size={16} className="mg-input-icon" />
+                      <input
+                        type="tel"
+                        id="telephone2"
+                        name="telephone2"
+                        className={`mg-input ${getFieldError('telephone2') ? 'has-error' : ''}`}
+                        placeholder="Ex: 0505050505"
+                        value={formData.telephone2}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        disabled={saving}
+                      />
+                    </div>
+                    {getFieldError('telephone2') && (
+                      <span className="mg-field-error">
+                        <AlertCircle size={12} />
+                        {getFieldError('telephone2')}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mg-field">
+                    <label htmlFor="whatsapp">WhatsApp Business</label>
+                    <div className="mg-input-wrap">
+                      <MessageCircle size={16} className="mg-input-icon" />
+                      <input
+                        type="tel"
+                        id="whatsapp"
+                        name="whatsapp"
+                        className={`mg-input ${getFieldError('whatsapp') ? 'has-error' : ''}`}
+                        placeholder="Ex: 0707070707"
+                        value={formData.whatsapp}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        disabled={saving}
+                      />
+                    </div>
+                    {getFieldError('whatsapp') && (
+                      <span className="mg-field-error">
+                        <AlertCircle size={12} />
+                        {getFieldError('whatsapp')}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mg-field">
+                    <label htmlFor="email">Email</label>
+                    <div className="mg-input-wrap">
+                      <Mail size={16} className="mg-input-icon" />
+                      <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        className={`mg-input ${getFieldError('email') ? 'has-error' : ''}`}
+                        placeholder="Ex: contact@boutique.ci"
+                        value={formData.email}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        disabled={saving}
+                      />
+                    </div>
+                    {getFieldError('email') && (
+                      <span className="mg-field-error">
+                        <AlertCircle size={12} />
+                        {getFieldError('email')}
+                      </span>
                     )}
                   </div>
                 </div>
               </div>
+            </section>
 
-              {/* Champs texte */}
-              <div className="mg-form-grid">
-                <div className="mg-field mg-field--full">
-                  <label htmlFor="nom_commercial">
-                    Nom commercial
-                  </label>
-                  <div className="mg-input-wrap">
-                    <Store size={16} className="mg-input-icon" />
-                    <input
-                      type="text"
-                      id="nom_commercial"
-                      name="nom_commercial"
-                      className={`mg-input ${getFieldError('nom_commercial') ? 'has-error' : ''}`}
-                      placeholder="Ex: Boutique Miyo"
-                      value={formData.nom_commercial}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      disabled={saving}
-                      maxLength={200}
-                    />
-                  </div>
-                  {getFieldError('nom_commercial') ? (
-                    <span className="mg-field-error">
-                      <AlertCircle size={12} />
-                      {getFieldError('nom_commercial')}
-                    </span>
-                  ) : (
-                    <span className="mg-field-hint">
-                      Le nom qui apparaîtra sur vos factures
-                    </span>
-                  )}
+            {/* ==================== SECTION LÉGAL ==================== */}
+            <section
+              ref={sectionRefs.legal}
+              className={`mg-section ${activeSection === 'legal' ? 'is-highlighted' : ''}`}
+            >
+              <div className="mg-section-head">
+                <div className="mg-section-icon mg-section-icon--legal">
+                  <IdCard size={18} />
                 </div>
-
-                <div className="mg-field mg-field--full">
-                  <label htmlFor="slogan">Slogan</label>
-                  <div className="mg-input-wrap">
-                    <Tag size={16} className="mg-input-icon" />
-                    <input
-                      type="text"
-                      id="slogan"
-                      name="slogan"
-                      className={`mg-input ${getFieldError('slogan') ? 'has-error' : ''}`}
-                      placeholder="Ex: Votre partenaire de confiance"
-                      value={formData.slogan}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      disabled={saving}
-                      maxLength={200}
-                    />
-                  </div>
-                  {getFieldError('slogan') && (
-                    <span className="mg-field-error">
-                      <AlertCircle size={12} />
-                      {getFieldError('slogan')}
-                    </span>
-                  )}
+                <div className="mg-section-title-group">
+                  <h3 className="mg-section-title">Informations légales</h3>
+                  <p className="mg-section-desc">Mentions obligatoires sur vos factures</p>
                 </div>
+                <SectionCounter section={SECTIONS[3]} formData={formData} />
+              </div>
 
-                <div className="mg-field mg-field--full">
-                  <label htmlFor="description">Description</label>
-                  <div className="mg-input-wrap">
-                    <ScrollText size={16} className="mg-input-icon" />
-                    <textarea
-                      id="description"
-                      name="description"
-                      className="mg-textarea"
-                      placeholder="Présentation courte de votre activité..."
-                      value={formData.description}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      disabled={saving}
-                      rows={3}
-                    />
-                  </div>
-                  <span className="mg-field-hint">
-                    Quelques phrases pour décrire votre activité
+              <div className="mg-section-body">
+                <div className="mg-alert mg-alert--info" style={{ marginBottom: 20 }}>
+                  <span>
+                    Ces informations sont optionnelles. Elles apparaîtront sur vos factures si renseignées.
                   </span>
                 </div>
-              </div>
-            </div>
-          </section>
 
-          {/* ==================== SECTION LOCALISATION ==================== */}
-          <section
-            ref={sectionRefs.location}
-            className={`mg-section ${activeSection === 'location' ? 'is-highlighted' : ''}`}
-          >
-            <div className="mg-section-head">
-              <div className="mg-section-icon mg-section-icon--location">
-                <MapPin size={18} />
-              </div>
-              <div className="mg-section-title-group">
-                <h3 className="mg-section-title">Localisation</h3>
-                <p className="mg-section-desc">Où se trouve votre magasin</p>
-              </div>
-              <SectionCounter section={SECTIONS[1]} formData={formData} />
-            </div>
-
-            <div className="mg-section-body">
-              <div className="mg-form-grid">
-                <div className="mg-field">
-                  <label htmlFor="quartier">Quartier</label>
-                  <div className="mg-input-wrap">
-                    <MapPin size={16} className="mg-input-icon" />
-                    <input
-                      type="text"
-                      id="quartier"
-                      name="quartier"
-                      className="mg-input"
-                      placeholder="Ex: Cocody"
-                      value={formData.quartier}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      disabled={saving}
-                      maxLength={100}
-                    />
+                <div className="mg-form-grid mg-form-grid--3">
+                  <div className="mg-field">
+                    <label htmlFor="numero_rccm">N° RCCM</label>
+                    <div className="mg-input-wrap">
+                      <Hash size={16} className="mg-input-icon" />
+                      <input
+                        type="text"
+                        id="numero_rccm"
+                        name="numero_rccm"
+                        className="mg-input"
+                        placeholder="CI-ABJ-2024-B-12345"
+                        value={formData.numero_rccm}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        disabled={saving}
+                        maxLength={50}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div className="mg-field">
-                  <label htmlFor="ville">Ville</label>
-                  <div className="mg-input-wrap">
-                    <Building2 size={16} className="mg-input-icon" />
-                    <input
-                      type="text"
-                      id="ville"
-                      name="ville"
-                      className="mg-input"
-                      placeholder="Ex: Abidjan"
-                      value={formData.ville}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      disabled={saving}
-                      maxLength={100}
-                    />
+                  <div className="mg-field">
+                    <label htmlFor="numero_nif">N° NIF</label>
+                    <div className="mg-input-wrap">
+                      <Hash size={16} className="mg-input-icon" />
+                      <input
+                        type="text"
+                        id="numero_nif"
+                        name="numero_nif"
+                        className="mg-input"
+                        placeholder="2024-1234567"
+                        value={formData.numero_nif}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        disabled={saving}
+                        maxLength={50}
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div className="mg-field mg-field--full">
-                  <label htmlFor="pays">Pays</label>
-                  <div className="mg-input-wrap">
-                    <MapPin size={16} className="mg-input-icon" />
-                    <input
-                      type="text"
-                      id="pays"
-                      name="pays"
-                      className="mg-input"
-                      placeholder="Ex: Côte d'Ivoire"
-                      value={formData.pays}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      disabled={saving}
-                      maxLength={100}
-                    />
+                  <div className="mg-field">
+                    <label htmlFor="numero_contribuable">N° Contribuable</label>
+                    <div className="mg-input-wrap">
+                      <Hash size={16} className="mg-input-icon" />
+                      <input
+                        type="text"
+                        id="numero_contribuable"
+                        name="numero_contribuable"
+                        className="mg-input"
+                        placeholder="1234567890"
+                        value={formData.numero_contribuable}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        disabled={saving}
+                        maxLength={50}
+                      />
+                    </div>
                   </div>
-                </div>
-              </div>
-            </div>
-          </section>
 
-          {/* ==================== SECTION CONTACT ==================== */}
-          <section
-            ref={sectionRefs.contact}
-            className={`mg-section ${activeSection === 'contact' ? 'is-highlighted' : ''}`}
-          >
-            <div className="mg-section-head">
-              <div className="mg-section-icon mg-section-icon--contact">
-                <Phone size={18} />
-              </div>
-              <div className="mg-section-title-group">
-                <h3 className="mg-section-title">Contact</h3>
-                <p className="mg-section-desc">Comment vos clients vous joignent</p>
-              </div>
-              <SectionCounter section={SECTIONS[2]} formData={formData} />
-            </div>
-
-            <div className="mg-section-body">
-              <div className="mg-form-grid">
-                <div className="mg-field">
-                  <label htmlFor="telephone">Téléphone principal</label>
-                  <div className="mg-input-wrap">
-                    <Phone size={16} className="mg-input-icon" />
-                    <input
-                      type="tel"
-                      id="telephone"
-                      name="telephone"
-                      className={`mg-input ${getFieldError('telephone') ? 'has-error' : ''}`}
-                      placeholder="Ex: 0707070707"
-                      value={formData.telephone}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      disabled={saving}
-                    />
-                  </div>
-                  {getFieldError('telephone') && (
-                    <span className="mg-field-error">
-                      <AlertCircle size={12} />
-                      {getFieldError('telephone')}
-                    </span>
-                  )}
-                </div>
-
-                <div className="mg-field">
-                  <label htmlFor="telephone2">Téléphone secondaire</label>
-                  <div className="mg-input-wrap">
-                    <Phone size={16} className="mg-input-icon" />
-                    <input
-                      type="tel"
-                      id="telephone2"
-                      name="telephone2"
-                      className={`mg-input ${getFieldError('telephone2') ? 'has-error' : ''}`}
-                      placeholder="Ex: 0505050505"
-                      value={formData.telephone2}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      disabled={saving}
-                    />
-                  </div>
-                  {getFieldError('telephone2') && (
-                    <span className="mg-field-error">
-                      <AlertCircle size={12} />
-                      {getFieldError('telephone2')}
-                    </span>
-                  )}
-                </div>
-
-                <div className="mg-field">
-                  <label htmlFor="whatsapp">WhatsApp Business</label>
-                  <div className="mg-input-wrap">
-                    <MessageCircle size={16} className="mg-input-icon" />
-                    <input
-                      type="tel"
-                      id="whatsapp"
-                      name="whatsapp"
-                      className={`mg-input ${getFieldError('whatsapp') ? 'has-error' : ''}`}
-                      placeholder="Ex: 0707070707"
-                      value={formData.whatsapp}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      disabled={saving}
-                    />
-                  </div>
-                  {getFieldError('whatsapp') && (
-                    <span className="mg-field-error">
-                      <AlertCircle size={12} />
-                      {getFieldError('whatsapp')}
-                    </span>
-                  )}
-                </div>
-
-                <div className="mg-field">
-                  <label htmlFor="email">Email</label>
-                  <div className="mg-input-wrap">
-                    <Mail size={16} className="mg-input-icon" />
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      className={`mg-input ${getFieldError('email') ? 'has-error' : ''}`}
-                      placeholder="Ex: contact@boutique.ci"
-                      value={formData.email}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      disabled={saving}
-                    />
-                  </div>
-                  {getFieldError('email') && (
-                    <span className="mg-field-error">
-                      <AlertCircle size={12} />
-                      {getFieldError('email')}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* ==================== SECTION LÉGAL ==================== */}
-          <section
-            ref={sectionRefs.legal}
-            className={`mg-section ${activeSection === 'legal' ? 'is-highlighted' : ''}`}
-          >
-            <div className="mg-section-head">
-              <div className="mg-section-icon mg-section-icon--legal">
-                <IdCard size={18} />
-              </div>
-              <div className="mg-section-title-group">
-                <h3 className="mg-section-title">Informations légales</h3>
-                <p className="mg-section-desc">Mentions obligatoires sur vos factures</p>
-              </div>
-              <SectionCounter section={SECTIONS[3]} formData={formData} />
-            </div>
-
-            <div className="mg-section-body">
-              <div className="mg-alert mg-alert--info" style={{ marginBottom: 20 }}>
-                <span>
-                  Ces informations sont optionnelles. Elles apparaîtront sur vos factures si renseignées.
-                </span>
-              </div>
-
-              <div className="mg-form-grid mg-form-grid--3">
-                <div className="mg-field"> 
-                  <label htmlFor="numero_rccm">N° RCCM</label>
-                  <div className="mg-input-wrap">
-                    <Hash size={16} className="mg-input-icon" />
-                    <input
-                      type="text"
-                      id="numero_rccm"
-                      name="numero_rccm"
-                      className="mg-input"
-                      placeholder="CI-ABJ-2024-B-12345"
-                      value={formData.numero_rccm}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      disabled={saving}
-                      maxLength={50}
-                    />
-                  </div>
-                </div>
-
-                <div className="mg-field">
-                  <label htmlFor="numero_nif">N° NIF</label>
-                  <div className="mg-input-wrap">
-                    <Hash size={16} className="mg-input-icon" />
-                    <input
-                      type="text"
-                      id="numero_nif"
-                      name="numero_nif"
-                      className="mg-input"
-                      placeholder="2024-1234567"
-                      value={formData.numero_nif}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      disabled={saving}
-                      maxLength={50}
-                    />
-                  </div>
-                </div>
-
-                <div className="mg-field">
-                  <label htmlFor="numero_contribuable">N° Contribuable</label>
-                  <div className="mg-input-wrap">
-                    <Hash size={16} className="mg-input-icon" />
-                    <input
-                      type="text"
-                      id="numero_contribuable"
-                      name="numero_contribuable"
-                      className="mg-input"
-                      placeholder="1234567890"
-                      value={formData.numero_contribuable}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      disabled={saving}
-                      maxLength={50}
-                    />
-                  </div>
-                </div>
-
-                <div className="mg-field">
-                  <label htmlFor="regime_fiscal">Régime fiscal</label>
-                  <div className="mg-input-wrap">
-                    <ScrollText size={16} className="mg-input-icon" />
-                    <select
-                      id="regime_fiscal"
-                      name="regime_fiscal"
-                      className="mg-select"
-                      value={formData.regime_fiscal}
-                      onChange={handleChange}
-                      onBlur={handleBlur}
-                      disabled={saving}
-                    >
-                      {REGIMES_FISCAUX.map(r => (
-                        <option key={r.value} value={r.value}>{r.label}</option>
-                      ))}
-                    </select>
+                  <div className="mg-field">
+                    <label htmlFor="regime_fiscal">Régime fiscal</label>
+                    <div className="mg-input-wrap">
+                      <ScrollText size={16} className="mg-input-icon" />
+                      <select
+                        id="regime_fiscal"
+                        name="regime_fiscal"
+                        className="mg-select"
+                        value={formData.regime_fiscal}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        disabled={saving}
+                      >
+                        {REGIMES_FISCAUX.map(r => (
+                          <option key={r.value} value={r.value}>{r.label}</option>
+                        ))}
+                      </select>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </section>
-        </form>
+            </section>
+          </form>
+        </div>
       </div>
 
       {/* ==================== BARRE D'ACTIONS FLOTTANTE ==================== */}
-      {isDirty && (
+      {isDirty && !geoBlocked && (
         <div className="mg-action-bar">
           <div className="mg-action-bar-inner">
             <span className="mg-action-text">
@@ -1075,6 +1206,88 @@ const SectionCounter = ({ section, formData }) => {
       {isDone ? <CheckCircle size={12} /> : <Circle size={10} />}
       {filled}/{total}
     </span>
+  );
+};
+
+// ==================== 🆕 OVERLAY BLOQUANT : GÉOLOCALISATION OBLIGATOIRE ====================
+const GeoGateOverlay = ({ status, message, loading, onConfirm }) => {
+  const isError = status === 'denied' || status === 'error';
+
+  return (
+    <div className="mg-gate" role="dialog" aria-modal="true" aria-labelledby="mg-gate-title">
+      <div className="mg-gate-backdrop" />
+      <div className="mg-gate-card">
+        <div className={`mg-gate-icon ${isError ? 'is-error' : ''}`}>
+          {isError ? <AlertCircle size={28} /> : <Lock size={28} />}
+        </div>
+
+        <h2 id="mg-gate-title" className="mg-gate-title">
+          {isError ? 'Accès bloqué' : 'Position requise'}
+        </h2>
+
+        <p className="mg-gate-text">
+          {isError ? (
+            message
+          ) : (
+            <>
+              <strong>Miyo</strong> souhaite accéder à votre position pour.
+    
+            </>
+          )}
+        </p>
+
+        {status === 'idle' && (
+          <div className="mg-gate-points">
+            <span><CheckCircle size={14} /> Aucune donnée partagée à des tiers</span>
+          </div>
+        )}
+
+        <div className="mg-gate-actions">
+          {isError ? (
+            <>
+              <button
+                type="button"
+                className="mg-btn mg-btn--outline"
+                onClick={() => window.location.reload()}
+              >
+                <RefreshCw size={15} />
+                Recharger la page
+              </button>
+              <button
+                type="button"
+                className="mg-btn mg-btn--primary"
+                onClick={onConfirm}
+                disabled={loading}
+              >
+                {loading ? (
+                  <><Loader2 size={15} className="mg-spin" /> Vérification…</>
+                ) : (
+                  <><Navigation size={15} /> Réessayer</>
+                )}
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="mg-btn mg-btn--primary mg-gate-cta"
+              onClick={onConfirm}
+              disabled={loading || status === 'asking'}
+            >
+              {loading || status === 'asking' ? (
+                <><Loader2 size={16} className="mg-spin" /> Vérification de la position…</>
+              ) : (
+                <><Check size={16} /> J'ai compris, activer ma position</>
+              )}
+            </button>
+          )}
+        </div>
+
+        <p className="mg-gate-foot">
+          Votre navigateur va vous demander l'autorisation. Vous devez
+          l'<strong>accepter</strong> pour utiliser cette page.
+        </p>
+      </div>
+    </div>
   );
 };
 

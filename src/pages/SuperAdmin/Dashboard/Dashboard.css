@@ -1,0 +1,906 @@
+/* pages/SuperAdmin/Dashboard.css */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+
+/* ============================================================
+   TOKENS
+   ============================================================ */
+.adash-page {
+    --ink:         #0F172A;
+    --ink-2:       #334155;
+    --ink-3:       #64748B;
+    --ink-4:       #94A3B8;
+    --line:        #E2E8F0;
+    --line-soft:   #F1F5F9;
+    --surface:     #FFFFFF;
+    --paper:       #F8FAFC;
+
+    --brand:       #C2410C;
+    --brand-dark:  #9A3412;
+    --brand-soft:  #FED7AA;
+
+    --info:        #0284C7;
+    --info-soft:   #E0F2FE;
+
+    --success:     #16A34A;
+    --success-soft:#DCFCE7;
+
+    --warning:     #D97706;
+    --warning-soft:#FEF3C7;
+
+    --danger:      #DC2626;
+    --danger-soft: #FEE2E2;
+
+    --r-sm:        8px;
+    --r:           12px;
+    --r-lg:        16px;
+    --sh-sm:       0 1px 2px rgba(15, 23, 42, 0.05);
+    --sh:          0 4px 14px rgba(15, 23, 42, 0.06);
+    --sh-lg:       0 16px 40px rgba(15, 23, 42, 0.10);
+    --ease:        180ms cubic-bezier(0.4, 0, 0.2, 1);
+    --display:     'Inter', sans-serif;
+    --body:        'Inter', sans-serif;
+
+    font-family: var(--body);
+    color: var(--ink);
+    background: var(--paper);
+    min-height: 100vh;
+    padding: 28px clamp(16px, 3vw, 40px) 60px;
+    box-sizing: border-box;
+    font-variant-numeric: tabular-nums;
+}
+
+.adash-page *, .adash-page *::before, .adash-page *::after {
+    box-sizing: border-box;
+}
+
+/* ============================================================
+   HEADER
+   ============================================================ */
+.adash-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 24px;
+}
+
+.adash-title {
+    margin: 0;
+    font-family: var(--display);
+    font-size: clamp(22px, 2.6vw, 28px);
+    font-weight: 800;
+    letter-spacing: -0.025em;
+    color: var(--ink);
+}
+
+.adash-subtitle {
+    margin: 4px 0 0;
+    font-size: 14px;
+    color: var(--ink-3);
+}
+
+/* ============================================================
+   BOUTONS
+   ============================================================ */
+.adash-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 40px;
+    padding: 0 16px;
+    border: 1px solid transparent;
+    border-radius: var(--r-sm);
+    font: 600 14px/1 var(--body);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--ease), border-color var(--ease), transform var(--ease);
+}
+
+.adash-btn--primary {
+    background: var(--brand);
+    color: #fff;
+}
+.adash-btn--primary:hover:not(:disabled) {
+    background: var(--brand-dark);
+    transform: translateY(-1px);
+}
+
+.adash-btn--outline {
+    background: var(--surface);
+    color: var(--ink-2);
+    border-color: var(--line);
+}
+.adash-btn--outline:hover:not(:disabled) {
+    border-color: var(--brand);
+    color: var(--brand);
+}
+
+.adash-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.adash-spin {
+    animation: adash-spin 0.8s linear infinite;
+}
+@keyframes adash-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   KPI CARDS
+   ============================================================ */
+.adash-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+.adash-kpi {
+    position: relative;
+    padding: 20px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    transition: transform var(--ease), box-shadow var(--ease), border-color var(--ease);
+    overflow: hidden;
+}
+
+.adash-kpi.is-clickable {
+    cursor: pointer;
+}
+.adash-kpi.is-clickable:hover {
+    transform: translateY(-3px);
+    box-shadow: var(--sh-lg);
+    border-color: var(--brand);
+}
+
+.adash-kpi-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.adash-kpi-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: var(--r-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.adash-kpi--brand .adash-kpi-icon  { background: var(--brand-soft);   color: var(--brand); }
+.adash-kpi--info .adash-kpi-icon   { background: var(--info-soft);    color: var(--info); }
+.adash-kpi--success .adash-kpi-icon{ background: var(--success-soft); color: var(--success); }
+.adash-kpi--warning .adash-kpi-icon{ background: var(--warning-soft); color: var(--warning); }
+
+.adash-kpi-trend {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    font-size: 11.5px;
+    font-weight: 700;
+}
+.adash-kpi-trend.is-up   { background: var(--success-soft); color: #166534; }
+.adash-kpi-trend.is-down { background: var(--danger-soft);  color: #991B1B; }
+
+.adash-kpi-body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.adash-kpi-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-3);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.adash-kpi-value {
+    font-family: var(--display);
+    font-size: clamp(22px, 2.4vw, 28px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    line-height: 1.1;
+}
+
+.adash-kpi-sub {
+    font-size: 12.5px;
+    color: var(--ink-3);
+    margin-top: 2px;
+}
+
+.adash-kpi-arrow {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    color: var(--ink-4);
+    transition: transform var(--ease), color var(--ease);
+}
+.adash-kpi.is-clickable:hover .adash-kpi-arrow {
+    color: var(--brand);
+    transform: translateX(3px);
+}
+
+/* ============================================================
+   MINI STATS ROW
+   ============================================================ */
+.adash-stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.adash-mini {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-sm);
+    transition: border-color var(--ease), background var(--ease);
+}
+
+.adash-mini.is-highlight {
+    border-color: var(--warning);
+    background: var(--warning-soft);
+}
+
+.adash-mini-icon {
+    color: var(--ink-3);
+    flex-shrink: 0;
+}
+.adash-mini.is-highlight .adash-mini-icon {
+    color: var(--warning);
+}
+
+.adash-mini > div {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.adash-mini strong {
+    font-family: var(--display);
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.1;
+}
+
+.adash-mini span {
+    font-size: 11.5px;
+    color: var(--ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ============================================================
+   LAYOUT 2 COLONNES
+   ============================================================ */
+.adash-grid {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 20px;
+    align-items: start;
+}
+
+.adash-col {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+}
+
+/* ============================================================
+   SECTIONS
+   ============================================================ */
+.adash-section {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    padding: 20px;
+    box-shadow: var(--sh-sm);
+}
+
+.adash-section--compact {
+    padding: 16px 18px;
+}
+
+.adash-section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line-soft);
+}
+
+.adash-section-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+    font-family: var(--display);
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+}
+
+.adash-section-title svg { color: var(--brand); }
+
+.adash-section-desc {
+    margin: 3px 0 0;
+    font-size: 12.5px;
+    color: var(--ink-3);
+}
+
+.adash-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 0;
+    background: transparent;
+    color: var(--brand);
+    font: 600 13px/1 var(--body);
+    cursor: pointer;
+    padding: 4px 6px;
+    border-radius: var(--r-sm);
+    transition: background var(--ease);
+    white-space: nowrap;
+}
+.adash-link:hover { background: var(--brand-soft); }
+
+/* ============================================================
+   LISTE UTILISATEURS
+   ============================================================ */
+.adash-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.adash-user-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    transition: background var(--ease);
+}
+
+.adash-user-row:hover { background: var(--paper); }
+
+.adash-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--brand), var(--brand-dark));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--display);
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+    letter-spacing: 0.02em;
+}
+
+.adash-avatar--sm {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+}
+
+.adash-user-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.adash-user-info strong {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adash-user-info span {
+    font-size: 12.5px;
+    color: var(--ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adash-user-meta {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+}
+
+.adash-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 8px;
+    border-radius: 999px;
+    background: var(--line-soft);
+    color: var(--ink-3);
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.adash-tag--brand {
+    background: var(--brand-soft);
+    color: var(--brand);
+}
+
+.adash-user-stats {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--ink-3);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.adash-user-date {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11.5px;
+    color: var(--ink-4);
+    flex-shrink: 0;
+    min-width: 80px;
+    justify-content: flex-end;
+}
+
+/* ============================================================
+   CLASSEMENT
+   ============================================================ */
+.adash-ranking {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.adash-ranking-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: var(--r-sm);
+    cursor: pointer;
+    transition: background var(--ease);
+}
+
+.adash-ranking-row:hover { background: var(--paper); }
+
+.adash-rank {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--display);
+    font-size: 13px;
+    font-weight: 800;
+    background: var(--line-soft);
+    color: var(--ink-3);
+    flex-shrink: 0;
+}
+
+.adash-rank--1 { background: linear-gradient(135deg, #FBBF24, #D97706); color: #fff; }
+.adash-rank--2 { background: linear-gradient(135deg, #CBD5E1, #94A3B8); color: #fff; }
+.adash-rank--3 { background: linear-gradient(135deg, #F97316, #C2410C); color: #fff; }
+
+.adash-ranking-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.adash-ranking-info strong {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adash-ranking-info span {
+    font-size: 12px;
+    color: var(--ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adash-ranking-value {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+
+.adash-ranking-value strong {
+    font-family: var(--display);
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.adash-ranking-value span {
+    font-size: 11.5px;
+    color: var(--ink-3);
+}
+
+/* ============================================================
+   CHART (bar chart CSS pur)
+   ============================================================ */
+.adash-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    height: 180px;
+    padding: 10px 0;
+    overflow-x: auto;
+}
+
+.adash-bar-col {
+    flex: 1;
+    min-width: 34px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    height: 100%;
+}
+
+.adash-bar-value {
+    font-family: var(--display);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--ink-2);
+}
+
+.adash-bar-track {
+    flex: 1;
+    width: 100%;
+    display: flex;
+    align-items: flex-end;
+    background: var(--line-soft);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.adash-bar-fill {
+    width: 100%;
+    background: linear-gradient(180deg, var(--brand), var(--brand-dark));
+    border-radius: 6px 6px 0 0;
+    transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    min-height: 4px;
+}
+
+.adash-bar-label {
+    font-size: 10.5px;
+    color: var(--ink-3);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+/* ============================================================
+   SANTÉ
+   ============================================================ */
+.adash-health {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.adash-health-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: var(--paper);
+    border-radius: var(--r-sm);
+    font-size: 13.5px;
+}
+
+.adash-health-row.is-warn {
+    background: var(--warning-soft);
+}
+
+.adash-health-label {
+    color: var(--ink-2);
+    font-weight: 500;
+}
+
+.adash-health-value {
+    font-family: var(--display);
+    font-weight: 700;
+    color: var(--ink);
+}
+.adash-health-row.is-warn .adash-health-value { color: var(--warning); }
+
+/* ============================================================
+   GÉO
+   ============================================================ */
+.adash-geo {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.adash-geo-row {
+    display: grid;
+    grid-template-columns: 1fr 80px 36px;
+    gap: 10px;
+    align-items: center;
+}
+
+.adash-geo-info {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.adash-geo-info strong {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adash-geo-info span {
+    font-size: 11.5px;
+    color: var(--ink-3);
+}
+
+.adash-geo-bar {
+    height: 6px;
+    background: var(--line-soft);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.adash-geo-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--brand), var(--brand-dark));
+    border-radius: 999px;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.adash-geo-pct {
+    font-family: var(--display);
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--ink-2);
+    text-align: right;
+}
+
+/* ============================================================
+   ACTIVITÉ
+   ============================================================ */
+.adash-activity {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.adash-activity-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--r-sm);
+    transition: background var(--ease);
+}
+.adash-activity-row:hover { background: var(--paper); }
+
+.adash-activity-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: var(--r-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.adash-activity-icon--brand   { background: var(--brand-soft);   color: var(--brand); }
+.adash-activity-icon--success { background: var(--success-soft); color: var(--success); }
+.adash-activity-icon--info    { background: var(--info-soft);    color: var(--info); }
+
+.adash-activity-body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+}
+
+.adash-activity-body strong {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adash-activity-body span {
+    font-size: 11.5px;
+    color: var(--ink-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.adash-activity-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex-shrink: 0;
+    gap: 2px;
+}
+
+.adash-activity-amount {
+    font-family: var(--display);
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.adash-activity-date {
+    font-size: 11px;
+    color: var(--ink-4);
+}
+
+/* ============================================================
+   EMPTY / LOADING / ERROR
+   ============================================================ */
+.adash-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 32px 16px;
+    color: var(--ink-4);
+    text-align: center;
+}
+
+.adash-empty--sm { padding: 20px 12px; }
+
+.adash-empty p {
+    margin: 0;
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--ink-3);
+}
+
+.adash-loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 100px 20px;
+    color: var(--ink-3);
+}
+
+.adash-loading p {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.adash-spinner {
+    width: 36px;
+    height: 36px;
+    border: 3px solid var(--line);
+    border-top-color: var(--brand);
+    border-radius: 50%;
+    animation: adash-spin 0.8s linear infinite;
+}
+
+.adash-error {
+    max-width: 480px;
+    margin: 80px auto;
+    padding: 40px 32px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r);
+    text-align: center;
+    box-shadow: var(--sh);
+}
+
+.adash-error-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: var(--danger-soft);
+    color: var(--danger);
+    margin-bottom: 16px;
+}
+
+.adash-error h2 {
+    margin: 0 0 8px;
+    font-family: var(--display);
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--ink);
+}
+
+.adash-error p {
+    margin: 0 0 24px;
+    font-size: 14px;
+    color: var(--ink-3);
+    line-height: 1.5;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+@media (max-width: 1100px) {
+    .adash-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .adash-page {
+        padding: 20px 14px 40px;
+    }
+    .adash-user-row {
+        flex-wrap: wrap;
+    }
+    .adash-user-meta,
+    .adash-user-stats,
+    .adash-user-date {
+        display: none;
+    }
+    .adash-geo-row {
+        grid-template-columns: 1fr 60px 34px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .adash-page *, .adash-page *::before, .adash-page *::after {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}

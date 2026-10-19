@@ -51,8 +51,11 @@ MAGASIN: {
     UPDATE_MON_MAGASIN: `${BASE_URL}/api/magasin/mon-magasin`,
     GET_BY_ID: (id) =>  `${BASE_URL}/api/magasin/${id}`,
     UPLOAD_LOGO:        `${BASE_URL}/api/magasin/upload-logo`,  
-    DELETE_LOGO:        `${BASE_URL}/api/magasin/logo`,         
+    DELETE_LOGO:        `${BASE_URL}/api/magasin/logo`,      
+    GEOCODER: `${BASE_URL}/api/magasin/geocoder`,
+    PROCHES:  `${BASE_URL}/api/magasin/proches`,   
 },
+
 
 // ==================== URLS EMPLOYÉS ====================
 EMPLOYE: {
@@ -392,6 +395,30 @@ FACTURE: {
         SAISIR_LIGNES: (id) => `${BASE_URL}/api/inventaires/${id}/lignes`,
         VALIDER: (id) => `${BASE_URL}/api/inventaires/${id}/valider`,
         ANNULER: (id) => `${BASE_URL}/api/inventaires/${id}/annuler`,
+    },
+
+
+        // ==================== URLS SUPER ADMIN ====================
+    ADMIN: {
+        // Dashboard complet (KPI + top + activité + croissance)
+        GET_DASHBOARD: `${BASE_URL}/api/admin/dashboard`,
+
+        // Statistiques globales
+        GET_STATS: `${BASE_URL}/api/admin/stats`,
+
+        // Utilisateurs (tous les patrons)
+        GET_UTILISATEURS: (limit = 50) => `${BASE_URL}/api/admin/utilisateurs?limit=${limit}`,
+        GET_UTILISATEUR: (id) => `${BASE_URL}/api/admin/utilisateurs/${id}`,
+        TOGGLE_UTILISATEUR: (id) => `${BASE_URL}/api/admin/utilisateurs/${id}/toggle`,
+        GET_INACTIFS: (days = 30) => `${BASE_URL}/api/admin/inactifs?days=${days}`,
+
+        // Magasins / Carte globale
+        GET_MAGASINS_CARTE: `${BASE_URL}/api/admin/magasins-carte`,
+
+        // Analyses globales
+        GET_TOP_PRODUITS: (limit = 10) => `${BASE_URL}/api/admin/top-produits?limit=${limit}`,
+        GET_ACTIVITE: (limit = 20) => `${BASE_URL}/api/admin/activite?limit=${limit}`,
+        GET_GEO: `${BASE_URL}/api/admin/geo`,
     },
 };
 

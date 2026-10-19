@@ -65,7 +65,13 @@ const Categories = () => {
 
   // ========== FERMER LE DROPDOWN AU CLIC EXTÉRIEUR ==========
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (e) => {
+      if (
+        e.target.closest(".dropdown-trigger") ||
+        e.target.closest(".dropdown-menu")
+      ) {
+        return;
+      }
       setOpenDropdown(null);
     };
     document.addEventListener("click", handleClickOutside);
@@ -144,7 +150,7 @@ const Categories = () => {
 
   // ========== TOGGLE DROPDOWN ==========
   const toggleDropdown = (id) => {
-    setOpenDropdown(openDropdown === id ? null : id);
+    setOpenDropdown((prev) => (prev === id ? null : id));
   };
 
   // ========== HANDLERS FORMULAIRE ==========
@@ -345,13 +351,13 @@ const Categories = () => {
     </span>
   );
 
-  // ========== MENU DROPDOWN (ACTIONS) ==========
+  // ========== MENU DROPDOWN (UNIFIÉ) ==========
   const renderDropdown = (category, keyPrefix = "") => {
     const key = `${keyPrefix}${category.id_categorie}`;
     const isOpen = openDropdown === key;
 
     return (
-      <div className="">
+      <div className="dropdown-container">
         <button
           type="button"
           className="dropdown-trigger"
@@ -387,9 +393,9 @@ const Categories = () => {
                 {updatingStatus === category.id_categorie ? (
                   <span className="spinner-small"></span>
                 ) : category.statut === "actif" ? (
-                  <ToggleRight size={16} color="#22c55e" />
+                  <ToggleRight size={16} color="#16A34A" />
                 ) : (
-                  <ToggleLeft size={16} color="#6b7280" />
+                  <ToggleLeft size={16} color="#64748B" />
                 )}
                 <span>
                   {category.statut === "actif" ? "Désactiver" : "Activer"}
@@ -402,9 +408,7 @@ const Categories = () => {
                 type="button"
                 className="dropdown-item"
                 role="menuitem"
-                onClick={() => {
-                  handleEdit(category);
-                }}
+                onClick={() => handleEdit(category)}
               >
                 <Edit size={16} />
                 <span>Modifier</span>
@@ -418,9 +422,7 @@ const Categories = () => {
                   type="button"
                   className="dropdown-item danger"
                   role="menuitem"
-                  onClick={() => {
-                    confirmDelete(category);
-                  }}
+                  onClick={() => confirmDelete(category)}
                 >
                   <Trash2 size={16} />
                   <span>Supprimer</span>
@@ -447,84 +449,24 @@ const Categories = () => {
           <span>Essayez de modifier votre recherche</span>
         </div>
       ) : (
-        currentItems.map((category) => (
+        currentItems.map((category, index) => (
           <div key={category.id_categorie} className="category-card">
             <div className="category-card-header">
               <div
                 className="category-icon"
                 style={{
-                  backgroundColor: (category.couleur || "#995F2F") + "20",
-                  color: category.couleur || "#995F2F",
+                  backgroundColor: (category.couleur || "#C2410C") + "20",
+                  color: category.couleur || "#C2410C",
                 }}
               >
                 {getIconComponent(category.icon)}
               </div>
               <div className="category-actions">
-                {canManage && (
-                  <div className="">
-                    <button
-                      type="button"
-                      className="dropdown-trigger"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleDropdown(`grid-${category.id_categorie}`);
-                      }}
-                      title="Actions"
-                      aria-label="Actions"
-                    >
-                      <MoreVertical size={18} />
-                    </button>
-
-                    {openDropdown === `grid-${category.id_categorie}` && (
-                      <div
-                        className="dropdown-menu"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          type="button"
-                          className="dropdown-item"
-                          onClick={() => {
-                            handleToggleStatus(category);
-                            setOpenDropdown(null);
-                          }}
-                          disabled={
-                            updatingStatus === category.id_categorie
-                          }
-                        >
-                          {updatingStatus === category.id_categorie ? (
-                            <span className="spinner-small"></span>
-                          ) : category.statut === "actif" ? (
-                            <ToggleRight size={16} color="#22c55e" />
-                          ) : (
-                            <ToggleLeft size={16} color="#6b7280" />
-                          )}
-                          <span>
-                            {category.statut === "actif"
-                              ? "Désactiver"
-                              : "Activer"}
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          className="dropdown-item"
-                          onClick={() => handleEdit(category)}
-                        >
-                          <Edit size={16} />
-                          <span>Modifier</span>
-                        </button>
-                        <hr className="dropdown-divider" />
-                        <button
-                          type="button"
-                          className="dropdown-item danger"
-                          onClick={() => confirmDelete(category)}
-                        >
-                          <Trash2 size={16} />
-                          <span>Supprimer</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
+                {/* Ajout du numéro de ligne dans la grille aussi (optionnel) */}
+                <span className="category-index-badge">
+                  {(currentPage - 1) * itemsPerPage + index + 1}
+                </span>
+                {canManage && renderDropdown(category, "grid-")}
               </div>
             </div>
 
@@ -558,7 +500,8 @@ const Categories = () => {
       <table className="categories-table">
         <thead>
           <tr>
-            <th>ID</th>
+            {/* ✅ Remplacement de "ID" par "#" pour le numéro de ligne */}
+            <th className="num-col">N°</th>
             <th>Nom</th>
             <th>Description</th>
             <th>Couleur</th>
@@ -574,17 +517,21 @@ const Categories = () => {
               </td>
             </tr>
           ) : (
-            currentItems.map((category) => (
+            currentItems.map((category, index) => (
               <tr key={category.id_categorie}>
-                <td className="id-cell">#{category.id_categorie}</td>
+                {/* ✅ Affichage du numéro séquentiel (1, 2, 3...) au lieu de l'ID */}
+                <td className="num-cell">
+                  {(currentPage - 1) * itemsPerPage + index + 1}
+                </td>
+                
                 <td className="name-cell">
                   <div className="category-name-with-icon">
                     <span
                       className="category-icon-small"
                       style={{
                         backgroundColor:
-                          (category.couleur || "#995F2F") + "20",
-                        color: category.couleur || "#995F2F",
+                          (category.couleur || "#C2410C") + "20",
+                        color: category.couleur || "#C2410C",
                       }}
                     >
                       {getIconComponent(category.icon)}
@@ -600,10 +547,10 @@ const Categories = () => {
                     <span
                       className="color-dot"
                       style={{
-                        backgroundColor: category.couleur || "#995F2F",
+                        backgroundColor: category.couleur || "#C2410C",
                       }}
                     />
-                    {category.couleur || "#995F2F"}
+                    {category.couleur || "#C2410C"}
                   </div>
                 </td>
                 <td>{renderStatusBadge(category)}</td>
@@ -662,7 +609,7 @@ const Categories = () => {
       {/* Filtres et recherche */}
       <div className="categories-filters">
         <div className="search-box">
-          <Search size={20}/>
+          <Search size={20} className="" />
           <input
             type="text"
             placeholder="Rechercher une catégorie..."
@@ -748,13 +695,8 @@ const Categories = () => {
 
       {/* Modal d'ajout/édition */}
       {showModal && (
-        <div
-          className="modal-overlay"
-        >
-          <div
-            className="modal-content"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="modal-overlay">
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>
                 {editingCategory

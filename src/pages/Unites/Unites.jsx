@@ -57,8 +57,15 @@ const Unites = () => {
   const canManage = user && ["admin", "manager"].includes(user.role);
 
   // ========== FERMER LE DROPDOWN AU CLIC EXTÉRIEUR ==========
+  // ✅ CORRECTION : on ignore les clics dans le trigger ou dans le menu
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (e) => {
+      if (
+        e.target.closest(".dropdown-trigger") ||
+        e.target.closest(".dropdown-menu")
+      ) {
+        return;
+      }
       setOpenDropdown(null);
     };
     document.addEventListener("click", handleClickOutside);
@@ -136,7 +143,7 @@ const Unites = () => {
 
   // ========== TOGGLE DROPDOWN ==========
   const toggleDropdown = (id) => {
-    setOpenDropdown(openDropdown === id ? null : id);
+    setOpenDropdown((prev) => (prev === id ? null : id));
   };
 
   // ========== HANDLERS FORMULAIRE ==========
@@ -271,7 +278,7 @@ const Unites = () => {
     const isOpen = openDropdown === key;
 
     return (
-      <div className="">
+      <div className="dropdown-container">
         <button
           type="button"
           className="dropdown-trigger"
@@ -339,13 +346,16 @@ const Unites = () => {
           <span>Essayez de modifier votre recherche</span>
         </div>
       ) : (
-        currentItems.map((unite) => (
+        currentItems.map((unite, index) => (
           <div key={unite.id_unite} className="unite-card">
             <div className="unite-card-header">
               <div className="unite-icon">
                 <Ruler size={28} />
               </div>
               <div className="unite-actions">
+                <span className="unite-index-badge">
+                  {(currentPage - 1) * itemsPerPage + index + 1}
+                </span>
                 {canManage && renderDropdown(unite, "grid-")}
               </div>
             </div>
@@ -381,7 +391,8 @@ const Unites = () => {
       <table className="unites-table">
         <thead>
           <tr>
-            <th>ID</th>
+            {/* ✅ Remplacement de "ID" par "#" pour le numéro de ligne */}
+            <th className="num-col">#</th>
             <th>Nom</th>
             <th>Symbole</th>
             <th>Description</th>
@@ -396,9 +407,13 @@ const Unites = () => {
               </td>
             </tr>
           ) : (
-            currentItems.map((unite) => (
+            currentItems.map((unite, index) => (
               <tr key={unite.id_unite}>
-                <td className="id-cell">#{unite.id_unite}</td>
+                {/* ✅ Affichage du numéro séquentiel (1, 2, 3...) au lieu de l'ID */}
+                <td className="num-cell">
+                  {(currentPage - 1) * itemsPerPage + index + 1}
+                </td>
+                
                 <td className="name-cell">
                   <div className="unite-name-with-icon">
                     <Ruler size={18} className="unite-icon-small" />
@@ -462,7 +477,7 @@ const Unites = () => {
       {/* Filtres et recherche */}
       <div className="unites-filters">
         <div className="search-box">
-          <Search size={20}/>
+          <Search size={20} className="" />
           <input
             type="text"
             placeholder="Rechercher une unité..."
@@ -548,9 +563,7 @@ const Unites = () => {
 
       {/* Modal d'ajout/édition */}
       {showModal && (
-        <div
-          className="modal-overlay"
-        >
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>

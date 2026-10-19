@@ -1,85 +1,117 @@
-/* components/SelectSearch/SelectSearch.css */
+/* components/SelectSearch/SelectSearch.css
+   Refonte complète — palette Miyo moderne.
+   Focus unifié sur le wrapper, padding homogène, pas de double bordure. */
 
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+/* ============================================================
+   WRAPPER
+   ============================================================ */
 .select-search-wrapper {
   position: relative;
   width: 100%;
+  font-family: var(--miyo-font-body);
+  color: var(--miyo-text);
 }
 
 .select-search-wrapper label {
   display: block;
-  font-weight: 500;
-  color: #374151;
+  font-weight: 600;
+  color: var(--miyo-text-secondary);
   margin-bottom: 6px;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .select-search-wrapper .required-star {
-  color: #ef4444;
+  color: var(--miyo-danger);
 }
 
+/* ============================================================
+   TRIGGER
+   ============================================================ */
 .select-search-trigger {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 14px;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  background: white;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  /* ✅ PADDING homogène : gauche, droite, avec place pour le chevron */
+  padding: 0 14px;
+  border: 1px solid var(--miyo-border);
+  border-radius: var(--miyo-radius);
+  background: var(--miyo-surface);
   cursor: pointer;
-  transition: all 0.2s ease;
-  min-height: 44px;
+  transition: border-color var(--miyo-ease), box-shadow var(--miyo-ease), background-color var(--miyo-ease);
   user-select: none;
+  font-family: inherit;
+  text-align: left;
+  outline: none;
 }
 
 .select-search-trigger:hover:not(.disabled) {
-  border-color: #d1d5db;
+  border-color: var(--miyo-border-strong);
 }
 
-.select-search-trigger.open {
-  border-color: #995F2F;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+/* ✅ CORRECTION : un seul focus, porté par le trigger (pas par l'input) */
+.select-search-trigger.open,
+.select-search-trigger:focus-visible {
+  border-color: var(--miyo-primary);
+  box-shadow: 0 0 0 3px var(--miyo-primary-soft);
+  outline: none;
 }
 
 .select-search-trigger.disabled {
-  background: #f9fafb;
+  background: var(--miyo-bg);
   cursor: not-allowed;
   opacity: 0.7;
 }
 
 .select-search-value {
-  color: #1a1a2e;
+  color: var(--miyo-text);
   font-size: 14px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   flex: 1;
+  min-width: 0;
 }
 
 .select-search-value.placeholder {
-  color: #9ca3af;
+  color: var(--miyo-text-muted);
 }
 
 .chevron {
-  transition: transform 0.2s ease;
-  color: #6b7280;
+  transition: transform var(--miyo-ease), color var(--miyo-ease);
+  color: var(--miyo-text-muted);
   flex-shrink: 0;
-  margin-left: 8px;
+  margin-left: 4px;
+}
+
+.select-search-trigger:hover .chevron {
+  color: var(--miyo-text-secondary);
+}
+
+.select-search-trigger.open .chevron {
+  color: var(--miyo-primary);
 }
 
 .chevron.rotated {
   transform: rotate(180deg);
 }
 
-/* Dropdown */
+/* ============================================================
+   DROPDOWN
+   ============================================================ */
 .select-search-dropdown {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
   right: 0;
-  background: white;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  background: var(--miyo-surface);
+  border: 1px solid var(--miyo-border-strong);
+  border-radius: var(--miyo-radius);
+  box-shadow: var(--miyo-shadow-lg);
   z-index: 1000;
   max-height: 400px;
   display: flex;
@@ -99,58 +131,77 @@
   }
 }
 
+/* ============================================================
+   INPUT DE RECHERCHE (dans le dropdown)
+   ============================================================ */
 .select-search-input-wrapper {
   display: flex;
   align-items: center;
-  padding: 8px 12px;
-  border-bottom: 1px solid #f3f4f6;
   gap: 8px;
+  /* ✅ PADDING correct : l'input a 14px de padding horizontal */
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--miyo-border);
+  background: var(--miyo-bg);
   flex-shrink: 0;
-  background: #fafbfc;
 }
 
 .select-search-input-wrapper .search-icon {
-  color: #9ca3af;
+  color: var(--miyo-text-muted);
+  flex-shrink: 0;
 }
 
 .select-search-input {
   flex: 1;
+  min-width: 0;
+  /* ✅ PADDING vertical + horizontal cohérent */
+  padding: 6px 4px;
   border: none;
   outline: none;
   font-size: 14px;
-  padding: 6px 0;
+  font-family: inherit;
   background: transparent;
-  color: #1a1a2e;
+  color: var(--miyo-text);
+  border-radius: 0;
 }
 
-.select-search-input:focus {
+.select-search-input::placeholder {
+  color: var(--miyo-text-muted);
+}
+
+/* ✅ CORRECTION : aucun halo orange sur l'input interne.
+   Le focus est porté par le wrapper du dropdown lui-même. */
+.select-search-input:focus,
+.select-search-input:focus-visible {
   border: none;
   box-shadow: none;
   outline: none;
 }
 
-.select-search-input::placeholder {
-  color: #9ca3af;
-}
-
+/* ============================================================
+   BOUTON CLEAR
+   ============================================================ */
 .clear-search {
   background: none;
   border: none;
-  color: #9ca3af;
+  color: var(--miyo-text-muted);
   cursor: pointer;
   padding: 4px;
-  border-radius: 50%;
+  border-radius: var(--miyo-radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: background-color var(--miyo-ease), color var(--miyo-ease);
+  flex-shrink: 0;
 }
 
 .clear-search:hover {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--miyo-bg-alt);
+  color: var(--miyo-text);
 }
 
+/* ============================================================
+   OPTIONS
+   ============================================================ */
 .select-search-options {
   overflow-y: auto;
   padding: 4px 0;
@@ -162,23 +213,22 @@
 }
 
 .select-search-options::-webkit-scrollbar-track {
-  background: #f9fafb;
-  border-radius: 3px;
+  background: transparent;
 }
 
 .select-search-options::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 3px;
+  background: var(--miyo-border-strong);
+  border-radius: var(--miyo-radius-full);
 }
 
 .select-search-options::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
+  background: var(--miyo-text-muted);
 }
 
 .no-options {
   padding: 24px 20px;
   text-align: center;
-  color: #9ca3af;
+  color: var(--miyo-text-muted);
   font-size: 14px;
   display: flex;
   flex-direction: column;
@@ -187,38 +237,45 @@
 
 .no-options-hint {
   font-size: 12px;
-  color: #d1d5db;
+  color: var(--miyo-text-muted);
+  opacity: 0.7;
 }
 
 .search-results-info {
   padding: 8px 14px;
   font-size: 12px;
-  color: #6b7280;
-  background: #f9fafb;
-  border-bottom: 1px solid #f3f4f6;
-  font-weight: 500;
+  color: var(--miyo-text-tertiary);
+  background: var(--miyo-bg);
+  border-bottom: 1px solid var(--miyo-border-soft);
+  font-weight: 600;
   flex-shrink: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .select-option {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  /* ✅ PADDING : 10px vertical, 14px horizontal — bien aéré */
   padding: 10px 14px;
   cursor: pointer;
   font-size: 14px;
-  color: #374151;
-  transition: all 0.15s ease;
-  gap: 12px;
+  color: var(--miyo-text-secondary);
+  transition: background-color var(--miyo-ease), color var(--miyo-ease);
 }
 
-.select-option:hover {
-  background: #f3f4f6;
+.select-option:hover,
+.select-option.is-highlighted {
+  background: var(--miyo-bg-alt);
+  color: var(--miyo-text);
 }
 
 .select-option.selected {
-  background: #eff6ff;
-  color: #1a1a2e;
+  background: var(--miyo-primary-soft);
+  color: var(--miyo-primary-dark);
+  font-weight: 600;
 }
 
 .select-option .option-label {
@@ -229,24 +286,26 @@
 }
 
 .select-option .option-label .highlight {
-  background: #fbbf24;
-  color: #1a1a2e;
-  padding: 0 2px;
-  border-radius: 2px;
-  font-weight: 600;
+  background: var(--miyo-warning-soft);
+  color: var(--miyo-warning-deep);
+  padding: 0 3px;
+  border-radius: var(--miyo-radius-sm);
+  font-weight: 700;
 }
 
 .select-option .check-mark {
-  color: #995F2F;
+  color: var(--miyo-primary);
   flex-shrink: 0;
 }
 
-/* Responsive */
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
 @media (max-width: 768px) {
   .select-search-dropdown {
     max-height: 320px;
   }
-  
+
   .select-search-options {
     max-height: 260px;
   }
@@ -254,11 +313,22 @@
 
 @media (max-width: 480px) {
   .select-search-trigger {
-    padding: 8px 12px;
+    padding: 0 12px;
     min-height: 40px;
   }
-  
+
   .select-search-value {
     font-size: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .select-search-dropdown,
+  .chevron,
+  .select-search-trigger,
+  .select-search-option,
+  .clear-search {
+    animation: none !important;
+    transition: none !important;
   }
 }

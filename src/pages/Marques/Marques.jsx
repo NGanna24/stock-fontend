@@ -59,8 +59,15 @@ const Marques = () => {
   const canManage = user && ["admin", "manager"].includes(user.role);
 
   // ========== FERMER LE DROPDOWN AU CLIC EXTÉRIEUR ==========
+  // ✅ CORRECTION : on ignore les clics dans le trigger ou dans le menu
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (e) => {
+      if (
+        e.target.closest(".dropdown-trigger") ||
+        e.target.closest(".dropdown-menu")
+      ) {
+        return;
+      }
       setOpenDropdown(null);
     };
     document.addEventListener("click", handleClickOutside);
@@ -137,7 +144,7 @@ const Marques = () => {
 
   // ========== TOGGLE DROPDOWN ==========
   const toggleDropdown = (id) => {
-    setOpenDropdown(openDropdown === id ? null : id);
+    setOpenDropdown((prev) => (prev === id ? null : id));
   };
 
   // ========== HANDLERS FORMULAIRE ==========
@@ -322,7 +329,7 @@ const Marques = () => {
     const isOpen = openDropdown === key;
 
     return (
-      <div className="">
+      <div className="dropdown-container">
         <button
           type="button"
           className="dropdown-trigger"
@@ -358,9 +365,9 @@ const Marques = () => {
                 {updatingStatus === marque.id_marque ? (
                   <span className="spinner-small"></span>
                 ) : marque.actif === 1 ? (
-                  <ToggleRight size={16} color="#22c55e" />
+                  <ToggleRight size={16} color="#16A34A" />
                 ) : (
-                  <ToggleLeft size={16} color="#6b7280" />
+                  <ToggleLeft size={16} color="#64748B" />
                 )}
                 <span>{marque.actif === 1 ? "Désactiver" : "Activer"}</span>
               </button>
@@ -412,13 +419,16 @@ const Marques = () => {
           <span>Essayez de modifier votre recherche</span>
         </div>
       ) : (
-        currentItems.map((marque) => (
+        currentItems.map((marque, index) => (
           <div key={marque.id_marque} className="marque-card">
             <div className="marque-card-header">
               <div className="marque-icon">
                 <Building2 size={28} />
               </div>
               <div className="marque-actions">
+                <span className="marque-index-badge">
+                  {(currentPage - 1) * itemsPerPage + index + 1}
+                </span>
                 {canManage && renderDropdown(marque, "grid-")}
               </div>
             </div>
@@ -451,7 +461,8 @@ const Marques = () => {
       <table className="marques-table">
         <thead>
           <tr>
-            <th>ID</th>
+            {/* ✅ Remplacement de "ID" par "#" pour le numéro de ligne */}
+            <th className="num-col">N°</th>
             <th>Nom</th>
             <th>Description</th>
             <th>Statut</th>
@@ -466,9 +477,13 @@ const Marques = () => {
               </td>
             </tr>
           ) : (
-            currentItems.map((marque) => (
+            currentItems.map((marque, index) => (
               <tr key={marque.id_marque}>
-                <td className="id-cell">#{marque.id_marque}</td>
+                {/* ✅ Affichage du numéro séquentiel (1, 2, 3...) au lieu de l'ID */}
+                <td className="num-cell">
+                  {(currentPage - 1) * itemsPerPage + index + 1}
+                </td>
+                
                 <td className="name-cell">
                   <div className="marque-name-with-icon">
                     <Building2 size={18} className="marque-icon-small" />
@@ -530,7 +545,7 @@ const Marques = () => {
       {/* Filtres et recherche */}
       <div className="marques-filters">
         <div className="search-box">
-          <Search size={20}  />
+          <Search size={20} className="" />
           <input
             type="text"
             placeholder="Rechercher une marque..."
@@ -616,9 +631,7 @@ const Marques = () => {
 
       {/* Modal d'ajout/édition */}
       {showModal && (
-        <div
-          className="modal-overlay"
-        >
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h2>
