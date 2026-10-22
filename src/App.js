@@ -41,6 +41,15 @@ import InventaireDetail from "./pages/Inventaires/InventaireDetail";
 import MonProfil from "./pages/Profil/MonProfil";
 import SuperAdminLayout from "./layouts/SuperAdminLayout";
 import SuperAdminDashboard from "./pages/SuperAdmin/Dashboard/SuperAdminDashboard";
+import Magasins from "./pages/SuperAdmin/Magasins/Magasins";
+import MagasinDetail from "./pages/SuperAdmin/Magasins/MagasinDetail";
+import Utilisateurs from "./pages/SuperAdmin/Utilisateurs/Utilisateurs";
+import UtilisateurDetail from "./pages/SuperAdmin/Utilisateurs/UtilisateurDetail";
+import Carte from "./pages/SuperAdmin/Carte/Carte";
+import { SuperAdminAuthProvider } from "./context/SuperAdminAuthContext";
+import SuperAdminLogin from "./pages/SuperAdmin/Auth/SuperAdminLogin";
+import SuperAdminRegister from "./pages/SuperAdmin/Auth/SuperAdminRegister";
+import SuperAdminRoute from "./pages/SuperAdminRoute";
 
 // ==================== COMPOSANTS UTILITAIRES ====================
 
@@ -91,25 +100,47 @@ const RedirectWithSlug = () => {
 
 // ==================== APP CONTENT ====================
 function AppContent() {
-    return (
+    return ( 
         <BrowserRouter>
             <Routes>
-                {/* ==================== ROUTES SUPER ADMIN ==================== */}
-                <Route path="/super-admin" element={<SuperAdminLayout />}>
-  <Route index element={<Navigate to="dashboard" replace />} />
-  <Route path="dashboard"     element={<SuperAdminDashboard />} />
-  <Route path="activite"      element={<div style={{ padding: 28 }}>Activité</div>} />
-  <Route path="alertes"       element={<div style={{ padding: 28 }}>Alertes</div>} />
-  <Route path="utilisateurs"  element={<div style={{ padding: 28 }}>Utilisateurs</div>} />
-  <Route path="magasins"      element={<div style={{ padding: 28 }}>Magasins</div>} />
-  <Route path="carte"         element={<div style={{ padding: 28 }}>Carte</div>} />
-  <Route path="statistiques"  element={<div style={{ padding: 28 }}>Statistiques</div>} />
-  <Route path="revenus"       element={<div style={{ padding: 28 }}>Revenus</div>} />
-  <Route path="rapports"      element={<div style={{ padding: 28 }}>Rapports</div>} />
-  <Route path="audit"         element={<div style={{ padding: 28 }}>Journal d'audit</div>} />
-  <Route path="securite"      element={<div style={{ padding: 28 }}>Sécurité</div>} />
-  <Route path="parametres"    element={<div style={{ padding: 28 }}>Paramètres</div>} />
+                {/* ==================== SUPER ADMIN — AUTH (PUBLIC) ==================== */}
+<Route path="/super-admin/login" element={<SuperAdminLogin />} />
+<Route path="/super-admin/register" element={<SuperAdminRegister />} />
+
+{/* ==================== ROUTES SUPER ADMIN (PROTÉGÉES) ==================== */}
+<Route
+    path="/super-admin"
+    element={
+        <SuperAdminRoute>
+            <SuperAdminLayout />
+        </SuperAdminRoute>
+    }
+>
+    <Route index element={<Navigate to="dashboard" replace />} />
+    <Route path="dashboard"     element={<SuperAdminDashboard />} />
+
+    {/* Magasins */}
+    <Route path="magasins"      element={<Magasins />} />
+    <Route path="magasins/:id"  element={<MagasinDetail />} />
+
+    {/* Utilisateurs */}
+    <Route path="utilisateurs"      element={<Utilisateurs />} />
+    <Route path="utilisateurs/:id"  element={<UtilisateurDetail />} />
+
+    {/* Carte globale */}
+    <Route path="carte" element={<Carte />} />
+
+    {/* Placeholders */}
+    <Route path="activite"      element={<div style={{ padding: 28 }}>Activité</div>} />
+    <Route path="alertes"       element={<div style={{ padding: 28 }}>Alertes</div>} />
+    <Route path="statistiques"  element={<div style={{ padding: 28 }}>Statistiques</div>} />
+    <Route path="revenus"       element={<div style={{ padding: 28 }}>Revenus</div>} />
+    <Route path="rapports"      element={<div style={{ padding: 28 }}>Rapports</div>} />
+    <Route path="audit"         element={<div style={{ padding: 28 }}>Journal d'audit</div>} />
+    <Route path="securite"      element={<div style={{ padding: 28 }}>Sécurité</div>} />
+    <Route path="parametres"    element={<div style={{ padding: 28 }}>Paramètres</div>} />
 </Route>
+
           
                 
                 {/* ==================== ROUTES PUBLIQUES ==================== */}
@@ -408,7 +439,9 @@ function AppContent() {
 function App() {
     return (
         <AuthContextProvider>
-            <AppContent />
+            <SuperAdminAuthProvider>
+                 <AppContent />
+            </SuperAdminAuthProvider>
         </AuthContextProvider>
     );
 }

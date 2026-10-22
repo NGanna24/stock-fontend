@@ -2,7 +2,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useUser } from "../../../context/AuthContext";
+import { useSuperAdmin } from "../../../context/SuperAdminAuthContext";
 import {
   ChevronDown, PanelLeftClose, PanelLeftOpen, LogOut,
   LayoutDashboard, Users, Store, Activity, BarChart3, MapPin,
@@ -72,10 +72,10 @@ const MOBILE_QUERY = "(max-width: 768px)";
 // ============================================================
 // COMPOSANT
 // ============================================================
-const SuperAdminSidebar = ({ secretCode }) => {
+const SuperAdminSidebar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, user } = useUser();
+  const { superAdmin, logout } = useSuperAdmin();   // ✅ contexte super-admin
 
   const [collapsedPref, setCollapsedPref] = useState(() => {
     try { return localStorage.getItem(STORAGE_KEY) === "1"; } catch { return false; }
@@ -89,10 +89,12 @@ const SuperAdminSidebar = ({ secretCode }) => {
   const [tip, setTip] = useState(null);
 
   const collapsed = collapsedPref || isMobile;
-  const userName = user?.fullname || "Super Admin";
+
+  // ✅ Nom depuis le contexte super-admin
+  const userName = superAdmin?.fullname || "Super Admin";
 
   // Base URL de l'espace admin
-  const basePath = `/super-admin/${secretCode}`;
+  const basePath = "/super-admin";
 
   useEffect(() => {
     const mq = window.matchMedia(MOBILE_QUERY);
@@ -125,14 +127,16 @@ const SuperAdminSidebar = ({ secretCode }) => {
   const toggleSection = (name) =>
     setClosedSections(prev => (prev.includes(name) ? prev.filter(s => s !== name) : [...prev, name]));
 
-  // Déconnexion
+  // ✅ Déconnexion super-admin
   const handleLogoutConfirm = async () => {
     setLoggingOut(true);
     try {
-      await logout();
-      navigate("/login");
+      await logout();                                  // → vide localStorage + POST /logout
+      navigate("/super-admin/login", { replace: true }); // ✅ bonne route
     } catch (err) {
       console.error("Erreur déconnexion:", err);
+      // même en cas d'erreur serveur, on force la redirection
+      navigate("/super-admin/login", { replace: true });
     } finally {
       setLoggingOut(false);
       setShowLogoutModal(false);
@@ -293,7 +297,7 @@ const SuperAdminSidebar = ({ secretCode }) => {
         onClose={() => !loggingOut && setShowLogoutModal(false)}
         onConfirm={handleLogoutConfirm}
         title="Se déconnecter ?"
-        message="Vous allez être redirigé vers la page de connexion."
+        message="Vous allez être redirigé vers la page de connexion super-admin."
         type="warning"
         confirmLabel="Se déconnecter"
         cancelLabel="Annuler"

@@ -1,7 +1,7 @@
 // components/SuperAdmin/Header/Header.jsx
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { useUser } from "../../../context/AuthContext";
+import { useSuperAdmin } from "../../../context/SuperAdminAuthContext";
 import ConfirmModal from "../../ConfirmModal/ConfirmModal";
 import { findSuperAdminEntry, SUPER_ADMIN_MENU } from "../Sidebar/Sidebar";
 import {
@@ -12,11 +12,11 @@ import "./Header.css";
 
 // Pages hors menu
 const EXTRA_TITLES = {
-  "/profil": "Mon profil admin",
+  "/parametres": "Paramètres",
 };
 
-const SuperAdminHeader = ({ secretCode }) => {
-  const { user, logout } = useUser();
+const SuperAdminHeader = () => {
+  const { superAdmin, logout } = useSuperAdmin();   // ✅ bon contexte
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -28,10 +28,12 @@ const SuperAdminHeader = ({ secretCode }) => {
   const profileRef = useRef(null);
   const inputRef = useRef(null);
 
-  const userName = user?.fullname || "Super Admin";
-  const userEmail = user?.email || "";
+  // ✅ Nom depuis le contexte super-admin
+  const userName = superAdmin?.fullname || "Super Admin";
+  const userEmail = superAdmin?.email || "";
 
-  const basePath = `/super-admin/${secretCode}`;
+  // ✅ Base path fixe (plus de secretCode)
+  const basePath = "/super-admin";
 
   /* ---------- Fil d'Ariane ---------- */
   const crumb = useMemo(() => {
@@ -85,10 +87,11 @@ const SuperAdminHeader = ({ secretCode }) => {
   const handleLogoutConfirm = async () => {
     setLoggingOut(true);
     try {
-      await logout();
-      navigate("/login");
+      await logout();                                    // ✅ logout super-admin
+      navigate("/super-admin/login", { replace: true }); // ✅ bonne route
     } catch (err) {
       console.error("Erreur déconnexion:", err);
+      navigate("/super-admin/login", { replace: true });
     } finally {
       setLoggingOut(false);
       setShowLogoutModal(false);
@@ -99,7 +102,6 @@ const SuperAdminHeader = ({ secretCode }) => {
   const handleSearch = (e) => {
     if (e.key === "Enter" && searchTerm.trim()) {
       console.log("Recherche admin :", searchTerm.trim());
-      // À brancher sur un endpoint de recherche globale admin plus tard
     }
   };
 
@@ -183,7 +185,7 @@ const SuperAdminHeader = ({ secretCode }) => {
               <span className="sa-hd-logo">{initials}</span>
               <span className="sa-hd-profile-text">
                 <strong>{userName}</strong>
-                <small>Super Admin</small>
+                <small>Super Administrateur</small>
               </span>
               <ChevronDown size={17} className={`sa-hd-chev ${showDropdown ? "is-open" : ""}`} />
             </button>
@@ -202,18 +204,18 @@ const SuperAdminHeader = ({ secretCode }) => {
                   <button
                     className="sa-hd-menu-item"
                     role="menuitem"
-                    onClick={() => go("/profil")}
-                  >
-                    <User size={17} />
-                    <span>Mon profil admin</span>
-                  </button>
-                  <button
-                    className="sa-hd-menu-item"
-                    role="menuitem"
                     onClick={() => go("/dashboard")}
                   >
                     <LayoutDashboard size={17} />
                     <span>Vue d'ensemble</span>
+                  </button>
+                  <button
+                    className="sa-hd-menu-item"
+                    role="menuitem"
+                    onClick={() => go("/parametres")}
+                  >
+                    <User size={17} />
+                    <span>Mon profil</span>
                   </button>
                   <button
                     className="sa-hd-menu-item"
@@ -247,7 +249,7 @@ const SuperAdminHeader = ({ secretCode }) => {
         onClose={() => !loggingOut && setShowLogoutModal(false)}
         onConfirm={handleLogoutConfirm}
         title="Se déconnecter ?"
-        message="Vous allez être redirigé vers la page de connexion."
+        message="Vous allez être redirigé vers la page de connexion super-admin."
         type="warning"
         confirmLabel="Se déconnecter"
         cancelLabel="Annuler"
