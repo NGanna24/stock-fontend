@@ -213,44 +213,108 @@
 
 .stock-input-row {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  align-items: stretch;
   width: 100%;
+  height: 40px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  overflow: hidden;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stock-input-row:focus-within {
+  border-color: #995F2F;
+  box-shadow: 0 0 0 3px rgba(153, 95, 47, 0.12);
 }
 
 .stock-input-field {
   flex: 1;
   min-width: 0;
+  height: 100%;
+  padding: 0 12px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-family: inherit;
+  font-size: 14px;
+  color: #1e293b;
+  font-variant-numeric: tabular-nums;
+}
+
+.stock-input-field::placeholder {
+  color: #94a3b8;
+  opacity: 0.7;
+}
+
+.stock-input-field:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #f8fafc;
+}
+
+/* Masquer les flèches ↑↓ */
+.stock-input-field::-webkit-outer-spin-button,
+.stock-input-field::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.stock-input-field {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 .stock-unite-static-label {
-  font-size: 12px;
-  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  height: 100%;
+  padding: 0 12px;
+  border-left: 1px solid #e2e8f0;
+  background: #f8fafc;
   color: #64748b;
+  font-size: 12.5px;
+  font-weight: 600;
   white-space: nowrap;
-  padding: 0 6px;
 }
 
 /* Le trigger reprend le style existant .stock-unite-trigger,
    mais on le rend un peu plus grand pour matcher l'input */
-.stock-input-row .stock-unite-trigger {
-  padding: 10px 12px;
-  font-size: 13px;
+.stock-input-row .stock-unite-trigger-wrapper {
+  display: flex;
   height: 100%;
-  border-radius: 10px;
-  background: var(--gray-50, #f9fafb);
-  border: 1.5px solid var(--gray-200, #e5e7eb);
+}
+
+.stock-input-row .stock-unite-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 100%;
+  padding: 0 12px;
+  border: 0;
+  border-left: 1px solid #e2e8f0;
+  border-radius: 0;
+  background: #f8fafc;
+  color: #475569;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .stock-input-row .stock-unite-trigger:hover:not(:disabled) {
   background: #eff6ff;
-  border-color: #cbd5e1;
+  color: #995F2F;
 }
 
 .stock-input-row .stock-unite-trigger.open {
-  background: #eff6ff;
-  border-color: #995F2F;
-  color: #995F2F;
+  background: #995F2F;
+  color: #ffffff;
+}
+
+.stock-input-row .stock-unite-trigger.open svg {
+  color: #ffffff;
 }
 
 .stock-input-row .stock-unite-trigger:disabled {

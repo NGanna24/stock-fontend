@@ -1332,3 +1332,28 @@
     transition: none !important;
   }
 }
+
+/* ============================================================
+   INPUTS NUMBER — masquer les flèches ↑↓
+   ============================================================ */
+
+/* Chrome, Edge, Safari */
+.pr-input[type="number"]::-webkit-outer-spin-button,
+.pr-input[type="number"]::-webkit-inner-spin-button,
+.pr-f input[type="number"]::-webkit-outer-spin-button,
+.pr-f input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+/* Firefox */
+.pr-input[type="number"],
+.pr-f input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Curseur texte normal (pas de curseur "spin") */
+.pr-input[type="number"] {
+  cursor: text;
+}

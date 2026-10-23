@@ -344,94 +344,123 @@ const MonMagasin = () => {
   };
 
   // ==================== 🆕 GATE GÉOLOCALISATION OBLIGATOIRE (silencieux) ====================
-  const gateGetPosition = () => {
-    if (!navigator.geolocation) {
+const gateGetPosition = async () => {
+  setGeoGateLoading(true);
+  setGeoGateStatus('asking');
+  setGeoGateMessage('');
+
+  // Helper interne pour enregistrer la position (évite duplication)
+  const persistPosition = async ({ latitude, longitude, precision_gps, position_source }) => {
+    const payload = { latitude, longitude, precision_gps, position_source };
+
+    // Réinjecte les champs déjà saisis
+    if (formData.nom_commercial) payload.nom_commercial = formData.nom_commercial;
+    if (formData.ville) payload.ville = formData.ville;
+    if (formData.pays) payload.pays = formData.pays;
+    if (formData.quartier) payload.quartier = formData.quartier;
+    if (formData.telephone) payload.telephone = formData.telephone;
+    if (formData.email) payload.email = formData.email;
+
+    const res = await MagasinService.updateMonMagasin(token, payload);
+
+    if (res.success) {
+      setMagasin(res.magasin);
+      setFormData(prev => ({
+        ...prev,
+        latitude,
+        longitude,
+        precision_gps,
+        position_source,
+      }));
+      setInitialData(prev => ({
+        ...prev,
+        latitude,
+        longitude,
+        precision_gps,
+        position_source,
+      }));
+
+      setGeoGateLoading(false);
+      setGeoBlocked(false);
+      setGeoGateStatus('idle');
+      setSuccessMessage(
+        position_source === 'ip'
+          ? 'Position approximative enregistrée'
+          : 'Position GPS enregistrée avec succès'
+      );
+      setTimeout(() => setSuccessMessage(''), 3000);
+      return true;
+    } else {
       setGeoGateStatus('error');
-      setGeoGateMessage("La géolocalisation n'est pas supportée par ce navigateur.");
+      setGeoGateMessage("Impossible d'enregistrer la position. Réessayez.");
+      setGeoGateLoading(false);
+      return false;
+    }
+  };
+
+  // ========== TENTATIVE 1 : GPS natif (navigateur web) ==========
+  if (navigator.geolocation) {
+    try {
+      const position = await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 8000,
+          maximumAge: 0,
+        });
+      });
+
+      const { latitude, longitude, accuracy } = position.coords;
+      await persistPosition({
+        latitude: latitude.toFixed(8),
+        longitude: longitude.toFixed(8),
+        precision_gps: String(Math.round(accuracy)),
+        position_source: 'gps',
+      });
       return;
+    } catch (error) {
+      console.warn("⚠️ GPS natif échoué, fallback IP…", error.code, error.message);
+
+      // Si l'utilisateur a explicitement refusé → ne pas insister avec l'IP
+      if (error.code === 1) { // PERMISSION_DENIED
+        setGeoGateStatus('denied');
+        setGeoGateMessage(
+          "Vous avez refusé la géolocalisation. Autorisez-la dans les paramètres de votre navigateur, puis rechargez la page."
+        );
+        setGeoGateLoading(false);
+        return;
+      }
+      // Sinon (timeout, position unavailable) → on tente l'IP
+    }
+  }
+
+  // ========== TENTATIVE 2 : Fallback IP (Electron / navigateur sans GPS) ==========
+  try {
+    const res = await fetch("https://get.geojs.io/v1/ip/geo.json");
+    if (!res.ok) throw new Error("Service IP indisponible");
+    const data = await res.json();
+
+    const latitude = parseFloat(data.latitude);
+    const longitude = parseFloat(data.longitude);
+
+    if (isNaN(latitude) || isNaN(longitude)) {
+      throw new Error("Coordonnées IP invalides");
     }
 
-    setGeoGateLoading(true);
-    setGeoGateStatus('asking');
-    setGeoGateMessage('');
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude, accuracy } = position.coords;
-
-        try {
-          // Envoi silencieux au backend
-          const payload = {
-            latitude: latitude.toFixed(8),
-            longitude: longitude.toFixed(8),
-            precision_gps: String(Math.round(accuracy)),
-            position_source: 'gps',
-          };
-
-          // Réinjecte les champs déjà saisis (pour ne rien écraser)
-          if (formData.nom_commercial) payload.nom_commercial = formData.nom_commercial;
-          if (formData.ville) payload.ville = formData.ville;
-          if (formData.pays) payload.pays = formData.pays;
-          if (formData.quartier) payload.quartier = formData.quartier;
-          if (formData.telephone) payload.telephone = formData.telephone;
-          if (formData.email) payload.email = formData.email;
-
-          const res = await MagasinService.updateMonMagasin(token, payload);
-
-          if (res.success) {
-            setMagasin(res.magasin);
-            setFormData(prev => ({
-              ...prev,
-              latitude: payload.latitude,
-              longitude: payload.longitude,
-              precision_gps: payload.precision_gps,
-              position_source: 'gps',
-            }));
-            setInitialData(prev => ({
-              ...prev,
-              latitude: payload.latitude,
-              longitude: payload.longitude,
-              precision_gps: payload.precision_gps,
-              position_source: 'gps',
-            }));
-
-            setGeoGateLoading(false);
-            setGeoBlocked(false);
-            setGeoGateStatus('idle');
-            setSuccessMessage('Position enregistrée avec succès');
-            setTimeout(() => setSuccessMessage(''), 3000);
-          } else {
-            setGeoGateStatus('error');
-            setGeoGateMessage("Impossible d'enregistrer la position. Réessayez.");
-            setGeoGateLoading(false);
-          }
-        } catch (err) {
-          console.error('❌ Enregistrement position:', err);
-          setGeoGateStatus('error');
-          setGeoGateMessage(err.message || "Erreur lors de l'enregistrement.");
-          setGeoGateLoading(false);
-        }
-      },
-      (error) => {
-        let message = "Impossible d'obtenir votre position.";
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            message = "Vous avez refusé la géolocalisation. Autorisez-la pour continuer.";
-            break;
-          case error.POSITION_UNAVAILABLE:
-            message = "Position indisponible. Vérifiez que votre GPS est activé.";
-            break;
-          case error.TIMEOUT:
-            message = "Délai dépassé. Vérifiez votre connexion puis réessayez.";
-            break;
-        }
-        setGeoGateStatus('denied');
-        setGeoGateMessage(message);
-        setGeoGateLoading(false);
-      },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    await persistPosition({
+      latitude: latitude.toFixed(8),
+      longitude: longitude.toFixed(8),
+      precision_gps: "5000",
+      position_source: 'ip',
+    });
+  } catch (ipError) {
+    console.error("❌ Fallback IP échoué:", ipError);
+    setGeoGateStatus('error');
+    setGeoGateMessage(
+      "Impossible d'obtenir votre position. Vérifiez votre connexion internet ou activez la localisation sur votre appareil."
     );
-  };
+    setGeoGateLoading(false);
+  }
+};
 
   // ==================== SOUMISSION ====================
   const handleSubmit = async (e) => {

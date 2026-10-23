@@ -1,5 +1,5 @@
 // pages/Fournisseurs/Fournisseurs.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Plus,
   Search,
@@ -17,10 +17,6 @@ import {
   MapPin,
   Globe,
   CreditCard,
-  Star,
-  StarOff,
-  ShoppingBasket,
-  Banknote,
   RefreshCw,
   Grid,
   List,
@@ -32,63 +28,85 @@ import FournisseurService from "../../../services/fournisseurService";
 import { useUser } from "../../../context/AuthContext";
 import "./Fournisseurs.css";
 
+const INITIAL_FORM_DATA = {
+  nom: "",
+  telephone: "",
+  email: "",
+  ville: "",
+  pays: "",
+  numero_tva: "",
+};
+
 const Fournisseurs = () => {
   const { user, isAuthenticated } = useUser();
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
 
-  // État pour les fournisseurs
+  // ========== ÉTATS PRINCIPAUX ==========
   const [fournisseurs, setFournisseurs] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(8);
-  const [viewMode, setViewMode] = useState("liste");
+  const [viewMode, setViewMode] = useState("list");
   const [updatingStatus, setUpdatingStatus] = useState(null);
-  const [error, setError] = useState(null);
   const [openDropdown, setOpenDropdown] = useState(null);
 
-  // État pour le modal
+  // ========== MODAL AJOUT/ÉDITION ==========
   const [showModal, setShowModal] = useState(false);
-  const [showDetailModal, setShowDetailModal] = useState(false);
   const [editingFournisseur, setEditingFournisseur] = useState(null);
-  const [selectedFournisseur, setSelectedFournisseur] = useState(null);
+  const [formData, setFormData] = useState(INITIAL_FORM_DATA);
   const [saving, setSaving] = useState(false);
-  
+
+  // ========== MODAL DÉTAILS ==========
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedFournisseur, setSelectedFournisseur] = useState(null);
+
+  // ========== MODAL SUPPRESSION ==========
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [fournisseurToDelete, setFournisseurToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
-  const [formData, setFormData] = useState({
-    nom: "",
-    telephone: "",
-    email: "",
-    ville: "",
-    pays: "",
-    numero_tva: "",
-  });
+  // ========== ERREUR ==========
+  const [error, setError] = useState(null);
 
-  // Vérifier si l'utilisateur peut gérer les fournisseurs
-  const canManage = user && ['admin', 'manager'].includes(user.role);
+  // ========== PERMISSIONS ==========
+  const canManage = user && ["admin", "manager"].includes(user.role);
 
-  // Fermer le dropdown quand on clique ailleurs
+  // ========== FERMER LE DROPDOWN AU CLIC EXTÉRIEUR ==========
   useEffect(() => {
-    const handleClickOutside = () => {
+    const handleClickOutside = (e) => {
+      if (
+        e.target.closest(".dropdown-trigger") ||
+        e.target.closest(".dropdown-menu")
+      ) {
+        return;
+      }
       setOpenDropdown(null);
     };
-    document.addEventListener('click', handleClickOutside);
+    document.addEventListener("click", handleClickOutside);
     return () => {
-      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener("click", handleClickOutside);
     };
   }, []);
 
-  // Charger les fournisseurs
+  // ========== FERMER LES MODALS AVEC ÉCHAP ==========
   useEffect(() => {
-    if (isAuthenticated && token) {
-      loadFournisseurs();
-    }
-  }, [isAuthenticated, token]);
+    const handleEscape = (e) => {
+      if (e.key === "Escape") {
+        if (showModal && !saving) setShowModal(false);
+        if (showDeleteModal && !deleting) setShowDeleteModal(false);
+        if (showDetailModal) setShowDetailModal(false);
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [showModal, saving, showDeleteModal, deleting, showDetailModal]);
 
-  const loadFournisseurs = async () => {
+  // ========== CHARGEMENT DES FOURNISSEURS ==========
+  const loadFournisseurs = useCallback(async () => {
+    if (!token) return;
+
     setLoading(true);
     setError(null);
     try {
@@ -96,62 +114,71 @@ const Fournisseurs = () => {
       if (response.success) {
         setFournisseurs(response.data || []);
       } else {
-        setError(response.message || 'Erreur lors du chargement des fournisseurs');
+        setError(response.message || "Erreur lors du chargement des fournisseurs");
       }
-    } catch (error) {
-      console.error('❌ LoadFournisseurs error:', error);
-      setError(error.message || 'Erreur lors du chargement des fournisseurs');
+    } catch (err) {
+      console.error("❌ LoadFournisseurs error:", err);
+      setError(err.message || "Erreur lors du chargement des fournisseurs");
     } finally {
       setLoading(false);
     }
+  }, [token]);
+
+  useEffect(() => {
+    if (isAuthenticated && token) {
+      loadFournisseurs();
+    }
+  }, [isAuthenticated, token, loadFournisseurs]);
+
+  // ========== FILTRAGE LOCAL ==========
+  const filteredFournisseurs = useMemo(() => {
+    if (!searchTerm) return fournisseurs;
+    const term = searchTerm.toLowerCase();
+    return fournisseurs.filter(
+      (f) =>
+        f.nom?.toLowerCase().includes(term) ||
+        f.email?.toLowerCase().includes(term) ||
+        f.telephone?.toLowerCase().includes(term) ||
+        f.ville?.toLowerCase().includes(term) ||
+        f.pays?.toLowerCase().includes(term)
+    );
+  }, [fournisseurs, searchTerm]);
+
+  // ========== PAGINATION ==========
+  const { currentItems, totalPages } = useMemo(() => {
+    const indexOfLastItem = currentPage * itemsPerPage;
+    const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+    return {
+      currentItems: filteredFournisseurs.slice(indexOfFirstItem, indexOfLastItem),
+      totalPages: Math.ceil(filteredFournisseurs.length / itemsPerPage),
+    };
+  }, [filteredFournisseurs, currentPage, itemsPerPage]);
+
+  // Reset page si elle dépasse le total
+  useEffect(() => {
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+  }, [totalPages, currentPage]);
+
+  // ========== TOGGLE DROPDOWN ==========
+  const toggleDropdown = (id) => {
+    setOpenDropdown((prev) => (prev === id ? null : id));
   };
 
-  // Filtrer les fournisseurs
-  const filteredFournisseurs = fournisseurs.filter((fournisseur) => {
-    const matchSearch = 
-      fournisseur.nom?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fournisseur.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fournisseur.telephone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fournisseur.ville?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      fournisseur.pays?.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchSearch;
-  });
-
-  // Pagination
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredFournisseurs.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredFournisseurs.length / itemsPerPage);
-
-  // Gestion du formulaire
+  // ========== HANDLERS FORMULAIRE ==========
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
+    setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Toggle dropdown
-  const toggleDropdown = (id) => {
-    setOpenDropdown(openDropdown === id ? null : id);
-  };
-
-  // Ouvrir le modal pour ajouter
   const handleAdd = () => {
     setEditingFournisseur(null);
-    setFormData({
-      nom: "",
-      telephone: "",
-      email: "",
-      ville: "",
-      pays: "",
-      numero_tva: "",
-    });
+    setFormData(INITIAL_FORM_DATA);
+    setError(null);
     setShowModal(true);
   };
 
-  // Ouvrir le modal pour éditer
   const handleEdit = (fournisseur) => {
     setEditingFournisseur(fournisseur);
     setFormData({
@@ -162,19 +189,20 @@ const Fournisseurs = () => {
       pays: fournisseur.pays || "",
       numero_tva: fournisseur.numero_tva || "",
     });
+    setError(null);
     setShowModal(true);
+    setOpenDropdown(null);
   };
 
-  // Voir les détails
   const handleView = (fournisseur) => {
     setSelectedFournisseur(fournisseur);
     setShowDetailModal(true);
+    setOpenDropdown(null);
   };
 
-  // Sauvegarder le fournisseur
   const handleSave = async () => {
     if (!formData.nom.trim()) {
-      alert("Veuillez saisir un nom de fournisseur");
+      setError("Veuillez saisir un nom de fournisseur");
       return;
     }
 
@@ -184,88 +212,84 @@ const Fournisseurs = () => {
     try {
       const data = {
         nom: formData.nom.trim(),
-        telephone: formData.telephone.trim() || null,
-        email: formData.email.trim() || null,
-        ville: formData.ville.trim() || null,
-        pays: formData.pays.trim() || null,
-        numero_tva: formData.numero_tva.trim() || null,
+        telephone: formData.telephone?.trim() || null,
+        email: formData.email?.trim() || null,
+        ville: formData.ville?.trim() || null,
+        pays: formData.pays?.trim() || null,
+        numero_tva: formData.numero_tva?.trim() || null,
       };
 
-      let response;
-      if (editingFournisseur) {
-        response = await FournisseurService.updateFournisseur(
-          token,
-          editingFournisseur.id_fournisseur,
-          data
-        );
-      } else {
-        response = await FournisseurService.createFournisseur(token, data);
-      }
+      const response = editingFournisseur
+        ? await FournisseurService.updateFournisseur(
+            token,
+            editingFournisseur.id_fournisseur,
+            data
+          )
+        : await FournisseurService.createFournisseur(token, data);
 
       if (response.success) {
         await loadFournisseurs();
         setShowModal(false);
         setEditingFournisseur(null);
-        setFormData({
-          nom: "",
-          telephone: "",
-          email: "",
-          ville: "",
-          pays: "",
-          numero_tva: "",
-        });
+        setFormData(INITIAL_FORM_DATA);
       } else {
-        setError(response.message || 'Erreur lors de la sauvegarde');
+        setError(response.message || "Erreur lors de la sauvegarde");
       }
-    } catch (error) {
-      console.error('❌ Save error:', error);
-      setError(error.message || 'Erreur lors de la sauvegarde');
+    } catch (err) {
+      console.error("❌ Save error:", err);
+      setError(err.message || "Erreur lors de la sauvegarde");
     } finally {
       setSaving(false);
     }
   };
 
-  // Activer/Désactiver un fournisseur
+  // ========== TOGGLE STATUT ==========
   const handleToggleStatus = async (fournisseur) => {
     if (!canManage || updatingStatus === fournisseur.id_fournisseur) return;
-    
+
     setUpdatingStatus(fournisseur.id_fournisseur);
     setError(null);
 
     try {
       let response;
       if (fournisseur.actif) {
-        response = await FournisseurService.deactivateFournisseur(token, fournisseur.id_fournisseur);
+        response = await FournisseurService.deactivateFournisseur(
+          token,
+          fournisseur.id_fournisseur
+        );
       } else {
-        response = await FournisseurService.activateFournisseur(token, fournisseur.id_fournisseur);
+        response = await FournisseurService.activateFournisseur(
+          token,
+          fournisseur.id_fournisseur
+        );
       }
-      
+
       if (response.success) {
-        // Mise à jour optimiste locale
-        setFournisseurs(prevFournisseurs => 
-          prevFournisseurs.map(f => 
-            f.id_fournisseur === fournisseur.id_fournisseur 
+        setFournisseurs((prev) =>
+          prev.map((f) =>
+            f.id_fournisseur === fournisseur.id_fournisseur
               ? { ...f, actif: !f.actif }
               : f
           )
         );
       } else {
-        setError(response.message || 'Erreur lors du changement de statut');
+        setError(response.message || "Erreur lors du changement de statut");
         await loadFournisseurs();
       }
-    } catch (error) {
-      console.error('❌ Toggle status error:', error);
-      setError(error.message || 'Erreur lors du changement de statut');
+    } catch (err) {
+      console.error("❌ Toggle status error:", err);
+      setError(err.message || "Erreur lors du changement de statut");
       await loadFournisseurs();
     } finally {
       setUpdatingStatus(null);
     }
   };
 
-  // Supprimer un fournisseur
+  // ========== SUPPRESSION ==========
   const confirmDelete = (fournisseur) => {
     setFournisseurToDelete(fournisseur);
     setShowDeleteModal(true);
+    setOpenDropdown(null);
   };
 
   const handleDelete = async () => {
@@ -285,164 +309,196 @@ const Fournisseurs = () => {
         setShowDeleteModal(false);
         setFournisseurToDelete(null);
       } else {
-        setError(response.message || 'Erreur lors de la suppression');
+        setError(response.message || "Erreur lors de la suppression");
       }
-    } catch (error) {
-      console.error('❌ Delete error:', error);
-      setError(error.message || 'Erreur lors de la suppression');
+    } catch (err) {
+      console.error("❌ Delete error:", err);
+      setError(err.message || "Erreur lors de la suppression");
     } finally {
       setDeleting(false);
     }
   };
 
-  // Exporter
+  // ========== EXPORT ==========
   const handleExport = async () => {
     try {
       const response = await FournisseurService.exportFournisseurs(token);
       if (response.success && response.data) {
-        // Créer un fichier CSV
-        const headers = ["ID", "Nom", "Téléphone", "Email", "Ville", "Pays", "TVA", "Actif"];
-        const rows = response.data.map(f => [
-          f.id,
+        const headers = ["N°", "Nom", "Téléphone", "Email", "Ville", "Pays", "TVA", "Actif"];
+        const rows = response.data.map((f, index) => [
+          (index + 1).toString().padStart(3, "0"),
           f.nom,
           f.telephone || "-",
           f.email || "-",
           f.ville || "-",
           f.pays || "-",
           f.numero_tva || "-",
-          f.actif ? "Oui" : "Non"
+          f.actif ? "Oui" : "Non",
         ]);
-        
+
         let csv = headers.join(",") + "\n";
-        rows.forEach(row => {
-          csv += row.map(cell => `"${cell}"`).join(",") + "\n";
+        rows.forEach((row) => {
+          csv += row.map((cell) => `"${cell}"`).join(",") + "\n";
         });
-        
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
         const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
+        const link = document.createElement("a");
         link.href = url;
-        link.download = `fournisseurs_${new Date().toISOString().split('T')[0]}.csv`;
+        link.download = `fournisseurs_${new Date().toISOString().split("T")[0]}.csv`;
         link.click();
         URL.revokeObjectURL(url);
       }
-    } catch (error) {
-      console.error('❌ Export error:', error);
-      alert('Erreur lors de l\'exportation');
+    } catch (err) {
+      console.error("❌ Export error:", err);
+      alert("Erreur lors de l'exportation");
     }
   };
 
-  // Recherche
-  const handleSearch = async (keyword) => {
+  // ========== RECHERCHE ==========
+  const handleSearch = (keyword) => {
     setSearchTerm(keyword);
     setCurrentPage(1);
-    
-    if (!keyword || keyword.length < 2) {
-      await loadFournisseurs();
-      return;
-    }
-
-    try {
-      const response = await FournisseurService.searchFournisseurs(token, keyword);
-      if (response.success) {
-        setFournisseurs(response.data || []);
-      }
-    } catch (error) {
-      console.error('❌ Search error:', error);
-    }
   };
 
-  // Statistiques
-  const getStats = () => {
-    const total = fournisseurs.length;
-    const actifs = fournisseurs.filter(f => f.actif === 1 || f.actif === true).length;
-    const inactifs = fournisseurs.filter(f => f.actif === 0 || f.actif === false).length;
-    
-    const paysSet = new Set();
-    fournisseurs.forEach(f => {
-      if (f.pays) paysSet.add(f.pays);
-    });
-    
-    const villesSet = new Set();
-    fournisseurs.forEach(f => {
-      if (f.ville) villesSet.add(f.ville);
-    });
-    
-    return { total, actifs, inactifs, pays: paysSet.size, villes: villesSet.size };
+  // ========== BADGE DE STATUT ==========
+  const renderStatusBadge = (fournisseur) => (
+    <span
+      className={`status-badge ${
+        fournisseur.actif ? "active" : "inactive"
+      } ${updatingStatus === fournisseur.id_fournisseur ? "updating" : ""}`}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (canManage) handleToggleStatus(fournisseur);
+      }}
+      style={{ cursor: canManage ? "pointer" : "default" }}
+    >
+      {updatingStatus === fournisseur.id_fournisseur ? (
+        <span className="spinner-small"></span>
+      ) : fournisseur.actif ? (
+        "Actif"
+      ) : (
+        "Inactif"
+      )}
+    </span>
+  );
+
+  // ========== MENU DROPDOWN (UNIFIÉ) ==========
+  const renderDropdown = (fournisseur, keyPrefix = "") => {
+    const key = `${keyPrefix}${fournisseur.id_fournisseur}`;
+    const isOpen = openDropdown === key;
+
+    return (
+      <div className="dropdown-container">
+        <button
+          type="button"
+          className="dropdown-trigger"
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleDropdown(key);
+          }}
+          title="Actions"
+          aria-label="Actions"
+          aria-expanded={isOpen}
+          aria-haspopup="menu"
+        >
+          <MoreVertical size={18} />
+        </button>
+
+        {isOpen && (
+          <div
+            className="dropdown-menu"
+            role="menu"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              className="dropdown-item"
+              role="menuitem"
+              onClick={() => handleView(fournisseur)}
+            >
+              <Eye size={16} />
+              <span>Voir</span>
+            </button>
+
+            {canManage && (
+              <>
+                <button
+                  type="button"
+                  className="dropdown-item"
+                  role="menuitem"
+                  onClick={() => {
+                    handleToggleStatus(fournisseur);
+                    setOpenDropdown(null);
+                  }}
+                  disabled={updatingStatus === fournisseur.id_fournisseur}
+                >
+                  {updatingStatus === fournisseur.id_fournisseur ? (
+                    <span className="spinner-small"></span>
+                  ) : fournisseur.actif ? (
+                    <ToggleLeft size={16} color="#64748B" />
+                  ) : (
+                    <ToggleRight size={16} color="#16A34A" />
+                  )}
+                  <span>{fournisseur.actif ? "Désactiver" : "Activer"}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className="dropdown-item"
+                  role="menuitem"
+                  onClick={() => handleEdit(fournisseur)}
+                >
+                  <Edit size={16} />
+                  <span>Modifier</span>
+                </button>
+
+                <hr className="dropdown-divider" />
+                <button
+                  type="button"
+                  className="dropdown-item danger"
+                  role="menuitem"
+                  onClick={() => confirmDelete(fournisseur)}
+                >
+                  <Trash2 size={16} />
+                  <span>Supprimer</span>
+                </button>
+              </>
+            )}
+
+            {!canManage && (
+              <div className="dropdown-empty">Aucune action disponible</div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
-  const stats = getStats();
-
-  // Rendu des étoiles
-  const renderStars = (note = 3) => {
-    const stars = [];
-    for (let i = 1; i <= 5; i++) {
-      if (i <= note) {
-        stars.push(<Star key={i} size={16} className="star-filled" />);
-      } else {
-        stars.push(<StarOff key={i} size={16} className="star-empty" />);
-      }
-    }
-    return <div className="stars">{stars}</div>;
-  };
-
-  // Rendu vue grille
+  // ========== VUE GRILLE ==========
   const renderGridView = () => (
     <div className="fournisseurs-grid">
       {currentItems.length === 0 ? (
-        <div className="empty-state">
-          <Building size={48} className="empty-icon" />
+        <div className="empty-state-full">
+          <Building size={48} />
           <p>Aucun fournisseur trouvé</p>
+          <span>Essayez de modifier votre recherche</span>
         </div>
       ) : (
-        currentItems.map((fournisseur) => (
+        currentItems.map((fournisseur, index) => (
           <div key={fournisseur.id_fournisseur} className="fournisseur-card">
             <div className="fournisseur-card-header">
               <div className="fournisseur-avatar">
-                <span>{fournisseur.nom?.charAt(0).toUpperCase() || 'F'}</span>
+                <span>{fournisseur.nom?.charAt(0).toUpperCase() || "F"}</span>
               </div>
-              <div className="fournisseur-card-actions">
-                <button
-                  className="action-btn btn-view"
-                  onClick={() => handleView(fournisseur)}
-                  title="Voir les détails"
-                >
-                  <Eye size={16} />
-                </button>
-                {canManage && (
-                  <>
-                    <button
-                      className={`action-btn btn-status ${updatingStatus === fournisseur.id_fournisseur ? 'loading' : ''}`}
-                      onClick={() => handleToggleStatus(fournisseur)}
-                      title={fournisseur.actif ? 'Désactiver' : 'Activer'}
-                      disabled={updatingStatus === fournisseur.id_fournisseur}
-                    >
-                      {updatingStatus === fournisseur.id_fournisseur ? (
-                        <span className="spinner-small"></span>
-                      ) : fournisseur.actif ? (
-                        <ToggleRight size={18} color="#22c55e" />
-                      ) : (
-                        <ToggleLeft size={18} color="#6b7280" />
-                      )}
-                    </button>
-                    <button
-                      className="action-btn btn-edit"
-                      onClick={() => handleEdit(fournisseur)}
-                      title="Modifier"
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button
-                      className="action-btn btn-delete"
-                      onClick={() => confirmDelete(fournisseur)}
-                      title="Supprimer"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </>
-                )}
+              <div className="fournisseur-actions">
+                <span className="fournisseur-index-badge">
+                  {(currentPage - 1) * itemsPerPage + index + 1}
+                </span>
+                {canManage && renderDropdown(fournisseur, "grid-")}
               </div>
             </div>
+
             <div className="fournisseur-card-body">
               <h3 className="fournisseur-name">{fournisseur.nom}</h3>
               <div className="fournisseur-contact">
@@ -477,13 +533,17 @@ const Fournisseurs = () => {
                   </span>
                 )}
               </div>
+              <div className="fournisseur-status">
+                {renderStatusBadge(fournisseur)}
+              </div>
             </div>
+
             <div className="fournisseur-card-footer">
-              <span className={`status-badge ${fournisseur.actif ? 'active' : 'inactive'}`}>
-                {fournisseur.actif ? 'Actif' : 'Inactif'}
-              </span>
               <span className="fournisseur-date">
-                {fournisseur.date_creation ? new Date(fournisseur.date_creation).toLocaleDateString('fr-FR') : '-'}
+                Créé le{" "}
+                {fournisseur.date_creation
+                  ? new Date(fournisseur.date_creation).toLocaleDateString("fr-FR")
+                  : "N/A"}
               </span>
             </div>
           </div>
@@ -492,13 +552,13 @@ const Fournisseurs = () => {
     </div>
   );
 
-  // Rendu vue liste avec menu à trois points
+  // ========== VUE LISTE ==========
   const renderListView = () => (
     <div className="fournisseurs-table-container">
       <table className="fournisseurs-table">
         <thead>
           <tr>
-            <th>ID</th>
+            <th className="num-col">N°</th>
             <th>Nom</th>
             <th>Téléphone</th>
             <th>Email</th>
@@ -516,103 +576,26 @@ const Fournisseurs = () => {
               </td>
             </tr>
           ) : (
-            currentItems.map((fournisseur) => (
+            currentItems.map((fournisseur, index) => (
               <tr key={fournisseur.id_fournisseur}>
-                <td className="id-cell">#{fournisseur.id_fournisseur}</td>
+                <td className="num-cell">
+                  {(currentPage - 1) * itemsPerPage + index + 1}
+                </td>
                 <td className="name-cell">
-                  <div className="fournisseur-name-cell">
-                    <Building size={16} />
+                  <div className="fournisseur-name-with-avatar">
+                    <span className="fournisseur-avatar-small">
+                      {fournisseur.nom?.charAt(0).toUpperCase() || "F"}
+                    </span>
                     <span>{fournisseur.nom}</span>
                   </div>
                 </td>
-                <td>{fournisseur.telephone || '-'}</td>
-                <td>{fournisseur.email || '-'}</td>
-                <td>{fournisseur.ville || '-'}</td>
-                <td>{fournisseur.pays || '-'}</td>
-                <td>
-                  <span 
-                    className={`status-badge ${fournisseur.actif ? 'active' : 'inactive'}`}
-                    style={{ cursor: canManage ? 'pointer' : 'default' }}
-                    onClick={() => {
-                      if (canManage) handleToggleStatus(fournisseur);
-                    }}
-                  >
-                    {fournisseur.actif ? 'Actif' : 'Inactif'}
-                  </span>
-                </td>
+                <td>{fournisseur.telephone || "-"}</td>
+                <td>{fournisseur.email || "-"}</td>
+                <td>{fournisseur.ville || "-"}</td>
+                <td>{fournisseur.pays || "-"}</td>
+                <td>{renderStatusBadge(fournisseur)}</td>
                 <td className="actions-cell">
-                  <div className="">
-                    <button
-                      className="dropdown-trigger"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleDropdown(fournisseur.id_fournisseur);
-                      }}
-                      title="Actions"
-                    >
-                      <MoreVertical size={18} />
-                    </button>
-                    
-                    {openDropdown === fournisseur.id_fournisseur && (
-                      <div className="dropdown-menu" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          className="dropdown-item"
-                          onClick={() => {
-                            handleView(fournisseur);
-                            setOpenDropdown(null);
-                          }}
-                        >
-                          <Eye size={16} />
-                          <span>Voir</span>
-                        </button>
-                        {canManage && (
-                          <>
-                            <button
-                              className="dropdown-item"
-                              onClick={() => {
-                                handleToggleStatus(fournisseur);
-                                setOpenDropdown(null);
-                              }}
-                              disabled={updatingStatus === fournisseur.id_fournisseur}
-                            >
-                              {fournisseur.actif ? (
-                                <>
-                                  <ToggleLeft size={16} />
-                                  <span>Désactiver</span>
-                                </>
-                              ) : (
-                                <>
-                                  <ToggleRight size={16} />
-                                  <span>Activer</span>
-                                </>
-                              )}
-                            </button>
-                            <button
-                              className="dropdown-item"
-                              onClick={() => {
-                                handleEdit(fournisseur);
-                                setOpenDropdown(null);
-                              }}
-                            >
-                              <Edit size={16} />
-                              <span>Modifier</span>
-                            </button>
-                            <hr className="dropdown-divider" />
-                            <button
-                              className="dropdown-item danger"
-                              onClick={() => {
-                                confirmDelete(fournisseur);
-                                setOpenDropdown(null);
-                              }}
-                            >
-                              <Trash2 size={16} />
-                              <span>Supprimer</span>
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  {renderDropdown(fournisseur, "list-")}
                 </td>
               </tr>
             ))
@@ -622,7 +605,7 @@ const Fournisseurs = () => {
     </div>
   );
 
-  // Loader
+  // ========== LOADER ==========
   const LoaderComponent = () => (
     <div className="loading-container">
       <div className="spinner"></div>
@@ -630,6 +613,7 @@ const Fournisseurs = () => {
     </div>
   );
 
+  // ========== RENDER ==========
   return (
     <div className="fournisseurs-container">
       {/* En-tête */}
@@ -637,7 +621,7 @@ const Fournisseurs = () => {
         <div>
           <h1 className="fournisseurs-title">Gestion des Fournisseurs</h1>
           <p className="fournisseurs-subtitle">
-            {stats.total} fournisseurs au total
+            {fournisseurs.length} fournisseurs au total
           </p>
         </div>
         <div className="fournisseurs-actions">
@@ -651,65 +635,15 @@ const Fournisseurs = () => {
             <Download size={18} />
             <span>Exporter</span>
           </button>
-          <button 
-            className="btn btn-secondary" 
-            onClick={loadFournisseurs} 
+          <button
+            className="btn btn-secondary"
+            onClick={loadFournisseurs}
             title="Rafraîchir"
             disabled={loading}
           >
-            <RefreshCw size={18} className={loading ? 'spinning' : ''} />
+            <RefreshCw size={18} className={loading ? "spinning" : ""} />
           </button>
         </div>
-      </div>
-
-      {/* Statistiques */}
-      <div className="fournisseurs-stats">
-        <div className="stat-card">
-          <div className="stat-icon total">
-            <Building size={20} />
-          </div>
-          <div className="stat-info">
-            <span className="stat-label">Total</span>
-            <span className="stat-value">{stats.total}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon active">
-            <Check size={20} />
-          </div>
-          <div className="stat-info">
-            <span className="stat-label">Actifs</span>
-            <span className="stat-value">{stats.actifs}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon inactive">
-            <X size={20} />
-          </div>
-          <div className="stat-info">
-            <span className="stat-label">Inactifs</span>
-            <span className="stat-value">{stats.inactifs}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon orders">
-            <Globe size={20} />
-          </div>
-          <div className="stat-info">
-            <span className="stat-label">Pays</span>
-            <span className="stat-value">{stats.pays}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon amount">
-            <MapPin size={20} />
-          </div>
-          <div className="stat-info">
-            <span className="stat-label">Villes</span>
-            <span className="stat-value">{stats.villes}</span>
-          </div>
-        </div>
-
       </div>
 
       {/* Filtres et recherche */}
@@ -724,9 +658,11 @@ const Fournisseurs = () => {
             className="search-input"
           />
           {searchTerm && (
-            <button 
+            <button
+              type="button"
               className="search-clear"
-              onClick={() => handleSearch('')}
+              onClick={() => handleSearch("")}
+              aria-label="Effacer la recherche"
             >
               <X size={16} />
             </button>
@@ -734,15 +670,17 @@ const Fournisseurs = () => {
         </div>
         <div className="view-toggle">
           <button
-            className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
-            onClick={() => setViewMode('grid')}
+            type="button"
+            className={`view-btn ${viewMode === "grid" ? "active" : ""}`}
+            onClick={() => setViewMode("grid")}
             title="Vue grille"
           >
             <Grid size={18} />
           </button>
           <button
-            className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
-            onClick={() => setViewMode('list')}
+            type="button"
+            className={`view-btn ${viewMode === "list" ? "active" : ""}`}
+            onClick={() => setViewMode("list")}
             title="Vue liste"
           >
             <List size={18} />
@@ -765,17 +703,16 @@ const Fournisseurs = () => {
 
       {/* Contenu */}
       {!loading && !error && (
-        <>
-          {viewMode === 'grid' ? renderGridView() : renderListView()}
-        </>
+        <>{viewMode === "grid" ? renderGridView() : renderListView()}</>
       )}
 
       {/* Pagination */}
       {!loading && !error && filteredFournisseurs.length > itemsPerPage && (
         <div className="fournisseurs-pagination">
           <button
+            type="button"
             className="pagination-btn"
-            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
           >
             <ChevronLeft size={18} />
@@ -784,8 +721,11 @@ const Fournisseurs = () => {
             Page {currentPage} sur {totalPages}
           </span>
           <button
+            type="button"
             className="pagination-btn"
-            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            onClick={() =>
+              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+            }
             disabled={currentPage === totalPages}
           >
             <ChevronRight size={18} />
@@ -795,11 +735,20 @@ const Fournisseurs = () => {
 
       {/* Modal d'ajout/édition */}
       {showModal && (
-        <div className="modal-overlay" >
+        <div className="modal-overlay">
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h2>{editingFournisseur ? "Modifier le fournisseur" : "Ajouter un fournisseur"}</h2>
-              <button className="modal-close" onClick={() => !saving && setShowModal(false)}>
+              <h2>
+                {editingFournisseur
+                  ? "Modifier le fournisseur"
+                  : "Ajouter un fournisseur"}
+              </h2>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => !saving && setShowModal(false)}
+                aria-label="Fermer"
+              >
                 <X size={24} />
               </button>
             </div>
@@ -818,6 +767,7 @@ const Fournisseurs = () => {
                   onChange={handleInputChange}
                   placeholder="Entrez le nom du fournisseur"
                   disabled={saving}
+                  maxLength={100}
                 />
               </div>
               <div className="form-row">
@@ -881,17 +831,19 @@ const Fournisseurs = () => {
               </div>
             </div>
             <div className="modal-footer">
-              <button 
-                className="btn btn-secondary" 
+              <button
+                type="button"
+                className="btn btn-secondary"
                 onClick={() => setShowModal(false)}
                 disabled={saving}
               >
                 Annuler
               </button>
-              <button 
-                className="btn btn-primary" 
+              <button
+                type="button"
+                className="btn btn-primary"
                 onClick={handleSave}
-                disabled={saving}
+                disabled={saving || !formData.nom.trim()}
               >
                 {saving ? (
                   <>
@@ -913,10 +865,18 @@ const Fournisseurs = () => {
       {/* Modal de détails */}
       {showDetailModal && selectedFournisseur && (
         <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="modal-content large"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="modal-header">
               <h2>Détails du fournisseur</h2>
-              <button className="modal-close" onClick={() => setShowDetailModal(false)}>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => setShowDetailModal(false)}
+                aria-label="Fermer"
+              >
                 <X size={24} />
               </button>
             </div>
@@ -924,23 +884,28 @@ const Fournisseurs = () => {
               <div className="detail-header">
                 <div className="detail-header-left">
                   <div className="detail-avatar">
-                    <span style={{ fontSize: 24, fontWeight: 'bold' }}>
-                      {selectedFournisseur.nom?.charAt(0).toUpperCase() || 'F'}
+                    <span style={{ fontSize: 24, fontWeight: "bold" }}>
+                      {selectedFournisseur.nom?.charAt(0).toUpperCase() || "F"}
                     </span>
                   </div>
                   <div>
                     <h3 className="detail-nom">{selectedFournisseur.nom}</h3>
-                    <span className={`status-badge ${selectedFournisseur.actif ? 'active' : 'inactive'}`}>
-                      {selectedFournisseur.actif ? 'Actif' : 'Inactif'}
+                    <span
+                      className={`status-badge ${
+                        selectedFournisseur.actif ? "active" : "inactive"
+                      }`}
+                    >
+                      {selectedFournisseur.actif ? "Actif" : "Inactif"}
                     </span>
                   </div>
                 </div>
                 <div className="detail-header-right">
                   <span className="detail-date">
-                    {selectedFournisseur.date_creation ? 
-                      `Créé le ${new Date(selectedFournisseur.date_creation).toLocaleDateString('fr-FR')}` : 
-                      '-'
-                    }
+                    {selectedFournisseur.date_creation
+                      ? `Créé le ${new Date(
+                          selectedFournisseur.date_creation
+                        ).toLocaleDateString("fr-FR")}`
+                      : "-"}
                   </span>
                 </div>
               </div>
@@ -954,7 +919,7 @@ const Fournisseurs = () => {
                   </div>
                   <div className="detail-item">
                     <label>Numéro TVA</label>
-                    <span>{selectedFournisseur.numero_tva || '-'}</span>
+                    <span>{selectedFournisseur.numero_tva || "-"}</span>
                   </div>
                 </div>
 
@@ -962,32 +927,34 @@ const Fournisseurs = () => {
                   <h4>Coordonnées</h4>
                   <div className="detail-item">
                     <label>Email</label>
-                    <span>{selectedFournisseur.email || '-'}</span>
+                    <span>{selectedFournisseur.email || "-"}</span>
                   </div>
                   <div className="detail-item">
                     <label>Téléphone</label>
-                    <span>{selectedFournisseur.telephone || '-'}</span>
+                    <span>{selectedFournisseur.telephone || "-"}</span>
                   </div>
                   <div className="detail-item">
                     <label>Ville</label>
-                    <span>{selectedFournisseur.ville || '-'}</span>
+                    <span>{selectedFournisseur.ville || "-"}</span>
                   </div>
                   <div className="detail-item">
                     <label>Pays</label>
-                    <span>{selectedFournisseur.pays || '-'}</span>
+                    <span>{selectedFournisseur.pays || "-"}</span>
                   </div>
                 </div>
               </div>
             </div>
             <div className="modal-footer">
-              <button 
-                className="btn btn-secondary" 
+              <button
+                type="button"
+                className="btn btn-secondary"
                 onClick={() => setShowDetailModal(false)}
               >
                 Fermer
               </button>
               {canManage && (
-                <button 
+                <button
+                  type="button"
                   className="btn btn-primary"
                   onClick={() => {
                     setShowDetailModal(false);
@@ -1005,11 +972,22 @@ const Fournisseurs = () => {
 
       {/* Modal de confirmation de suppression */}
       {showDeleteModal && (
-        <div className="modal-overlay" onClick={() => !deleting && setShowDeleteModal(false)}>
-          <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="modal-overlay"
+          onClick={() => !deleting && setShowDeleteModal(false)}
+        >
+          <div
+            className="modal-content delete-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="modal-header">
               <h2>Confirmer la suppression</h2>
-              <button className="modal-close" onClick={() => !deleting && setShowDeleteModal(false)}>
+              <button
+                type="button"
+                className="modal-close"
+                onClick={() => !deleting && setShowDeleteModal(false)}
+                aria-label="Fermer"
+              >
                 <X size={24} />
               </button>
             </div>
@@ -1018,17 +996,20 @@ const Fournisseurs = () => {
               <p className="delete-item-name">
                 <strong>"{fournisseurToDelete?.nom}"</strong>
               </p>
+              <p className="delete-warning">Cette action est irréversible.</p>
             </div>
             <div className="modal-footer">
-              <button 
-                className="btn btn-secondary" 
+              <button
+                type="button"
+                className="btn btn-secondary"
                 onClick={() => setShowDeleteModal(false)}
                 disabled={deleting}
               >
                 Annuler
               </button>
-              <button 
-                className="btn btn-danger" 
+              <button
+                type="button"
+                className="btn btn-danger"
                 onClick={handleDelete}
                 disabled={deleting}
               >

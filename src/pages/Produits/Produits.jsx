@@ -5,7 +5,7 @@ import {
   Plus, Search, Edit, Trash2, ChevronLeft, ChevronRight, Download, X, Grid, List,
   RefreshCw, Package, Save, AlertCircle, CheckCircle, Box, Tag, Filter, Building,
   Eye, MoreVertical, Layers, AlertTriangle, Info, Check, MapPin, Banknote,
-} from "lucide-react";
+} from "lucide-react"; 
 import ProduitService from "../../services/produitService";
 import UniteVenteService from "../../services/uniteVenteService";
 import CategorieService from "../../services/categorieService";
@@ -19,7 +19,7 @@ import StockSelector from "../../components/StockSelector/StockSelector";
 import StockInputWithSelector from "../../components/StockSelector/StockInputWithSelector";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
 import "./Produits.css";
-
+import { useDisableNumberScroll } from "../../hooks/useDisableNumberScroll";
 /* ============================================================
    CONSTANTES & UTILITAIRES
    ============================================================ */
@@ -125,6 +125,8 @@ const ActionsMenu = ({ menu, produit, canManage, onView, onEdit, onDelete, onClo
 const Produits = () => {
   const { user, isAuthenticated } = useUser();
   const token = localStorage.getItem("token");
+    useDisableNumberScroll(true);
+
 
   // ---------- Données ----------
   const [produits, setProduits] = useState([]);
@@ -364,7 +366,7 @@ const Produits = () => {
     setUnitesVente((prev) => [
       ...prev,
       {
-        id_unite_vente: null, nom: "", quantite_base: 1, prix_vente: 0, prix_achat: 0,
+        id_unite_vente: null, nom: "", quantite_base: "", prix_vente: "", prix_achat: "",
         est_principal: prev.filter((u) => !u.isDeleted).length === 0, isNew: true, isDeleted: false,
       },
     ]);
