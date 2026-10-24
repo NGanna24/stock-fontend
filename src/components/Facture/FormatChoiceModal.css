@@ -1,0 +1,245 @@
+/* components/Facture/FormatChoiceModal.css */
+
+.fcm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.fcm-modal {
+  background: #fff;
+  border-radius: 16px;
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+/* ---------- Header ---------- */
+.fcm-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.fcm-header-text { min-width: 0; }
+
+.fcm-header h2 {
+  margin: 0 0 4px;
+  font-size: 20px;
+  color: #0f172a;
+  font-family: inherit;
+}
+
+.fcm-sub {
+  margin: 0;
+  font-size: 13.5px;
+  color: #64748b;
+}
+
+.fcm-sub strong {
+  color: #334155;
+  font-family: monospace;
+  font-size: 13px;
+}
+
+.fcm-close {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s, color 0.15s;
+}
+
+.fcm-close:hover:not(:disabled) {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.fcm-close:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ---------- Body ---------- */
+.fcm-body {
+  padding: 20px 24px 24px;
+}
+
+.fcm-question {
+  margin: 0 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+}
+
+.fcm-error {
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  border-radius: 8px;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ---------- Cartes de choix ---------- */
+.fcm-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.fcm-choice {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px 14px 16px;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+  color: #334155;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+  text-align: center;
+  min-height: 180px;
+}
+
+.fcm-choice:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
+}
+
+.fcm-choice:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Couleur ticket (orange brûlé Miyo) */
+.fcm-choice--ticket:hover:not(:disabled) {
+  border-color: #C2410C;
+  background: #fff7ed;
+  color: #C2410C;
+}
+
+.fcm-choice--ticket:hover:not(:disabled) .fcm-choice-icon {
+  color: #C2410C;
+}
+
+/* Couleur A4 (bleu) */
+.fcm-choice--a4:hover:not(:disabled) {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+.fcm-choice--a4:hover:not(:disabled) .fcm-choice-icon {
+  color: #2563eb;
+}
+
+/* Icône principale */
+.fcm-choice-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #64748b;
+  margin-bottom: 4px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.fcm-choice--ticket:hover:not(:disabled) .fcm-choice-icon {
+  background: #ffedd5;
+}
+
+.fcm-choice--a4:hover:not(:disabled) .fcm-choice-icon {
+  background: #dbeafe;
+}
+
+.fcm-choice-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.fcm-choice--ticket:hover:not(:disabled) .fcm-choice-title {
+  color: #C2410C;
+}
+
+.fcm-choice--a4:hover:not(:disabled) .fcm-choice-title {
+  color: #2563eb;
+}
+
+.fcm-choice-sub {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.fcm-choice-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.fcm-choice:hover:not(:disabled) .fcm-choice-action {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.fcm-choice--ticket:hover:not(:disabled) .fcm-choice-action {
+  background: #C2410C;
+  color: #fff;
+}
+
+.fcm-choice--a4:hover:not(:disabled) .fcm-choice-action {
+  background: #2563eb;
+  color: #fff;
+}
+
+.fcm-spin {
+  animation: fcm-spin 0.8s linear infinite;
+}
+
+@keyframes fcm-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 480px) {
+  .fcm-choices {
+    grid-template-columns: 1fr;
+  }
+  .fcm-choice {
+    min-height: 140px;
+  }
+}

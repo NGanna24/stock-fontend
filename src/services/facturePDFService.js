@@ -2,6 +2,8 @@
 import React from 'react';
 import { pdf } from '@react-pdf/renderer';
 import FacturePDF from '../components/Facture/FacturePDF';
+import FactureTicketPDF from '../components/Facture/FactureTicketPDF';
+
 
 const PRINTER_STORAGE_KEY = 'printer_facture';
 
@@ -267,6 +269,65 @@ class FacturePDFService {
             throw new Error(error?.message || "Erreur lors de l'aperçu du PDF");
         }
     }
+
+
+       // ============================================================
+    // TICKET (80mm — impression thermique)
+    // ============================================================
+    static async _generateTicketBlob(factureData) {
+        if (!factureData) throw new Error('Aucune donnée de facture fournie');
+        const doc = React.createElement(FactureTicketPDF, { data: factureData });
+        return await pdf(doc).toBlob();
+    }
+
+    /**
+     * Impression DIRECTE du ticket 80mm (Electron uniquement).
+     * Si Electron n'est pas dispo → téléchargement du ticket.
+     */
+    static async printTicket(factureData) {
+        try {
+            // ─── Electron : impression directe ───
+            if (this._hasElectronPrint()) {
+                const blob = await this._generateTicketBlob(factureData);
+                const buffer = await blob.arrayBuffer();
+                const res = await window.electronAPI.printPdf(buffer, {
+                    printer: this.getSelectedPrinter() || undefined,
+                    pageSize: { width: 80 * 2.83465, height: 'auto' }, // 80mm
+                    margins: { top: 0, bottom: 0, left: 0, right: 0 },
+                    scale: 'fit',
+                });
+                if (!res?.success) throw new Error(res?.error || "Échec de l'impression");
+                return { success: true, fallback: !!res.fallback };
+            }
+
+            // ─── Fallback : téléchargement ───
+            await this.downloadTicketPDF(factureData);
+            return { success: true, fallback: true, reason: 'no-electron' };
+        } catch (error) {
+            console.error('❌ printTicket error:', error);
+            throw new Error(error?.message || "Erreur lors de l'impression du ticket");
+        }
+    }
+
+    /** Télécharger le ticket en PDF */
+    static async downloadTicketPDF(factureData) {
+        try {
+            const blob = await this._generateTicketBlob(factureData);
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `Ticket_${factureData?.numero_facture || 'sans-numero'}.pdf`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+            return { success: true };
+        } catch (error) {
+            console.error('❌ downloadTicketPDF error:', error);
+            throw new Error('Erreur lors du téléchargement du ticket');
+        }
+    }
 }
 
 export default FacturePDFService;
+ 

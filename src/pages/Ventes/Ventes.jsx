@@ -14,8 +14,8 @@ import UniteVenteService from "../../services/uniteVenteService";
 import MagasinService from "../../services/magasinService";
 import FacturePDFService from "../../services/facturePDFService";
 import { useUser } from "../../context/AuthContext";
-import FacturePDFActions from "../../components/Facture/FacturePDFActions";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
+import FormatChoiceModal from '../../components/Facture/FormatChoiceModal';
 
 import "./Ventes.css";
 
@@ -43,7 +43,6 @@ const formatDateFR = (date) => {
   }
 };
 
-// Accepte "12,5" et "12.5" — retourne NaN si vide
 const toNum = (v) => {
   if (v === "" || v === null || v === undefined) return NaN;
   return parseFloat(String(v).replace(",", "."));
@@ -51,29 +50,19 @@ const toNum = (v) => {
 const DECIMAL_RE = /^\d*[.,]?\d*$/;
 
 // ============================================================
-// ✅ HELPERS DE PAIEMENT (alignés sur Factures.jsx)
+// HELPERS DE PAIEMENT
 // ============================================================
-
-/**
- * Retourne le montant payé d'une commande/facture.
- * Priorité : somme des paiements détaillés > total_paye (backend).
- */
 const getMontantPaye = (commande) => {
   if (!commande) return 0;
-  // 1. Si des paiements détaillés sont présents, on les somme
   if (Array.isArray(commande.paiements) && commande.paiements.length > 0) {
     return commande.paiements.reduce(
       (sum, p) => sum + (parseFloat(p.montant) || 0),
       0
     );
   }
-  // 2. Sinon on utilise total_paye (calculé par le backend)
   return parseFloat(commande.total_paye) || 0;
 };
 
-/**
- * Retourne le reste à payer d'une commande/facture.
- */
 const getResteAPayer = (commande) => {
   if (!commande) return 0;
   const total = parseFloat(commande.montant_total) || 0;
@@ -81,7 +70,6 @@ const getResteAPayer = (commande) => {
   return Math.max(0, total - paye);
 };
 
-// ---------- Logique de paiement centralisée ----------
 const isFacturePayee = (commande) => {
   if (!commande) return false;
   if (commande.statut_facture === "payee") return true;
@@ -114,7 +102,7 @@ const paiementInfo = (c) => {
     key = "partiellement_payee";
   }
   const montant = parseFloat(c.montant_total) || 0;
-  const paye = getMontantPaye(c);   // ✅ utilise paiements ou total_paye
+  const paye = getMontantPaye(c);
   const ratio = key === "payee" ? 1 : montant > 0 ? Math.min(1, paye / montant) : 0;
   let label = PAIEMENT_LABELS[key] || PAIEMENT_LABELS.en_attente;
   if (key === "partiellement_payee" && ratio > 0) label = `${label}${NBSP}${Math.round(ratio * 100)}${NBSP}%`;
@@ -141,7 +129,7 @@ const MODES_PAIEMENT = [
 ];
 
 // ============================================================
-// VERROU DE SCROLL (sans décalage de mise en page)
+// VERROU DE SCROLL
 // ============================================================
 let lockDepth = 0;
 const lockScroll = () => {
@@ -455,6 +443,8 @@ const Ventes = () => {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showFactureModal, setShowFactureModal] = useState(false);
+  const [showFormatChoice, setShowFormatChoice] = useState(false);
+  const [formatChoiceAction, setFormatChoiceAction] = useState(null);
   const [selectedCommande, setSelectedCommande] = useState(null);
   const [commandeToDelete, setCommandeToDelete] = useState(null);
   const [commandeEnCours, setCommandeEnCours] = useState(null);
@@ -507,6 +497,19 @@ const Ventes = () => {
   const [paiementData, setPaiementData] = useState({ mode_paiement: "especes", montant: "" });
 
   const canManage = !!user && ["admin", "manager", "caissier"].includes(user.role);
+
+  // ============================================================
+  // HELPERS FORMAT
+  // ============================================================
+  const openFormatChoice = (action) => {
+    setFormatChoiceAction(action);
+    setShowFormatChoice(true);
+  };
+
+  const closeFormatChoice = () => {
+    setShowFormatChoice(false);
+    setFormatChoiceAction(null);
+  };
 
   // ============================================================
   // EFFETS
@@ -917,6 +920,7 @@ const Ventes = () => {
       showAlert("Client manquant", "Veuillez saisir le nom du client.");
       return;
     }
+
     if (!formData.telephone.trim()) {
       showAlert("Téléphone manquant", "Veuillez saisir le numéro de téléphone du client.");
       return;
@@ -979,12 +983,16 @@ const Ventes = () => {
         numero_commande: c.numero_commande,
         id_commande: c.id_commande,
         magasin,
+        utilisateur_nom: user?.fullname || user?.nom || "",
       };
 
       setFactureGeneree(facture);
       setCommandeEnCours(commande);
       setShowModal(false);
       setShowFactureModal(true);
+
+      loadCommandes();
+      loadProduits();
     } catch (err) {
       console.error("Finaliser error:", err);
       setError(err.message || "Erreur lors de la finalisation");
@@ -995,7 +1003,7 @@ const Ventes = () => {
   };
 
   // ============================================================
-  // ✅ PAIEMENT — corrigé pour propager la mise à jour partout
+  // PAIEMENT
   // ============================================================
   const handlePayer = async () => {
     if (!commandeEnCours || !factureGeneree) {
@@ -1043,7 +1051,6 @@ const Ventes = () => {
         throw new Error(paiementResponse.message || "Erreur lors du paiement");
       }
 
-      // ✅ Récupérer l'état FRAIS de la commande
       const completeRes = await CommandeVenteService.getCommandeById(token, commandeEnCours.id_commande);
 
       let nouveauTotalPaye = 0;
@@ -1058,7 +1065,6 @@ const Ventes = () => {
         nouveauStatutFacture = donneesFraiches.statut_facture || "en_attente";
         nouveauReste = Math.max(0, nouveauMontantTotal - nouveauTotalPaye);
 
-        // 1) Mettre à jour la facture affichée dans le modal
         setFactureGeneree((prev) => ({
           ...prev,
           statut: nouveauStatutFacture,
@@ -1069,7 +1075,6 @@ const Ventes = () => {
           magasin,
         }));
 
-        // 2) ✅ Mettre à jour la commande sélectionnée (modale détail)
         setSelectedCommande((prev) =>
           prev && prev.id_commande === donneesFraiches.id_commande
             ? {
@@ -1082,7 +1087,6 @@ const Ventes = () => {
             : prev
         );
 
-        // 3) ✅ Mettre à jour commandeEnCours
         setCommandeEnCours((prev) =>
           prev
             ? {
@@ -1094,7 +1098,6 @@ const Ventes = () => {
             : prev
         );
 
-        // 4) ✅ Mettre à jour la LISTE localement (mise à jour optimiste)
         setCommandes((prev) =>
           prev.map((c) =>
             c.id_commande === donneesFraiches.id_commande
@@ -1108,7 +1111,6 @@ const Ventes = () => {
         );
       }
 
-      // 5) Recharger depuis le serveur (par sécurité)
       await loadCommandes();
 
       if (nouveauStatutFacture === "payee" || nouveauReste <= 0) {
@@ -1130,64 +1132,62 @@ const Ventes = () => {
     }
   };
 
-const preparerPaiement = async (commande) => {
-  if (!commande?.id_commande) {
-    showAlert("Commande invalide", "Impossible de préparer le paiement pour cette commande.", "danger");
-    return;
-  }
-  try {
-    const fullResponse = await CommandeVenteService.getCommandeById(token, commande.id_commande);
-    if (!fullResponse.success) throw new Error("Commande non trouvée");
-    const c = fullResponse.data;
-
-    if (!c.id_facture) {
-      showAlert("Facture manquante", "Aucune facture n'est associée à cette commande.");
+  const preparerPaiement = async (commande) => {
+    if (!commande?.id_commande) {
+      showAlert("Commande invalide", "Impossible de préparer le paiement pour cette commande.", "danger");
       return;
     }
+    try {
+      const fullResponse = await CommandeVenteService.getCommandeById(token, commande.id_commande);
+      if (!fullResponse.success) throw new Error("Commande non trouvée");
+      const c = fullResponse.data;
 
-    const montantTotal = parseFloat(c.montant_total) || 0;
+      if (!c.id_facture) {
+        showAlert("Facture manquante", "Aucune facture n'est associée à cette commande.");
+        return;
+      }
 
-    // ✅ Utiliser getMontantPaye : priorité aux paiements détaillés, fallback sur total_paye
-    const totalPaye = getMontantPaye(c);
-    const reste = Math.max(0, montantTotal - totalPaye);
+      const montantTotal = parseFloat(c.montant_total) || 0;
+      const totalPaye = getMontantPaye(c);
+      const reste = Math.max(0, montantTotal - totalPaye);
 
-    if (reste <= 0) {
-      showAlert("Facture déjà payée", "Cette facture est déjà totalement payée.", "success");
-      return;
+      if (reste <= 0) {
+        showAlert("Facture déjà payée", "Cette facture est déjà totalement payée.", "success");
+        return;
+      }
+
+      setCommandeEnCours(c);
+      setFactureGeneree({
+        id_facture: c.id_facture,
+        numero_facture: c.numero_facture,
+        date_facture: c.date_facture,
+        date_echeance: c.date_echeance,
+        nomclient: c.nomclient,
+        telephone: c.telephone,
+        montant_total: montantTotal,
+        statut: c.statut_facture || "en_attente",
+        lignes: mapLignesFacture(c.lignes),
+        paiements: c.paiements || [],
+        total_paye: totalPaye,
+        reste_a_payer: reste,
+        numero_commande: c.numero_commande,
+        id_commande: c.id_commande,
+        mode_paiement: c.mode_paiement || "especes",
+        magasin,
+      });
+
+      setSelectedCommande((prev) =>
+        prev && prev.id_commande === c.id_commande ? { ...prev, ...c } : prev
+      );
+
+      setPaiementData({ mode_paiement: "especes", montant: "" });
+      setShowPaiementModal(true);
+      setShowDetailModal(false);
+    } catch (err) {
+      console.error("preparerPaiement:", err);
+      showAlert("Erreur", err.message || "Erreur lors de la préparation du paiement.", "danger");
     }
-
-    setCommandeEnCours(c);
-    setFactureGeneree({
-      id_facture: c.id_facture,
-      numero_facture: c.numero_facture,
-      date_facture: c.date_facture,
-      date_echeance: c.date_echeance,
-      nomclient: c.nomclient,
-      telephone: c.telephone,
-      montant_total: montantTotal,
-      statut: c.statut_facture || "en_attente",
-      lignes: mapLignesFacture(c.lignes),
-      paiements: c.paiements || [],
-      total_paye: totalPaye,          // ✅ cohérent avec getMontantPaye
-      reste_a_payer: reste,           // ✅ cohérent : 45000 - 1500 = 43500
-      numero_commande: c.numero_commande,
-      id_commande: c.id_commande,
-      mode_paiement: c.mode_paiement || "especes",
-      magasin,
-    });
-
-    setSelectedCommande((prev) =>
-      prev && prev.id_commande === c.id_commande ? { ...prev, ...c } : prev
-    );
-
-    setPaiementData({ mode_paiement: "especes", montant: "" });
-    setShowPaiementModal(true);
-    setShowDetailModal(false);
-  } catch (err) {
-    console.error("preparerPaiement:", err);
-    showAlert("Erreur", err.message || "Erreur lors de la préparation du paiement.", "danger");
-  }
-};
+  };
 
   const confirmDelete = (commande) => {
     setCommandeToDelete(commande);
@@ -1492,7 +1492,7 @@ const preparerPaiement = async (commande) => {
         </div>
       </header>
 
-      {/* ---------- Chiffre d'affaires + parcours des commandes ---------- */}
+      {/* ---------- Chiffre d'affaires ---------- */}
       <section className="vt-overview" aria-label="Synthèse des ventes">
         <div className="vt-ca">
           <span className="vt-label">Chiffre d'affaires</span>
@@ -2145,7 +2145,27 @@ const preparerPaiement = async (commande) => {
                   </button>
                 </>
               )}
-              <FacturePDFActions factureData={factureGeneree} onClose={() => setShowFactureModal(false)} />
+
+              {/* ✅ Boutons de téléchargement / impression : déclenchent le choix du format */}
+              <button
+                type="button"
+                className="vt-btn"
+                onClick={() => openFormatChoice('download')}
+                title="Télécharger la facture en PDF"
+              >
+                <Download size={16} />
+                Télécharger
+              </button>
+
+              <button
+                type="button"
+                className="vt-btn vt-btn--primary"
+                onClick={() => openFormatChoice('print')}
+                title="Imprimer la facture"
+              >
+                <Printer size={16} />
+                Imprimer
+              </button>
             </div>
           </div>
 
@@ -2364,6 +2384,20 @@ const preparerPaiement = async (commande) => {
           </button>
         </div>
       )}
+
+      {/* ---------- Choix du format (déclenché par Télécharger / Imprimer) ---------- */}
+      <FormatChoiceModal
+        isOpen={showFormatChoice}
+        factureData={factureGeneree}
+        action={formatChoiceAction}
+        onClose={closeFormatChoice}
+        onDone={(format) => {
+          const actionLabel = formatChoiceAction === 'download' ? 'téléchargé' : 'imprimé';
+          const formatLabel = format === 'ticket' ? 'Ticket' : 'Facture A4';
+          showToast(`${formatLabel} ${actionLabel} avec succès`, 'success');
+          closeFormatChoice();
+        }}
+      />
     </div>
   );
 };
