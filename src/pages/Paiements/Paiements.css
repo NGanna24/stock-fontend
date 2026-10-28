@@ -551,7 +551,6 @@
   --tone: var(--steel);
   background: var(--paper);
   border: 1px solid var(--line);
-  border-top: 4px solid var(--tone);
   border-radius: var(--radius-lg);
   position: relative;
   cursor: pointer;

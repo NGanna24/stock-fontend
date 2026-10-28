@@ -485,13 +485,23 @@ const Ventes = () => {
   const [selectedUnite, setSelectedUnite] = useState(null);
   const [loadingUnites, setLoadingUnites] = useState(false);
 
+  // ---------- Autocomplete client ----------
+  const [clientSearch, setClientSearch] = useState("");
+  const [clientResults, setClientResults] = useState([]);
+  const [showClientDropdown, setShowClientDropdown] = useState(false);
+  const [isSearchingClient, setIsSearchingClient] = useState(false);
+  const [activeClientIdx, setActiveClientIdx] = useState(0);
+
   const comboRef = useRef(null);
+  const clientComboRef = useRef(null);
   const inputRef = useRef(null);
   const qteRef = useRef(null);
   const telRef = useRef(null);
   const searchDebounce = useRef(null);
   const searchReq = useRef(0);
   const unitReq = useRef(0);
+  const clientSearchDebounce = useRef(null);
+  const clientSearchReq = useRef(0);
 
   // ---------- Paiement ----------
   const [paiementData, setPaiementData] = useState({ mode_paiement: "especes", montant: "" });
@@ -528,6 +538,7 @@ const Ventes = () => {
   useEffect(() => () => {
     clearTimeout(toastTimer.current);
     clearTimeout(searchDebounce.current);
+    clearTimeout(clientSearchDebounce.current);
   }, []);
 
   useEffect(() => {
@@ -552,6 +563,11 @@ const Ventes = () => {
     if (!showProduitDropdown) return;
     document.getElementById(`vt-opt-${activeIdx}`)?.scrollIntoView({ block: "nearest" });
   }, [activeIdx, showProduitDropdown]);
+
+  useEffect(() => {
+    if (!showClientDropdown) return;
+    document.getElementById(`vt-client-opt-${activeClientIdx}`)?.scrollIntoView({ block: "nearest" });
+  }, [activeClientIdx, showClientDropdown]);
 
   // ============================================================
   // CHARGEMENT
@@ -585,6 +601,71 @@ const Ventes = () => {
       if (res.success) setMagasin(res.magasin);
     } catch (err) {
       console.error("LoadMagasin error:", err);
+    }
+  };
+
+  // ============================================================
+  // AUTOCOMPLETE CLIENT
+  // ============================================================
+  const rechercherClients = (texte) => {
+    setClientSearch(texte);
+    setActiveClientIdx(0);
+
+    clearTimeout(clientSearchDebounce.current);
+    const rid = ++clientSearchReq.current;
+
+    if (texte.trim().length < 2) {
+      setClientResults([]);
+      setShowClientDropdown(false);
+      setIsSearchingClient(false);
+      return;
+    }
+
+    setIsSearchingClient(true);
+    setShowClientDropdown(true);
+
+    clientSearchDebounce.current = setTimeout(async () => {
+      try {
+        const res = await CommandeVenteService.searchClients(token, texte, 10);
+        if (rid !== clientSearchReq.current) return;
+        setClientResults(res.success ? (res.data || []) : []);
+      } catch (err) {
+        console.error("Recherche client:", err);
+        if (rid === clientSearchReq.current) setClientResults([]);
+      } finally {
+        if (rid === clientSearchReq.current) setIsSearchingClient(false);
+      }
+    }, 300);
+  };
+
+  const selectClient = (client) => {
+    setFormData((prev) => ({
+      ...prev,
+      nomclient: client.nom || "",
+      telephone: client.telephone || "",
+    }));
+    setClientSearch(client.nom);
+    setShowClientDropdown(false);
+    setClientResults([]);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  };
+
+  const onClientKeyDown = (e) => {
+    const n = clientResults.length;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      if (!showClientDropdown && n) { setShowClientDropdown(true); return; }
+      if (n) setActiveClientIdx((i) => (i + 1) % n);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      if (n) setActiveClientIdx((i) => (i - 1 + n) % n);
+    } else if (e.key === "Enter") {
+      if (showClientDropdown && clientResults[activeClientIdx]) {
+        e.preventDefault();
+        selectClient(clientResults[activeClientIdx]);
+      }
+    } else if (e.key === "Escape") {
+      setShowClientDropdown(false);
     }
   };
 
@@ -852,6 +933,12 @@ const Ventes = () => {
   const handleAdd = () => {
     setFormData({ nomclient: "", telephone: "", lignes: [] });
     resetComposer();
+    setClientSearch("");
+    setClientResults([]);
+    setShowClientDropdown(false);
+    setActiveClientIdx(0);
+    clearTimeout(clientSearchDebounce.current);
+    clientSearchReq.current++;
     setCommandeEnCours(null);
     setFactureGeneree(null);
     setError(null);
@@ -1357,68 +1444,104 @@ const Ventes = () => {
     </div>
   );
 
-  const renderListView = () => (
-    <div className="vt-table-wrap" aria-busy={loading || undefined}>
-      {loading && commandes.length > 0 && <div className="vt-busybar" />}
-      <table className="vt-table">
-        <colgroup>
-          <col style={{ width: "13%" }} />
-          <col style={{ width: "18%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "13%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "12%" }} />
-          <col style={{ width: "18%" }} />
-        </colgroup>
-        <thead>
-          <tr>
-            <th>Commande</th>
-            <th>Client</th>
-            <th>Facture</th>
-            <th className="vt-th-right">Montant</th>
-            <th>Statut</th>
-            <th>Paiement</th>
-            <th className="vt-th-right">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {loading && commandes.length === 0
-            ? renderSkeleton()
-            : currentItems.map((commande) => (
-                <tr key={commande.id_commande}>
-                  <td>
-                    <button type="button" className="vt-link vt-cell-main" onClick={() => handleView(commande)}>
-                      {commande.numero_commande}
-                    </button>
-                    <div className="vt-cell-sub">{formatDateFR(commande.date_commande)}</div>
-                  </td>
-                  <td>
-                    <div className="vt-cell-main" title={commande.nomclient || ""}>{commande.nomclient || "-"}</div>
-                    <div className="vt-cell-sub">{commande.telephone || "-"}</div>
-                  </td>
-                  <td>
-                    <div className="vt-cell-main vt-cell-main--plain">{commande.numero_facture || "-"}</div>
-                  </td>
-                  <td className="vt-td-right">
-                    <div className="vt-cell-main vt-num">{formatMontant(commande.montant_total)}</div>
-                  </td>
-                  <td>
-                    <StatutMenu
-                      commande={commande}
-                      onSelect={handleChangeStatut}
-                      updatingStatut={updatingStatut}
-                      canManage={canManage}
-                    />
-                  </td>
-                  <td><PaiementTag info={paiementInfo(commande)} /></td>
-                  <td className="vt-td-right">{renderActions(commande)}</td>
-                </tr>
-              ))}
-        </tbody>
-      </table>
-      {!loading && currentItems.length === 0 && renderEmpty()}
-    </div>
-  );
+const renderListView = () => (
+  <div className="vt-table-wrap" aria-busy={loading || undefined}>
+    {loading && commandes.length > 0 && <div className="vt-busybar" />}
+    <table className="vt-table">
+      <colgroup>
+        <col style={{ width: "36px" }} />
+        <col style={{ width: "12%" }} />
+        <col style={{ width: "17%" }} />
+        <col style={{ width: "12%" }} />
+        <col style={{ width: "13%" }} />
+        <col style={{ width: "13%" }} />
+        <col style={{ width: "12%" }} />
+        <col style={{ width: "17%" }} />
+      </colgroup>
+      <thead>
+        <tr>
+          <th className="vt-th-index">#</th>
+          <th>Commande</th>
+          <th>Client</th>
+          <th>Facture</th>
+          <th className="vt-th-right">Montant</th>
+          <th>Statut</th>
+          <th>Paiement</th>
+          <th className="vt-th-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {loading && commandes.length === 0
+          ? renderSkeleton()
+          : currentItems.map((commande, index) => (
+              <tr key={commande.id_commande}>
+                {/* 🆕 Colonne numéro */}
+                <td className="vt-td-index">{startIdx + index + 1}</td>
+
+                {/* Commande */}
+                <td>
+                  <button
+                    type="button"
+                    className="vt-link vt-cell-main"
+                    onClick={() => handleView(commande)}
+                  >
+                    {commande.numero_commande}
+                  </button>
+                  <div className="vt-cell-sub">
+                    {formatDateFR(commande.date_commande)}
+                  </div>
+                </td>
+
+                {/* Client */}
+                <td>
+                  <div className="vt-cell-main" title={commande.nomclient || ""}>
+                    {commande.nomclient || "-"}
+                  </div>
+                  <div className="vt-cell-sub">
+                    {commande.telephone || "-"}
+                  </div>
+                </td>
+
+                {/* Facture */}
+                <td>
+                  <div className="vt-cell-main vt-cell-main--plain">
+                    {commande.numero_facture || "-"}
+                  </div>
+                </td>
+
+                {/* Montant */}
+                <td className="vt-td-right">
+                  <div className="vt-cell-main vt-num">
+                    {formatMontant(commande.montant_total)}
+                  </div>
+                </td>
+
+                {/* Statut */}
+                <td>
+                  <StatutMenu
+                    commande={commande}
+                    onSelect={handleChangeStatut}
+                    updatingStatut={updatingStatut}
+                    canManage={canManage}
+                  />
+                </td>
+
+                {/* Paiement */}
+                <td>
+                  <PaiementTag info={paiementInfo(commande)} />
+                </td>
+
+                {/* Actions */}
+                <td className="vt-td-right">
+                  {renderActions(commande)}
+                </td>
+              </tr>
+            ))}
+      </tbody>
+    </table>
+    {!loading && currentItems.length === 0 && renderEmpty()}
+  </div>
+);
 
   const renderGridView = () => (
     <div className="vt-tickets" aria-busy={loading || undefined}>
@@ -1634,6 +1757,77 @@ const Ventes = () => {
 
               <section className="vt-section">
                 <h3 className="vt-section-title">Client</h3>
+
+                {/* 🔍 Autocomplete client basé sur l'historique des ventes */}
+                <div className="vt-field vt-field--full" style={{ marginBottom: 12 }}>
+                  <label htmlFor="vt-client-search">
+                    Rechercher un client existant
+                  </label>
+                  <div className="vt-combo" ref={clientComboRef}>
+                    <Search size={16} className="vt-combo-icon" />
+                    <input
+                      id="vt-client-search"
+                      type="text"
+                      className="vt-input vt-combo-input"
+                      placeholder="Nom, prénom ou téléphone…"
+                      value={clientSearch}
+                      onChange={(e) => rechercherClients(e.target.value)}
+                      onFocus={() => {
+                        if (clientSearch.trim().length >= 2) setShowClientDropdown(true);
+                      }}
+                      onKeyDown={onClientKeyDown}
+                      readOnly={saving}
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <span className="vt-combo-end">
+                      {isSearchingClient
+                        ? <Loader size={15} className="vt-spin" />
+                        : <ChevronDown size={16} />}
+                    </span>
+                  </div>
+
+                  <AnchoredMenu
+                    open={showClientDropdown}
+                    anchorRef={clientComboRef}
+                    onClose={() => setShowClientDropdown(false)}
+                    matchWidth
+                    keepFocus
+                    estHeight={280}
+                    className="vt-menu--list"
+                  >
+                    {isSearchingClient && clientResults.length === 0 ? (
+                      <div className="vt-menu-note">
+                        <Loader size={15} className="vt-spin" /> Recherche en cours…
+                      </div>
+                    ) : clientResults.length === 0 ? (
+                      <div className="vt-menu-note">
+                        Aucun client trouvé — saisissez un nouveau client ci-dessous.
+                      </div>
+                    ) : (
+                      clientResults.map((c, i) => (
+                        <button
+                          key={`${c.nom}-${c.telephone}-${i}`}
+                          id={`vt-client-opt-${i}`}
+                          type="button"
+                          className={`vt-option ${i === activeClientIdx ? "is-active" : ""}`}
+                          onMouseEnter={() => setActiveClientIdx(i)}
+                          onClick={() => selectClient(c)}
+                        >
+                          <span className="vt-option-main">
+                            <span className="vt-option-name">{c.nom}</span>
+                            <span className="vt-option-sub">
+                              {c.nb_commandes} commande{c.nb_commandes > 1 ? "s" : ""}
+                            </span>
+                          </span>
+                          <span className="vt-option-stock">{c.telephone || "—"}</span>
+                        </button>
+                      ))
+                    )}
+                  </AnchoredMenu>
+                </div>
+
+                {/* Champs classiques (toujours éditables pour les nouveaux clients) */}
                 <div className="vt-grid-2">
                   <div className="vt-field">
                     <label htmlFor="vt-nom">Nom du client</label>
@@ -2146,7 +2340,6 @@ const Ventes = () => {
                 </>
               )}
 
-              {/* ✅ Boutons de téléchargement / impression : déclenchent le choix du format */}
               <button
                 type="button"
                 className="vt-btn"
@@ -2385,7 +2578,7 @@ const Ventes = () => {
         </div>
       )}
 
-      {/* ---------- Choix du format (déclenché par Télécharger / Imprimer) ---------- */}
+      {/* ---------- Choix du format ---------- */}
       <FormatChoiceModal
         isOpen={showFormatChoice}
         factureData={factureGeneree}

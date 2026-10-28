@@ -686,7 +686,6 @@
   display: flex; flex-direction: column;
   background: var(--paper);
   border: 1px solid var(--line);
-  border-top: 4px solid var(--tone);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
   transition: box-shadow var(--ease), border-color var(--ease);

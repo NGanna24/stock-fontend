@@ -671,46 +671,78 @@ const Produits = () => {
     </div>
   );
 
-  const renderTable = () => (
-    <div className="pr-tablewrap">
-      <table className="pr-table">
-        <thead>
-          <tr>
-            <th>Produit</th>
-            <th>Fournisseur</th>
-            <th>Catégorie</th>
-            <th>Marque</th>
-            <th className="pr-num">Prix de vente</th>
-            <th>Stock</th>
-            <th>Statut</th>
-            <th className="pr-col-act" />
+const renderTable = () => (
+  <div className="pr-tablewrap">
+    <table className="pr-table">
+      <colgroup>
+        <col style={{ width: "44px" }} />
+        <col />
+        <col />
+        <col />
+        <col />
+        <col />
+        <col />
+        <col />
+        <col style={{ width: "56px" }} />
+      </colgroup>
+      <thead>
+        <tr>
+          <th className="pr-th-index">#</th>
+          <th>Produit</th>
+          <th>Fournisseur</th>
+          <th>Catégorie</th>
+          <th>Marque</th>
+          <th className="pr-num">Prix de vente</th>
+          <th>Stock</th>
+          <th>Statut</th>
+          <th className="pr-col-act" />
+        </tr>
+      </thead>
+      <tbody>
+        {currentItems.map((p, index) => (
+          <tr
+            key={p.id_produit}
+            className={`pr-row pr-tone-${getTone(p)}`}
+            onClick={() => setProduitToView(p)}
+          >
+            {/* 🆕 Numéro de ligne */}
+            <td className="pr-td-index">{firstIdx + index + 1}</td>
+
+            <td>
+              <div className="pr-name">
+                <strong title={p.nom}>{p.nom}</strong>
+                {p.modele_nom && <small title={p.modele_nom}>{p.modele_nom}</small>}
+              </div>
+            </td>
+            <td>
+              <span className="pr-supplier">
+                <Building size={14} />
+                {p.fournisseur_nom || "—"}
+              </span>
+            </td>
+            <td>
+              {p.categorie_nom
+                ? <span className="pr-chip"><Tag size={12} />{p.categorie_nom}</span>
+                : <span className="pr-muted">—</span>}
+            </td>
+            <td>{p.marque_nom || <span className="pr-muted">—</span>}</td>
+            <td className="pr-num pr-price">
+              {formatPrice(p.prix_vente)} <small>FCFA</small>
+            </td>
+            <td className="pr-stockcell" onClick={(e) => e.stopPropagation()}>
+              <StockSelector {...stockProps(p, "list")} />
+              <LevelBar produit={p} />
+            </td>
+            <td><StockTag produit={p} /></td>
+            <td className="pr-col-act" onClick={(e) => e.stopPropagation()}>
+              {renderMore(p)}
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          {currentItems.map((p) => (
-            <tr key={p.id_produit} className={`pr-row pr-tone-${getTone(p)}`} onClick={() => setProduitToView(p)}>
-              <td>
-                <div className="pr-name">
-                  <strong title={p.nom}>{p.nom}</strong>
-                  {p.modele_nom && <small title={p.modele_nom}>{p.modele_nom}</small>}
-                </div>
-              </td>
-              <td><span className="pr-supplier"><Building size={14} />{p.fournisseur_nom || "—"}</span></td>
-              <td>{p.categorie_nom ? <span className="pr-chip"><Tag size={12} />{p.categorie_nom}</span> : <span className="pr-muted">—</span>}</td>
-              <td>{p.marque_nom || <span className="pr-muted">—</span>}</td>
-              <td className="pr-num pr-price">{formatPrice(p.prix_vente)} <small>FCFA</small></td>
-              <td className="pr-stockcell" onClick={(e) => e.stopPropagation()}>
-                <StockSelector {...stockProps(p, "list")} />
-                <LevelBar produit={p} />
-              </td>
-              <td><StockTag produit={p} /></td>
-              <td className="pr-col-act" onClick={(e) => e.stopPropagation()}>{renderMore(p)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+        ))}
+      </tbody>
+    </table>
+  </div>
+);
 
   const renderGrid = () => (
     <div className="pr-grid">

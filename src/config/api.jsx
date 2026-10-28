@@ -314,6 +314,8 @@ export const API_URL = {
         ANNULER: (id) => `${BASE_URL}/api/commandes-vente/${id}/annuler`,
         ADD_PAIEMENT: (id) => `${BASE_URL}/api/commandes-vente/${id}/paiement`,
         DELETE: (id) => `${BASE_URL}/api/commandes-vente/${id}`,
+        SEARCH_CLIENTS: (q, limit = 10) =>
+        `${BASE_URL}/api/commandes-vente/search-clients?q=${encodeURIComponent(q)}&limit=${limit}`,
     },
 
     // ==================== URLS PAIEMENTS ====================

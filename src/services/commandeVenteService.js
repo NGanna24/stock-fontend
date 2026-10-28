@@ -297,6 +297,28 @@ static async getFactureByCommande(token, idCommande) {
             return new Error(error.message || 'Erreur inattendue');
         }
     }
+
+
+    /**
+ * Rechercher des clients dans l'historique des ventes
+ */
+static async searchClients(token, q, limit = 10) {
+    try {
+        const response = await axios.get(
+            API_URL.COMMANDE_VENTE.SEARCH_CLIENTS(q, limit),
+            {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json',
+                },
+            }
+        );
+        return response.data;
+    } catch (error) {
+        console.error('❌ SearchClients error:', error);
+        throw this.handleError(error);
+    }
+}
 }
 
 export default CommandeVenteService;
