@@ -44,15 +44,34 @@ static async getCommandeById(token, id) {
 }
 
     /**
+     * Entrepôts pour lesquels le compte peut commander (propriétaire uniquement)
+     */
+    static async getDestinations(token) {
+        try {
+            const response = await axios.get(API_URL.COMMANDE_ACHAT.DESTINATIONS, {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+            return response.data;
+        } catch (error) {
+            console.error('❌ GetDestinations error:', error);
+            throw this.handleError(error);
+        }
+    }
+
+    /**
      * Récupérer les commandes par statut
      */
-    static async getCommandesByStatut(token, statut) {
+    static async getCommandesByStatut(token, statut, params = {}) {
         try {
             const response = await axios.get(API_URL.COMMANDE_ACHAT.GET_BY_STATUT(statut), {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                params
             });
             return response.data;
         } catch (error) {
@@ -82,13 +101,14 @@ static async getCommandeById(token, id) {
     /**
      * Récupérer les commandes du mois
      */
-    static async getCurrentMonthCommandes(token) {
+    static async getCurrentMonthCommandes(token, params = {}) {
         try {
             const response = await axios.get(API_URL.COMMANDE_ACHAT.GET_CURRENT_MONTH, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                params
             });
             return response.data;
         } catch (error) {
@@ -100,13 +120,14 @@ static async getCommandeById(token, id) {
     /**
      * Récupérer les statistiques
      */
-    static async getStats(token) {
+    static async getStats(token, params = {}) {
         try {
             const response = await axios.get(API_URL.COMMANDE_ACHAT.GET_STATS, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                params
             });
             
             // ✅ S'assurer que les données retournées ont le bon format
@@ -256,13 +277,14 @@ static async getCommandeById(token, id) {
     /**
      * Exporter les commandes
      */
-    static async exportCommandes(token) {
+    static async exportCommandes(token, params = {}) {
         try {
             const response = await axios.get(API_URL.COMMANDE_ACHAT.EXPORT, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                params
             });
             return response.data;
         } catch (error) {

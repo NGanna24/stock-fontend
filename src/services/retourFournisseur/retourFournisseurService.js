@@ -4,6 +4,25 @@ import axios from 'axios';
 
 class RetourFournisseurService {
     /**
+     * Produits retournables à un fournisseur pour un entrepôt (reçus - déjà retournés, dans la limite du stock)
+     */
+    static async getProduitsRecusEntrepot(token, idFournisseur, idEntrepot) {
+        try {
+            const response = await axios.get(API_URL.RETOUR_FOURNISSEUR.PRODUITS_RECUS(idFournisseur), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                params: { destination: 'entrepot', id_entrepot: idEntrepot }
+            });
+            return response.data;
+        } catch (error) {
+            console.error('❌ GetProduitsRecusEntrepot error:', error);
+            throw this.handleError(error);
+        }
+    }
+
+    /**
      * Récupérer tous les retours
      */
     static async getAllRetours(token, params = {}) {
@@ -43,13 +62,14 @@ class RetourFournisseurService {
     /**
      * Récupérer les retours par statut
      */
-    static async getRetoursByStatut(token, statut) {
+    static async getRetoursByStatut(token, statut, params = {}) {
         try {
             const response = await axios.get(API_URL.RETOUR_FOURNISSEUR.GET_BY_STATUT(statut), {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                params
             });
             return response.data;
         } catch (error) {
@@ -79,13 +99,14 @@ class RetourFournisseurService {
     /**
      * Récupérer les statistiques
      */
-    static async getStats(token) {
+    static async getStats(token, params = {}) {
         try {
             const response = await axios.get(API_URL.RETOUR_FOURNISSEUR.GET_STATS, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                params
             });
             
             if (response.data && response.data.success && response.data.data) {
@@ -194,13 +215,14 @@ class RetourFournisseurService {
     /**
      * Exporter les retours
      */
-    static async exportRetours(token) {
+    static async exportRetours(token, params = {}) {
         try {
             const response = await axios.get(API_URL.RETOUR_FOURNISSEUR.EXPORT, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                params
             });
             return response.data;
         } catch (error) {

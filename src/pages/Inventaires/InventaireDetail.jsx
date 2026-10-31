@@ -75,7 +75,8 @@ const InventaireDetail = () => {
                 setInventaire(res.data);
                 const initial = {};
                 (res.data.lignes || []).forEach(l => {
-                    initial[l.id_ligne] = parseQuantite(l.quantite_reelle);
+                    // seules les lignes déjà comptées sont préremplies : les autres restent vides
+                    if (l.date_scannage) initial[l.id_ligne] = parseQuantite(l.quantite_reelle);
                 });
                 setSaisies(initial);
             } else {
@@ -195,7 +196,8 @@ const InventaireDetail = () => {
     const filtered = useMemo(() => {
         return lignes.filter(l => {
             const theorique = parseQuantite(l.quantite_theorique);
-            const reelle = parseQuantite(saisies[l.id_ligne] ?? l.quantite_reelle);
+            const saisi = saisies[l.id_ligne] !== undefined && saisies[l.id_ligne] !== '';
+            const reelle = saisi ? parseQuantite(saisies[l.id_ligne]) : theorique;
             const ecart = theorique - reelle;
 
             if (onlyEcarts && ecart === 0) return false;
@@ -214,7 +216,8 @@ const InventaireDetail = () => {
         let nbSaisis = 0, nbEcarts = 0, valeurManquant = 0, valeurSurplus = 0;
         lignes.forEach(l => {
             const theorique = parseQuantite(l.quantite_theorique);
-            const reelle = parseQuantite(saisies[l.id_ligne] ?? l.quantite_reelle);
+            const saisi = saisies[l.id_ligne] !== undefined && saisies[l.id_ligne] !== '';
+            const reelle = saisi ? parseQuantite(saisies[l.id_ligne]) : theorique;
             const ecart = theorique - reelle;
             const prix = parseFloat(l.prix_achat) || 0;
 
@@ -410,7 +413,8 @@ const InventaireDetail = () => {
                             <tr><td colSpan="7" className="empty-state"><Package size={32} /><p>Aucune ligne</p></td></tr>
                         ) : filtered.map((l, index) => {
                             const theorique = parseQuantite(l.quantite_theorique);
-                            const reelle = parseQuantite(saisies[l.id_ligne] ?? l.quantite_reelle);
+                            const saisi = saisies[l.id_ligne] !== undefined && saisies[l.id_ligne] !== '';
+                            const reelle = saisi ? parseQuantite(saisies[l.id_ligne]) : theorique;
                             const ecart = theorique - reelle;
                             const prix = parseFloat(l.prix_achat) || 0;
                             const valeur = Math.abs(ecart) * prix;

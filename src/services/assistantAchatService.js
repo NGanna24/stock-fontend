@@ -2,7 +2,7 @@
 import API_URL from '../config/api';
 import axios from 'axios';
 
-class AssistantAchatService {
+class AssistantAchatService { 
     /**
      * Récupérer la proposition de réapprovisionnement
      * @param {string} token

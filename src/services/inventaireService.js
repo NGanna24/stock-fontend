@@ -11,7 +11,7 @@ class InventaireService {
                     'Content-Type': 'application/json'   // ✅ Ajouté
                 },
                 params
-            });
+            }); 
             return response.data;
         } catch (error) {
             console.error('❌ GetAllInventaires error:', error);

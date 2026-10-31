@@ -1074,3 +1074,22 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* À AJOUTER à la fin de CommandesAchats.css, Receptions.css ET RetoursFournisseurs.css
+   (onglets Magasin / Entrepôt — préfixes ca- et rc-) */
+.ca-scope, .rc-scope, .rt-scope {
+  display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 16px; padding: 4px;
+  background: rgba(127, 127, 127, .08); border-radius: 12px; width: fit-content; max-width: 100%;
+}
+.ca-scope-tab, .rc-scope-tab, .rt-scope-tab {
+  display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px;
+  border: 0; border-radius: 9px; background: transparent; color: inherit;
+  font: inherit; font-weight: 600; font-size: .9rem; cursor: pointer; opacity: .75;
+  transition: background .15s, opacity .15s, box-shadow .15s;
+}
+.ca-scope-tab small, .rc-scope-tab small, .rt-scope-tab small { font-weight: 500; font-size: .75rem; opacity: .7; }
+.ca-scope-tab:hover, .rc-scope-tab:hover, .rt-scope-tab:hover { opacity: 1; background: rgba(127, 127, 127, .12); }
+.ca-scope-tab.is-active, .rc-scope-tab.is-active, .rt-scope-tab.is-active {
+  opacity: 1; background: #fff; color: #111; box-shadow: 0 1px 4px rgba(0, 0, 0, .15);
+}
+.ca-scope-tab:focus-visible, .rc-scope-tab:focus-visible, .rt-scope-tab:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

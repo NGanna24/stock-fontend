@@ -50,6 +50,7 @@ import { SuperAdminAuthProvider } from "./context/SuperAdminAuthContext";
 import SuperAdminLogin from "./pages/SuperAdmin/Auth/SuperAdminLogin";
 import SuperAdminRegister from "./pages/SuperAdmin/Auth/SuperAdminRegister";
 import SuperAdminRoute from "./pages/SuperAdminRoute";
+import Entrepot from "./pages/Entrepot/Entrepot";
 
 // ==================== COMPOSANTS UTILITAIRES ====================
 
@@ -122,6 +123,7 @@ function AppContent() {
     {/* Magasins */}
     <Route path="magasins"      element={<Magasins />} />
     <Route path="magasins/:id"  element={<MagasinDetail />} />
+    
 
     {/* Utilisateurs */}
     <Route path="utilisateurs"      element={<Utilisateurs />} />
@@ -343,6 +345,7 @@ function AppContent() {
                             </ProtectedRouteByRole>
                         }
                     />
+                    <Route path="entrepot"     element={<Entrepot />} />
                    
                     <Route
                         path="entrees"

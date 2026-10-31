@@ -5,13 +5,14 @@ import {
   Plus, Search, Edit, Trash2, Eye, ChevronLeft, ChevronRight, Download, X, Check,
   RefreshCw, Grid, List, ShoppingBasket, Package, Calendar, AlertCircle, CheckCircle,
   Ban, FileText, Building, Phone, Mail, MapPin, ChevronDown, Loader, MoreVertical,
-  AlertTriangle, Box, Clock, Send, PackageCheck
+  AlertTriangle, Box, Clock, Send, PackageCheck, Warehouse, Store
 } from "lucide-react";
 import CommandeAchatService from "../../../services/commandeAchatService";
 import FournisseurService from "../../../services/fournisseurService";
 import ProduitService from "../../../services/produitService";
 import UniteVenteService from "../../../services/uniteVenteService";
 import MagasinService from "../../../services/magasinService";
+import ProduitEntrepotService from "../../../services/produitEntrepotService";
 import { useUser } from "../../../context/AuthContext";
 import BonCommandePDFActions from "../../../components/commande/BonCommandePDFActions";
 import ConfirmModal from "../../../components/ConfirmModal/ConfirmModal";
@@ -52,7 +53,7 @@ const parsePrix = (value) => {
 };
 const num = (v) => parseFloat(v) || 0;
 const getTodayISO = () => new Date().toISOString().split("T")[0];
-const produitLabel = (p) => p.nom + (p.modele_nom ? ` - ${p.modele_nom}` : "");
+const produitLabel = (p) => p.nom + (p.modele_nom ? ` - ${p.modele_nom}` : "") + (p.id_produit < 0 ? " · nouveau à l'entrepôt" : "");
 
 const downloadCSV = (headers, rows, filename) => {
   const esc = (c) => `"${String(c ?? "").replace(/"/g, '""')}"`;
@@ -223,6 +224,10 @@ const CommandesAchat = () => {
   const [fournisseurs, setFournisseurs] = useState([]);
   const [produits, setProduits] = useState([]);
   const [magasin, setMagasin] = useState(null);
+  // Destinations : "magasin" ou "e:<id_entrepot>" (entrepôts dont le compte est propriétaire)
+  const [destinations, setDestinations] = useState([]);
+  const [scopeKey, setScopeKey] = useState("magasin");
+  const [produitsEntrepot, setProduitsEntrepot] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
@@ -271,11 +276,22 @@ const CommandesAchat = () => {
   const isAdmin = !!user && user.role === "admin";
 
   /* ---------- Chargement ---------- */
+  const scopeParams = useMemo(
+    () => (scopeKey.startsWith("e:")
+      ? { destination: "entrepot", id_entrepot: Number(scopeKey.slice(2)) }
+      : { destination: "magasin" }),
+    [scopeKey]
+  );
+  const isEntrepot = scopeParams.destination === "entrepot";
+  const currentEntrepot = isEntrepot
+    ? destinations.find((d) => d.id_entrepot === scopeParams.id_entrepot)
+    : null;
+
   const loadCommandes = async () => {
     setLoading(true);
     setLoadError(null);
     try {
-      const response = await CommandeAchatService.getAllCommandes(token);
+      const response = await CommandeAchatService.getAllCommandes(token, scopeParams);
       if (response.success) setCommandes(response.data || []);
       else setLoadError(response.message || "Impossible de charger les commandes");
     } catch (e) {
@@ -307,8 +323,42 @@ const CommandesAchat = () => {
         if (r.success) setMagasin(r.magasin);
       } catch (e) { console.error("❌ LoadMagasin error:", e); }
     })();
+    (async () => {
+      try {
+        const r = await CommandeAchatService.getDestinations(token);
+        if (r.success) {
+          const liste = r.data || [];
+          setDestinations(liste);
+          // Propriétaire d'un entrepôt : la marchandise arrive d'abord à l'entrepôt
+          if (liste.length > 0) setScopeKey(`e:${liste[0].id_entrepot}`);
+        }
+      } catch (e) { console.error("❌ LoadDestinations error:", e); }
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, token]);
+
+  // Changement d'onglet : recharge les commandes (et le catalogue de l'entrepôt)
+  useEffect(() => {
+    if (!(isAuthenticated && token)) return;
+    setSelectedIds([]);
+    setFilterStatut("");
+    loadCommandes();
+    if (isEntrepot) {
+      setProduitsEntrepot([]);
+      (async () => {
+        try {
+          const r = await ProduitEntrepotService.getAllProduits(token, scopeParams.id_entrepot);
+          const list = r.data || r.produits || [];
+          if (r.success !== false) {
+            // Normalisation : id_produit = id du produit d'entrepôt (le reste du formulaire est inchangé)
+            setProduitsEntrepot(list.filter((p) => p.actif !== 0 && p.actif !== false)
+              .map((p) => ({ ...p, id_produit: p.id_produit_entrepot })));
+          }
+        } catch (e) { console.error("❌ LoadProduitsEntrepot error:", e); }
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey]);
 
   /* ---------- Menu d'actions : fermeture ---------- */
   useEffect(() => {
@@ -434,8 +484,18 @@ const CommandesAchat = () => {
 
   const produitsFiltres = useMemo(() => {
     if (!formData.id_fournisseur) return [];
-    return produits.filter((p) => Number(p.id_fournisseur) === Number(formData.id_fournisseur));
-  }, [produits, formData.id_fournisseur]);
+    // Entrepôt : produits de l'entrepôt + produits du magasin qui n'y sont pas encore
+    // (id négatif = produit du magasin, créé à l'entrepôt à la réception)
+    const cle = (p) => [p.nom, p.id_marque ?? "", p.id_modele ?? ""].map((v) => String(v).trim().toLowerCase()).join("|");
+    const dejaALEntrepot = new Set(produitsEntrepot.map(cle));
+    const catalogue = isEntrepot
+      ? [
+          ...produitsEntrepot,
+          ...produits.filter((p) => !dejaALEntrepot.has(cle(p))).map((p) => ({ ...p, id_produit: -p.id_produit })),
+        ]
+      : produits;
+    return catalogue.filter((p) => Number(p.id_fournisseur) === Number(formData.id_fournisseur));
+  }, [produits, produitsEntrepot, isEntrepot, formData.id_fournisseur]);
 
   const fournisseursListe = useMemo(() => {
     const q = (selectedFournisseur && fournisseurSearch === selectedFournisseur.nom ? "" : fournisseurSearch).trim().toLowerCase();
@@ -507,7 +567,10 @@ const CommandesAchat = () => {
     let toutes = [uniteBase];
     let defaut = uniteBase;
     try {
-      const res = await UniteVenteService.getByProduit(token, produit.id_produit);
+      const depuisMagasin = produit.id_produit < 0;
+      const res = isEntrepot && !depuisMagasin
+        ? { success: true, data: produit.unites_vente || [] }
+        : await UniteVenteService.getByProduit(token, Math.abs(produit.id_produit));
       const perso = res.success && res.data ? res.data : [];
       toutes = [uniteBase, ...perso];
       defaut = perso.find((u) => u.est_principal === 1 || u.est_principal === true) || uniteBase;
@@ -670,7 +733,7 @@ const CommandesAchat = () => {
         id_fournisseur: c.id_fournisseur || "",
         date_commande: c.date_commande ? c.date_commande.split("T")[0] : getTodayISO(),
         lignes: (c.lignes || []).map((l) => ({
-          id_produit: l.id_produit,
+          id_produit: l.id_produit_entrepot ? l.id_produit_entrepot : (c.destination === "entrepot" ? -l.id_produit : l.id_produit),
           id_unite_vente: l.id_unite_vente,
           nom_unite_vente: l.nom_unite_vente || "Unité",
           quantite_base: parseFloat(l.quantite_base) || 1,
@@ -726,8 +789,12 @@ const CommandesAchat = () => {
         id_fournisseur: parseInt(formData.id_fournisseur, 10),
         date_commande: formData.date_commande || getTodayISO(),
         notes: null,
+        destination: scopeParams.destination,
+        ...(isEntrepot ? { id_entrepot: scopeParams.id_entrepot } : {}),
         lignes: formData.lignes.map((l) => ({
-          id_produit: l.id_produit,
+          ...(isEntrepot && l.id_produit > 0
+            ? { id_produit_entrepot: l.id_produit }
+            : { id_produit: Math.abs(l.id_produit) }),
           id_unite_vente: l.id_unite_vente,
           nom_unite_vente: l.nom_unite_vente,
           quantite_base: l.quantite_base,
@@ -818,7 +885,7 @@ const CommandesAchat = () => {
 
   const handleExport = async () => {
     try {
-      const response = await CommandeAchatService.exportCommandes(token);
+      const response = await CommandeAchatService.exportCommandes(token, scopeParams);
       if (response.success && response.data) {
         downloadCSV(
           ["ID", "Numéro", "Date", "Fournisseur", "Montant", "Statut", "Notes"],
@@ -1009,7 +1076,9 @@ const toggleSelect = (id) =>
           <span className="ca-head-mark"><ShoppingBasket size={23} /></span>
           <div>
             <h1>Commandes d'achat</h1>
-            <p>Réapprovisionnement auprès de vos fournisseurs</p>
+            <p>{isEntrepot
+              ? `Réapprovisionnement de l'entrepôt ${currentEntrepot?.nom || ""}`
+              : "Réapprovisionnement de votre magasin auprès de vos fournisseurs"}</p>
           </div>
         </div>
         <div className="ca-head-actions">
@@ -1022,6 +1091,25 @@ const toggleSelect = (id) =>
           )}
         </div>
       </header>
+
+      {/* ---------- Destination (magasin / entrepôts dont vous êtes propriétaire) ---------- */}
+      {destinations.length > 0 && (
+        <nav className="ca-scope" aria-label="Destination des commandes">
+          <button type="button" className={`ca-scope-tab ${!isEntrepot ? "is-active" : ""}`} onClick={() => setScopeKey("magasin")}>
+            <Store size={16} /> Magasin
+          </button>
+          {destinations.map((d) => (
+            <button
+              key={d.id_entrepot}
+              type="button"
+              className={`ca-scope-tab ${scopeKey === `e:${d.id_entrepot}` ? "is-active" : ""}`}
+              onClick={() => setScopeKey(`e:${d.id_entrepot}`)}
+            >
+              <Warehouse size={16} /> {d.nom}{d.ville ? <small>{d.ville}</small> : null}
+            </button>
+          ))}
+        </nav>
+      )}
 
       {/* ---------- Registre ---------- */}
       <section className="ca-ledger" aria-label="Synthèse des achats">
@@ -1169,7 +1257,7 @@ const toggleSelect = (id) =>
                 <span className="ca-sheet-mark"><ShoppingBasket size={21} /></span>
                 <div>
                   <h2>{editingCommande ? "Modifier la commande" : "Nouvelle commande d'achat"}</h2>
-                  <p>{editingCommande ? `Commande ${editingCommande.numero_commande}` : "Choisissez un fournisseur, puis composez la commande"}</p>
+                  <p>{editingCommande ? `Commande ${editingCommande.numero_commande}` : "Choisissez un fournisseur, puis composez la commande"}{isEntrepot ? ` · Livraison : entrepôt ${currentEntrepot?.nom || ""}` : ""}</p>
                 </div>
               </div>
               <button className="ca-sheet-close" onClick={closeForm} aria-label="Fermer"><X size={20} /></button>
@@ -1596,7 +1684,7 @@ const toggleSelect = (id) =>
 
             <div className="ca-detail-foot">
                 <BonCommandePDFActions
-                    commandeData={{ ...selectedCommande, magasin }}
+                    commandeData={{ ...selectedCommande, magasin: selectedCommande?.destination === "entrepot" ? { ...(magasin || {}), nom: selectedCommande.entrepot_nom, ville: selectedCommande.entrepot_ville } : magasin }}
                     loading={loadingDetails}
                     onClose={() => !loadingDetails && setShowDetailModal(false)}
                 />

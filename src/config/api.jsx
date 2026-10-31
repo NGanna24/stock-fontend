@@ -24,8 +24,14 @@ export const API_URL = {
 
     // ==================== URLS ASSISTANT D'ACHAT ====================
     ASSISTANT_ACHAT: {
-        GET_PROPOSITION: (niveau = 'normal') =>
-            `${BASE_URL}/api/assistant-achat/proposition?niveau=${niveau}`,
+        GET_PROPOSITION: (niveau = 'normal', scope = {}) => {
+            const q = new URLSearchParams({ niveau });
+            if (scope.destination === 'entrepot' && scope.id_entrepot) {
+                q.set('destination', 'entrepot');
+                q.set('id_entrepot', String(scope.id_entrepot));
+            }
+            return `${BASE_URL}/api/assistant-achat/proposition?${q.toString()}`;
+        },
         CREER: `${BASE_URL}/api/assistant-achat/creer`,
     },
 
@@ -234,6 +240,7 @@ export const API_URL = {
     // ==================== URLS COMMANDES D'ACHAT ====================
     COMMANDE_ACHAT: {
         GET_ALL: `${BASE_URL}/api/commandes-achat`,
+        DESTINATIONS: `${BASE_URL}/api/commandes-achat/destinations`,
         GET_BY_ID: (id) => `${BASE_URL}/api/commandes-achat/${id}`,
         GET_BY_STATUT: (statut) => `${BASE_URL}/api/commandes-achat/statut/${statut}`,
         GET_BY_FOURNISSEUR: (id) => `${BASE_URL}/api/commandes-achat/fournisseur/${id}`,
@@ -267,6 +274,7 @@ export const API_URL = {
         GET_BY_ID: (id) => `${BASE_URL}/api/retours-fournisseurs/${id}`,
         GET_BY_STATUT: (statut) => `${BASE_URL}/api/retours-fournisseurs/statut/${statut}`,
         GET_BY_FOURNISSEUR: (id) => `${BASE_URL}/api/retours-fournisseurs/fournisseur/${id}`,
+        PRODUITS_RECUS: (id) => `${BASE_URL}/api/retours-fournisseurs/produits-recus/${id}`,
         GET_STATS: `${BASE_URL}/api/retours-fournisseurs/stats`,
         EXPORT: `${BASE_URL}/api/retours-fournisseurs/export`,
         CREATE: `${BASE_URL}/api/retours-fournisseurs`,
@@ -379,6 +387,89 @@ export const API_URL = {
         CHANGE_PASSWORD: `${BASE_URL}/api/super-admin/auth/change-password`,
         LOGOUT: `${BASE_URL}/api/super-admin/auth/logout`,
     },
+
+    // ==================== URLS ENTREPÔT ====================
+ENTREPOT: {
+    GET_ALL: `${BASE_URL}/api/entrepots`,
+    CREATE: `${BASE_URL}/api/entrepots`,
+    ADD_STOCK: (id) => `${BASE_URL}/api/entrepots/${id}/stock`,
+    REJOINDRE: `${BASE_URL}/api/entrepots/rejoindre`,
+    GET_BY_ID: (id) => `${BASE_URL}/api/entrepots/${id}`,
+    UPDATE: (id) => `${BASE_URL}/api/entrepots/${id}`,
+    REGENERER_CODE: (id) => `${BASE_URL}/api/entrepots/${id}/regenerer-code`,
+    GET_MEMBRES: (id) => `${BASE_URL}/api/entrepots/${id}/membres`,
+    RETIRER_MEMBRE: (id, idMembre) => `${BASE_URL}/api/entrepots/${id}/membres/${idMembre}`,
+    GET_PRODUITS: (id) => `${BASE_URL}/api/entrepots/${id}/produits`,
+    PARTAGER_PRODUIT: (id) => `${BASE_URL}/api/entrepots/${id}/produits`,
+    RETIRER_PRODUIT: (id, idProduit) => `${BASE_URL}/api/entrepots/${id}/produits/${idProduit}`,
+    GET_STOCK: (id) => `${BASE_URL}/api/entrepots/${id}/stock`,
+    GET_TRANSFERTS: (id, statut = null) =>
+        `${BASE_URL}/api/entrepots/${id}/transferts${statut ? `?statut=${statut}` : ''}`,
+},
+
+UNITE_VENTE_ENTREPOT: {
+    GET_BY_PRODUIT: (id_entrepot, id_produit_entrepot) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/produits/${id_produit_entrepot}/unites-vente`,
+    CREATE: (id_entrepot, id_produit_entrepot) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/produits/${id_produit_entrepot}/unites-vente`,
+    UPDATE: (id_entrepot, id_produit_entrepot, id) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/produits/${id_produit_entrepot}/unites-vente/${id}`,
+    DELETE: (id_entrepot, id_produit_entrepot, id) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/produits/${id_produit_entrepot}/unites-vente/${id}`,
+},
+
+PRODUIT_ENTREPOT: {
+    GET_ALL: (id_entrepot) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/produits`,
+    GET_BY_ID: (id_entrepot, id_produit_entrepot) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/produits/${id_produit_entrepot}`,
+    SEARCH: (id_entrepot, keyword) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/produits/search?q=${encodeURIComponent(keyword || '')}`,
+    GET_STATS: (id_entrepot) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/produits/stats`,
+    FILTER: (id_entrepot) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/produits/filter`,
+    CREATE: (id_entrepot) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/produits`,
+    UPDATE: (id_entrepot, id_produit_entrepot) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/produits/${id_produit_entrepot}`,
+    UPDATE_STOCK: (id_entrepot, id_produit_entrepot) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/produits/${id_produit_entrepot}/stock`,
+    DELETE: (id_entrepot, id_produit_entrepot) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/produits/${id_produit_entrepot}`,
+},
+// ==================== URLS MOUVEMENTS / APERÇU ENTREPÔT ====================
+MOUVEMENT_ENTREPOT: {
+    LIST: (id_entrepot) => `${BASE_URL}/api/entrepots/${id_entrepot}/mouvements`,
+    SYNTHESE: (id_entrepot) => `${BASE_URL}/api/entrepots/${id_entrepot}/synthese`,
+},
+INVENTAIRE_ENTREPOT: {
+    BASE: (id_entrepot) => `${BASE_URL}/api/entrepots/${id_entrepot}/inventaires`,
+    ONE: (id_entrepot, id) => `${BASE_URL}/api/entrepots/${id_entrepot}/inventaires/${id}`,
+    LIGNE: (id_entrepot, id, id_ligne) => `${BASE_URL}/api/entrepots/${id_entrepot}/inventaires/${id}/lignes/${id_ligne}`,
+    TOUT_CONFORME: (id_entrepot, id) => `${BASE_URL}/api/entrepots/${id_entrepot}/inventaires/${id}/tout-conforme`,
+    VALIDER: (id_entrepot, id) => `${BASE_URL}/api/entrepots/${id_entrepot}/inventaires/${id}/valider`,
+    ANNULER: (id_entrepot, id) => `${BASE_URL}/api/entrepots/${id_entrepot}/inventaires/${id}/annuler`,
+},
+// ==================== URLS TRANSFERTS (entrepôt -> mon magasin, approuvé par le propriétaire) ====================
+TRANSFERT: {
+    BY_ENTREPOT: (id_entrepot) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/transferts`,
+    LOT: (id_entrepot) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/transferts/lot`,
+    LOT_ACTION: (id_entrepot, numero_lot, action) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/transferts/lot/${encodeURIComponent(numero_lot)}/${action}`,
+    EN_ATTENTE_COUNT: (id_entrepot) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/transferts/en-attente/count`,
+    PRODUITS_MAGASIN: (id_entrepot) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/transferts/produits-magasin`,
+    APPROUVER: (id_entrepot, id_transfert) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/transferts/${id_transfert}/approuver`,
+    REFUSER: (id_entrepot, id_transfert) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/transferts/${id_transfert}/refuser`,
+    ANNULER: (id_entrepot, id_transfert) =>
+        `${BASE_URL}/api/entrepots/${id_entrepot}/transferts/${id_transfert}/annuler`,
+},
 
     // ============================================================
     // ✅ SUPER ADMIN — ADMIN (dashboard global + magasins)

@@ -5,9 +5,11 @@ import {
     Bot, Package, Truck, Check, X, RefreshCw, AlertCircle,
     ChevronRight, Loader, Sparkles, TrendingUp, Phone, Mail,
     MapPin, Plus, Minus, Trash2, ShoppingCart, ChevronDown,
-    ChevronUp, Info, AlertTriangle
+    ChevronUp, Info, AlertTriangle, Store, Warehouse
 } from 'lucide-react';
 import AssistantAchatService from '../../services/assistantAchatService';
+import CommandeAchatService from '../../services/commandeAchatService';
+import TransfertStockService from '../../services/transfertStockService';
 import { useUser } from '../../context/AuthContext';
 import StockSelector from '../../components/StockSelector/StockSelector';
 import ConfirmModal from '../../components/ConfirmModal/ConfirmModal';
@@ -144,6 +146,28 @@ const AssistantAchat = () => {
     const [data, setData] = useState(null);
     const [niveau, setNiveau] = useState('normal');
 
+    const [transferSel, setTransferSel] = useState({});
+    const [livraisonId, setLivraisonId] = useState(null);
+    const [savingTransfert, setSavingTransfert] = useState(false);
+
+    // Destination : "magasin" ou "e:<id_entrepot>" (entrepôts dont le compte est propriétaire)
+    const [destinations, setDestinations] = useState([]);
+    const [scopeKey, setScopeKey] = useState('magasin');
+    const [destinationsPretes, setDestinationsPretes] = useState(false);
+    const scopeParams = useMemo(
+        () => (scopeKey.startsWith('e:')
+            ? { destination: 'entrepot', id_entrepot: Number(scopeKey.slice(2)) }
+            : { destination: 'magasin' }),
+        [scopeKey]
+    );
+    const isEntrepot = scopeParams.destination === 'entrepot';
+
+    // Propriétaire d'un entrepôt : la marchandise du magasin est livrée à l'entrepôt, puis transférée à la boutique
+    const livraison = useMemo(() => {
+        if (isEntrepot || destinations.length === 0) return null;
+        return destinations.find((d) => d.id_entrepot === livraisonId) || destinations[0];
+    }, [isEntrepot, destinations, livraisonId]);
+
     const [selection, setSelection] = useState({});
     const [ouverts, setOuverts] = useState({});
 
@@ -190,6 +214,26 @@ const AssistantAchat = () => {
         });
     };
 
+    // ============ DESTINATIONS ============
+    useEffect(() => {
+        if (!isAuthenticated || !token) return;
+        (async () => {
+            try {
+                const r = await CommandeAchatService.getDestinations(token);
+                if (r.success) {
+                    const liste = r.data || [];
+                    setDestinations(liste);
+                    // Propriétaire d'un entrepôt : on commence par l'entrepôt (comme les autres pages d'achat)
+                    if (liste.length > 0) setScopeKey(`e:${liste[0].id_entrepot}`);
+                }
+            } catch (e) {
+                console.error('❌ loadDestinations error:', e);
+            } finally {
+                setDestinationsPretes(true);
+            }
+        })();
+    }, [isAuthenticated, token]);
+
     // ============ CHARGEMENT ============
     const loadProposition = useCallback(async () => {
         if (!token) return;
@@ -197,7 +241,7 @@ const AssistantAchat = () => {
         setError(null);
 
         try {
-            const res = await AssistantAchatService.getProposition(token, niveau);
+            const res = await AssistantAchatService.getProposition(token, niveau, scopeParams);
 
             if (res.success) {
                 setData(res.data);
@@ -230,6 +274,18 @@ const AssistantAchat = () => {
                 });
                 setSelection(sel);
 
+                const tsel = {};
+                (res.data.transferts || []).forEach(t => {
+                    tsel[t.id_produit] = {
+                        selected: true,
+                        quantite_uv: Math.max(1, parseInt(t.quantite_proposee_uv, 10) || 1),
+                        id_unite_vente: t.unite_proposee?.id_unite_vente || null,
+                        nom_unite_vente: t.unite_proposee?.nom || t.unite_base_nom,
+                        quantite_base: parseFloat(t.unite_proposee?.quantite_base) || 1,
+                    };
+                });
+                setTransferSel(tsel);
+
                 const ouv = {};
                 (res.data.fournisseurs || []).forEach(f => {
                     ouv[f.id_fournisseur || 'sans_fournisseur'] = true;
@@ -244,13 +300,15 @@ const AssistantAchat = () => {
         } finally {
             setLoading(false);
         }
-    }, [token, niveau]);
+    }, [token, niveau, scopeParams]);
 
     useEffect(() => {
-        if (isAuthenticated && token) {
+        if (isAuthenticated && token && destinationsPretes) {
+            setData(null);
             loadProposition();
         }
-    }, [isAuthenticated, token, loadProposition]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isAuthenticated, token, destinationsPretes, niveau, scopeKey]);
 
     // ============ SÉLECTION ============
     const toggleProduit = (idProduit) => {
@@ -333,6 +391,95 @@ const AssistantAchat = () => {
         setOuverts(prev => ({ ...prev, [key]: !prev[key] }));
     };
 
+    // ============ TRANSFERTS DEPUIS L'ENTREPÔT ============
+    const toggleTransfert = (id) =>
+        setTransferSel(prev => ({ ...prev, [id]: { ...prev[id], selected: !prev[id].selected } }));
+
+    const maxQteTransfert = (t, qb) =>
+        Math.max(1, Math.floor((parseFloat(t.source.stock_base) || 0) / (qb || 1)));
+
+    const setQteTransfert = (t, valeur) => {
+        setTransferSel(prev => {
+            const cur = prev[t.id_produit];
+            const qte = Math.min(maxQteTransfert(t, cur.quantite_base), Math.max(1, parseInt(valeur, 10) || 1));
+            return { ...prev, [t.id_produit]: { ...cur, quantite_uv: qte } };
+        });
+    };
+
+    const changeUniteTransfert = (t, unite) => {
+        setTransferSel(prev => {
+            const cur = prev[t.id_produit];
+            const base = cur.quantite_uv * cur.quantite_base;
+            const qb = parseFloat(unite.quantite_base) || 1;
+            const qte = Math.min(maxQteTransfert(t, qb), Math.max(1, Math.floor(base / qb)));
+            return {
+                ...prev,
+                [t.id_produit]: {
+                    ...cur,
+                    id_unite_vente: unite.id_unite_vente,
+                    nom_unite_vente: unite.nom,
+                    quantite_base: qb,
+                    quantite_uv: qte,
+                },
+            };
+        });
+    };
+
+    const nbTransfertsSelectionnes = useMemo(
+        () => (data?.transferts || []).filter(t => transferSel[t.id_produit]?.selected).length,
+        [data, transferSel]
+    );
+
+    const handleTransferer = () => {
+        if (nbTransfertsSelectionnes === 0) {
+            showAlert('Aucun produit sélectionné', 'Sélectionnez au moins un produit à transférer.', 'warning');
+            return;
+        }
+        openConfirm({
+            title: 'Confirmer le transfert',
+            message: `Demander le transfert de ${nbTransfertsSelectionnes} produit(s) depuis l'entrepôt vers votre magasin ?`,
+            type: 'info',
+            confirmLabel: 'Transférer',
+            cancelLabel: 'Annuler',
+            onConfirm: () => { closeConfirm(); executeTransferts(); },
+        });
+    };
+
+    const executeTransferts = async () => {
+        setSavingTransfert(true);
+        try {
+            // Un panier (= un seul bon) par entrepôt source
+            const parEntrepot = new Map();
+            (data.transferts || []).forEach(t => {
+                const s = transferSel[t.id_produit];
+                if (!s?.selected) return;
+                const id = t.source.id_entrepot;
+                if (!parEntrepot.has(id)) parEntrepot.set(id, []);
+                parEntrepot.get(id).push({
+                    id_produit_entrepot: t.source.id_produit_entrepot,
+                    ...(s.id_unite_vente ? { id_unite_vente: s.id_unite_vente } : {}),
+                    quantite: s.quantite_uv,
+                });
+            });
+
+            const messages = [];
+            for (const [idEntrepot, items] of parEntrepot) {
+                const res = await TransfertStockService.createLot(token, idEntrepot, {
+                    items,
+                    motif: 'Réapprovisionnement (assistant d\'achat)',
+                });
+                if (res?.message) messages.push(res.message);
+            }
+            showAlert('Transfert', messages.join('\n') || 'Transfert effectué', 'success');
+            await loadProposition();
+        } catch (e) {
+            console.error('❌ executeTransferts error:', e);
+            showAlert('Transfert impossible', e.message || 'Erreur lors du transfert', 'danger');
+        } finally {
+            setSavingTransfert(false);
+        }
+    };
+
     // ============ TOTAL SÉLECTIONNÉ ============
     const totalSelectionne = useMemo(() => {
         if (!data) return { produits: 0, fournisseurs: 0, montant: 0, montantInconnu: 0 };
@@ -382,7 +529,7 @@ const AssistantAchat = () => {
 
         openConfirm({
             title: 'Confirmer la création',
-            message: `Créer ${totalSelectionne.fournisseurs} bon(s) de commande pour ${totalSelectionne.produits} produit(s) ?`,
+            message: `Créer ${totalSelectionne.fournisseurs} bon(s) de commande pour ${totalSelectionne.produits} produit(s)${livraison ? ` (livraison à l'entrepôt ${livraison.nom})` : ''} ?`,
             type: 'info',
             confirmLabel: 'Créer',
             cancelLabel: 'Annuler',
@@ -415,7 +562,9 @@ const AssistantAchat = () => {
                     const qteTotaleBase = qteUV * qteBase;
 
                     const ligne = {
-                        id_produit: p.id_produit,
+                        ...(isEntrepot
+                            ? { id_produit_entrepot: p.id_produit_entrepot || p.id_produit }
+                            : { id_produit: p.id_produit }),
                         id_unite_vente: s.id_unite_vente || null,
                         nom_unite_vente: s.nom_unite_vente || 'Unité',
                         quantite_base: qteBase,
@@ -442,6 +591,10 @@ const AssistantAchat = () => {
             }
 
             const payload = {
+                destination: scopeParams.destination,
+                ...(isEntrepot ? { id_entrepot: scopeParams.id_entrepot } : {}),
+                // Magasin + entrepôt existant : la commande est livrée à l'entrepôt (produits du magasin)
+                ...(livraison ? { destination: 'entrepot', id_entrepot: livraison.id_entrepot, lignes_magasin: true } : {}),
                 date_commande: new Date().toISOString().split('T')[0],
                 notes: 'Commande générée par l\'assistant',
                 groupes,
@@ -505,6 +658,21 @@ const AssistantAchat = () => {
     if (error && !data) {
         return (
             <div className="assistant-error">
+                {destinations.length > 0 && (
+                    <nav className="assistant-scope" aria-label="Destination des commandes">
+                        <button type="button" className={`assistant-scope-tab ${!isEntrepot ? 'is-active' : ''}`}
+                                onClick={() => setScopeKey('magasin')}>
+                            <Store size={16} /> Magasin
+                        </button>
+                        {destinations.map((d) => (
+                            <button key={d.id_entrepot} type="button"
+                                    className={`assistant-scope-tab ${scopeKey === `e:${d.id_entrepot}` ? 'is-active' : ''}`}
+                                    onClick={() => setScopeKey(`e:${d.id_entrepot}`)}>
+                                <Warehouse size={16} /> {d.nom}
+                            </button>
+                        ))}
+                    </nav>
+                )}
                 <AlertCircle size={40} />
                 <p>{error}</p>
                 <button className="btn btn-primary" onClick={loadProposition}>
@@ -524,15 +692,30 @@ const AssistantAchat = () => {
                             Assistant de réapprovisionnement
                         </h1>
                         <p className="assistant-subtitle">
-                            Analyse automatique de votre stock
+                            {isEntrepot ? 'Analyse automatique du stock de l\'entrepôt' : 'Analyse automatique de votre stock'}
                         </p>
                     </div>
                 </div>
+                {destinations.length > 0 && (
+                    <nav className="assistant-scope" aria-label="Destination des commandes">
+                        <button type="button" className={`assistant-scope-tab ${!isEntrepot ? 'is-active' : ''}`}
+                                onClick={() => setScopeKey('magasin')} disabled={loading}>
+                            <Store size={16} /> Magasin
+                        </button>
+                        {destinations.map((d) => (
+                            <button key={d.id_entrepot} type="button"
+                                    className={`assistant-scope-tab ${scopeKey === `e:${d.id_entrepot}` ? 'is-active' : ''}`}
+                                    onClick={() => setScopeKey(`e:${d.id_entrepot}`)} disabled={loading}>
+                                <Warehouse size={16} /> {d.nom}{d.ville ? <small>{d.ville}</small> : null}
+                            </button>
+                        ))}
+                    </nav>
+                )}
                 <div className="assistant-empty">
                     <div className="assistant-empty-icon">
                         <Check size={48} />
                     </div>
-                    <h3>Aucun produit à commander</h3>
+                    <h3>Aucun produit à réapprovisionner</h3>
                     <p>Votre stock est bien géré. Aucune alerte de rupture ou de stock bas.</p>
                     <button
                         className="btn btn-primary"
@@ -556,8 +739,9 @@ const AssistantAchat = () => {
                             Assistant de réapprovisionnement
                         </h1>
                         <p className="assistant-subtitle">
-                            {data.total_produits} produit(s) à commander ·{' '}
-                            {data.total_fournisseurs} fournisseur(s)
+                            {data.total_produits} produit(s) à réapprovisionner ·{' '}
+                            {(data.transferts || []).length} à transférer ·{' '}
+                            {data.fournisseurs.length} fournisseur(s) à commander
                         </p>
                     </div>
                     <div className="assistant-actions">
@@ -572,12 +756,28 @@ const AssistantAchat = () => {
                     </div>
                 </div>
 
+                {destinations.length > 0 && (
+                    <nav className="assistant-scope" aria-label="Destination des commandes">
+                        <button type="button" className={`assistant-scope-tab ${!isEntrepot ? 'is-active' : ''}`}
+                                onClick={() => setScopeKey('magasin')} disabled={loading}>
+                            <Store size={16} /> Magasin
+                        </button>
+                        {destinations.map((d) => (
+                            <button key={d.id_entrepot} type="button"
+                                    className={`assistant-scope-tab ${scopeKey === `e:${d.id_entrepot}` ? 'is-active' : ''}`}
+                                    onClick={() => setScopeKey(`e:${d.id_entrepot}`)} disabled={loading}>
+                                <Warehouse size={16} /> {d.nom}{d.ville ? <small>{d.ville}</small> : null}
+                            </button>
+                        ))}
+                    </nav>
+                )}
+
                 {/* ==================== INFO BANNER ==================== */}
                 <div className="assistant-info">
                     <div className="assistant-info-content">
                         <strong>Proposition intelligente</strong>
                         <span>
-                            Basée sur vos seuils (min/max) et vos ventes des 30 derniers jours.
+                            {isEntrepot ? 'Basée sur les seuils (min/max) de l\'entrepôt et ses sorties des 30 derniers jours (transferts, pertes…).' : 'Basée sur vos seuils (min/max) et vos ventes des 30 derniers jours.'}
                             Vous pouvez tout ajuster avant de valider.
                         </span>
                     </div>
@@ -604,6 +804,120 @@ const AssistantAchat = () => {
                         ))}
                     </div>
                 </div>
+
+                {/* ==================== À TRANSFÉRER DEPUIS L'ENTREPÔT ==================== */}
+                {(data.transferts || []).length > 0 && (
+                    <section className="transfert-bloc">
+                        <div className="transfert-header">
+                            <div className="fournisseur-icon"><Warehouse size={20} /></div>
+                            <div className="fournisseur-info">
+                                <h3>Disponible dans l'entrepôt : transférez, ne commandez pas</h3>
+                                <div className="fournisseur-contacts">
+                                    <span>Ces produits manquent à la boutique mais sont en stock dans un entrepôt.</span>
+                                </div>
+                            </div>
+                            <div className="fournisseur-stat">
+                                <span className="fs-value">{nbTransfertsSelectionnes}/{data.transferts.length}</span>
+                                <span className="fs-label">produits</span>
+                            </div>
+                        </div>
+                        <div className="fournisseur-produits">
+                            {data.transferts.map((t, idxT) => {
+                                const s = transferSel[t.id_produit];
+                                const isSel = s?.selected;
+                                const unitesSource = t.source.unites_vente || [];
+                                return (
+                                    <div key={t.id_produit} className={`produit-ligne ${isSel ? 'selected' : ''}`}>
+                                        <div className="produit-checkbox">
+                                            <span className="produit-num">{idxT + 1}</span>
+                                            <input type="checkbox" checked={!!isSel} onChange={() => toggleTransfert(t.id_produit)} />
+                                        </div>
+                                        <div className="produit-info">
+                                            <div className="produit-nom">
+                                                {t.produit_nom}
+                                                {t.marque_nom && <small> · {t.marque_nom}</small>}
+                                            </div>
+                                            <div className="produit-meta">
+                                                <span className={`alerte-badge ${t.type_alerte}`}>
+                                                    {t.type_alerte === 'rupture' ? 'Rupture' : 'Stock bas'}
+                                                </span>
+                                                <span className="stock-inline">
+                                                    <span className="stock-inline-label">Boutique :</span>
+                                                    <StockSelector
+                                                        idProduit={`assistant-t-${t.id_produit}`}
+                                                        stockBase={t.quantite_stock}
+                                                        unitesVente={t.unites_vente || []}
+                                                        uniteBase={{ nom: t.unite_base_nom, symbole: t.unite_base_symbole }}
+                                                        variant="list"
+                                                    />
+                                                </span>
+                                                <span className="stock-entrepot">
+                                                    <Warehouse size={12} />
+                                                    {t.source.entrepot_nom} :
+                                                    <StockSelector
+                                                        idProduit={`assistant-te-${t.id_produit}`}
+                                                        stockBase={t.source.stock_base}
+                                                        unitesVente={unitesSource}
+                                                        uniteBase={{ nom: t.unite_base_nom, symbole: t.unite_base_symbole }}
+                                                        variant="list"
+                                                    />
+                                                </span>
+                                                {t.autres_entrepots > 0 && (
+                                                    <span className="en-commande">+ {t.autres_entrepots} autre(s) entrepôt(s)</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="produit-quantite">
+                                            <button className="qte-btn" disabled={!isSel || s.quantite_uv <= 1}
+                                                    onClick={() => setQteTransfert(t, s.quantite_uv - 1)}>
+                                                <Minus size={14} />
+                                            </button>
+                                            <input type="number" className="qte-input" min="1" step="1"
+                                                   value={s?.quantite_uv || 1} disabled={!isSel}
+                                                   onChange={(e) => setQteTransfert(t, e.target.value)} />
+                                            <button className="qte-btn"
+                                                    disabled={!isSel || s.quantite_uv >= maxQteTransfert(t, s.quantite_base)}
+                                                    onClick={() => setQteTransfert(t, s.quantite_uv + 1)}>
+                                                <Plus size={14} />
+                                            </button>
+                                            <UniteSelect
+                                                unites={unitesSource}
+                                                uniteBaseNom={t.unite_base_nom}
+                                                selectedId={s?.id_unite_vente}
+                                                onChange={(u) => changeUniteTransfert(t, u)}
+                                                disabled={!isSel}
+                                            />
+                                            {s?.quantite_base > 1 && (
+                                                <span className="qte-equivalent">= {s.quantite_uv * s.quantite_base} {t.unite_base_nom}</span>
+                                            )}
+                                        </div>
+                                        <div className="produit-prix">
+                                            <span className="prix-value">{t.source.est_proprietaire ? 'Immédiat' : 'Sur approbation'}</span>
+                                            <small className="prix-detail">
+                                                {t.source.est_proprietaire ? 'vous êtes propriétaire' : 'validé par le propriétaire'}
+                                            </small>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </section>
+                )}
+
+                {livraison && data.fournisseurs.length > 0 && (
+                    <div className="livraison-banner">
+                        <Warehouse size={18} />
+                        <div>
+                            <strong>Livraison à l'entrepôt {livraison.nom}</strong>
+                            <span>Vous avez un entrepôt : la marchandise commandée y arrive d'abord, puis vous la transférez à la boutique.</span>
+                        </div>
+                        {destinations.length > 1 && (
+                            <select value={livraison.id_entrepot} onChange={(e) => setLivraisonId(Number(e.target.value))}>
+                                {destinations.map(d => <option key={d.id_entrepot} value={d.id_entrepot}>{d.nom}</option>)}
+                            </select>
+                        )}
+                    </div>
+                )}
 
                 {/* ==================== FOURNISSEURS ==================== */}
                 <div className="assistant-fournisseurs">
@@ -670,7 +984,7 @@ const AssistantAchat = () => {
 
                                 {isOpen && (
                                     <div className="fournisseur-produits">
-                                        {f.produits.map(p => {
+                                        {f.produits.map((p, idxP) => {
                                             const s = selection[p.id_produit];
                                             const isSel = s?.selected;
 
@@ -679,6 +993,7 @@ const AssistantAchat = () => {
                                             return (
                                                 <div key={p.id_produit} className={`produit-ligne ${isSel ? 'selected' : ''}`}>
                                                     <div className="produit-checkbox">
+                                                        <span className="produit-num">{idxP + 1}</span>
                                                         <input
                                                             type="checkbox"
                                                             checked={isSel}
@@ -849,14 +1164,28 @@ const AssistantAchat = () => {
                         <button
                             className="btn btn-secondary"
                             onClick={() => navigate(`/${slug}/commandes-achat`)}
-                            disabled={saving}
+                            disabled={saving || savingTransfert}
                         >
                             Annuler
                         </button>
+                        {(data.transferts || []).length > 0 && (
+                            <button
+                                className="btn btn-primary btn-lg"
+                                onClick={handleTransferer}
+                                disabled={savingTransfert || saving || nbTransfertsSelectionnes === 0}
+                            >
+                                {savingTransfert ? (
+                                    <><Loader size={18} className="spinning" /><span>Transfert...</span></>
+                                ) : (
+                                    <><Warehouse size={18} /><span>Transférer {nbTransfertsSelectionnes} produit(s)</span></>
+                                )}
+                            </button>
+                        )}
+                        {data.fournisseurs.length > 0 && (
                         <button
                             className="btn btn-primary btn-lg"
                             onClick={handleCreer}
-                            disabled={saving || totalSelectionne.produits === 0 || totalSelectionne.fournisseurs === 0}
+                            disabled={saving || savingTransfert || totalSelectionne.produits === 0 || totalSelectionne.fournisseurs === 0}
                         >
                             {saving ? (
                                 <>
@@ -870,6 +1199,7 @@ const AssistantAchat = () => {
                                 </>
                             )}
                         </button>
+                        )}
                     </div>
                 </div>
             </div>

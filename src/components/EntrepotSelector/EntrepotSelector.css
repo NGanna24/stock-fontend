@@ -1,0 +1,37 @@
+.es-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 10px;
+    background: var(--miyo-primary-soft, #FBF3E8);
+    color: var(--miyo-primary-dark, #6B4520);
+    border: 1px solid var(--miyo-border, #EADBC8);
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    font-family: inherit;
+    max-width: 220px;
+}
+.es-badge:hover {
+    background: var(--miyo-primary, #8B5A2B);
+    color: #fff;
+    border-color: var(--miyo-primary, #8B5A2B);
+}
+.es-badge-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 140px;
+}
+.es-badge-count {
+    background: rgba(0, 0, 0, 0.08);
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 11px;
+}
+.es-badge:hover .es-badge-count {
+    background: rgba(255, 255, 255, 0.2);
+}

@@ -4,10 +4,11 @@ import {
   Plus, Search, Eye, ChevronLeft, ChevronRight, Download, X, Check,
   RefreshCw, Grid, List, Package, Banknote, Calendar, Clock,
   AlertCircle, CheckCircle, Ban, FileText, Building, AlertTriangle,
-  Trash2, Send, CheckCheck, RotateCcw, Box, Info, MoreVertical
+  Trash2, Send, CheckCheck, RotateCcw, Box, Info, MoreVertical, Warehouse, Store
 } from "lucide-react";
 import RetourFournisseurService from "../../services/retourFournisseur/retourFournisseurService";
 import FournisseurService from "../../services/fournisseurService";
+import CommandeAchatService from "../../services/commandeAchatService";
 import MagasinService from "../../services/magasinService";
 import { useUser } from "../../context/AuthContext";
 import "./RetoursFournisseurs.css";
@@ -40,6 +41,19 @@ const RetoursFournisseurs = () => {
   const [retours, setRetours] = useState([]);
   const [fournisseurs, setFournisseurs] = useState([]);
   const [magasin, setMagasin] = useState(null);
+  // Origine : "magasin" ou "e:<id_entrepot>" (entrepôts dont le compte est propriétaire)
+  const [destinations, setDestinations] = useState([]);
+  const [scopeKey, setScopeKey] = useState("magasin");
+  const scopeParams = useMemo(
+    () => (scopeKey.startsWith("e:")
+      ? { destination: "entrepot", id_entrepot: Number(scopeKey.slice(2)) }
+      : { destination: "magasin" }),
+    [scopeKey]
+  );
+  const isEntrepot = scopeParams.destination === "entrepot";
+  const currentEntrepot = isEntrepot
+    ? destinations.find((d) => d.id_entrepot === scopeParams.id_entrepot)
+    : null;
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -85,8 +99,29 @@ const RetoursFournisseurs = () => {
       loadRetours();
       loadFournisseurs();
       loadMagasin();
+      (async () => {
+        try {
+          const r = await CommandeAchatService.getDestinations(token);
+          if (r.success) {
+            const liste = r.data || [];
+            setDestinations(liste);
+            // Propriétaire d'un entrepôt : on ouvre sur l'entrepôt
+            if (liste.length > 0) setScopeKey(`e:${liste[0].id_entrepot}`);
+          }
+        } catch (e) { console.error('❌ LoadDestinations error:', e); }
+      })();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, token]);
+
+  // Changement d'onglet : on recharge les retours
+  const premierRendu = useRef(true);
+  useEffect(() => {
+    if (premierRendu.current) { premierRendu.current = false; return; }
+    if (!(isAuthenticated && token)) return;
+    loadRetours();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey]);
 
   // Fermer le menu au clic extérieur
   useEffect(() => {
@@ -103,7 +138,7 @@ const RetoursFournisseurs = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await RetourFournisseurService.getAllRetours(token);
+      const response = await RetourFournisseurService.getAllRetours(token, scopeParams);
       if (response.success) {
         setRetours(response.data || []);
       } else {
@@ -150,10 +185,11 @@ const RetoursFournisseurs = () => {
 
       setLoadingProduits(true);
       try {
-        const res = await FournisseurService.getProduitsRecus(
-          token,
-          formData.id_fournisseur
-        );
+        const res = isEntrepot
+          ? await RetourFournisseurService.getProduitsRecusEntrepot(
+              token, formData.id_fournisseur, scopeParams.id_entrepot
+            )
+          : await FournisseurService.getProduitsRecus(token, formData.id_fournisseur);
 
         if (res.success) {
           setProduitsRecus(res.data || []);
@@ -178,7 +214,7 @@ const RetoursFournisseurs = () => {
     };
 
     if (showModal) chargerProduits();
-  }, [formData.id_fournisseur, showModal, token]);
+  }, [formData.id_fournisseur, showModal, token, scopeKey]);
 
   // ============================================================
   // ACTIONS FORMULAIRE
@@ -284,8 +320,11 @@ const RetoursFournisseurs = () => {
         date_retour: formData.date_retour,
         motif_retour: formData.motif_retour,
         notes: formData.notes || null,
+        ...scopeParams,
         lignes: lignesSelectionnees.map(l => ({
-          id_produit: l.produit.id_produit,
+          ...(isEntrepot
+            ? { id_produit_entrepot: l.produit.id_produit }
+            : { id_produit: l.produit.id_produit }),
           quantite: l.quantite,
           prix_achat: l.produit.prix_achat || 0,
           remise: 0,
@@ -319,7 +358,9 @@ const RetoursFournisseurs = () => {
       if (response.success && response.data) {
         setSelectedRetour({
           ...response.data,
-          magasin,  // ← injecté pour le PDF
+          magasin: response.data.destination === 'entrepot'
+            ? { ...(magasin || {}), nom: response.data.entrepot_nom, ville: response.data.entrepot_ville }
+            : magasin,  // ← injecté pour le PDF
         });
         setShowDetailModal(true);
       }
@@ -381,7 +422,7 @@ const RetoursFournisseurs = () => {
 
   const handleExport = async () => {
     try {
-      const response = await RetourFournisseurService.exportRetours(token);
+      const response = await RetourFournisseurService.exportRetours(token, scopeParams);
       if (response.success && response.data) {
         const headers = ["ID", "Numéro", "Date", "Fournisseur", "Motif", "Montant", "Statut"];
         const rows = response.data.map(r => [
@@ -683,7 +724,9 @@ const RetoursFournisseurs = () => {
       <div className="retours-header">
         <div>
           <h1 className="retours-title">🔄 Retours Fournisseurs</h1>
-          <p className="retours-subtitle">{stats.total} retours au total</p>
+          <p className="retours-subtitle">
+            {isEntrepot ? `Entrepôt ${currentEntrepot?.nom || ''} · ` : ''}{stats.total} retours au total
+          </p>
         </div>
         <div className="retours-actions">
           {canManage && (
@@ -701,6 +744,25 @@ const RetoursFournisseurs = () => {
           </button>
         </div>
       </div>
+
+      {/* ORIGINE : magasin / entrepôts dont vous êtes propriétaire */}
+      {destinations.length > 0 && (
+        <nav className="rt-scope" aria-label="Origine des retours">
+          <button type="button" className={`rt-scope-tab ${!isEntrepot ? 'is-active' : ''}`} onClick={() => setScopeKey('magasin')}>
+            <Store size={16} /> Magasin
+          </button>
+          {destinations.map((d) => (
+            <button
+              key={d.id_entrepot}
+              type="button"
+              className={`rt-scope-tab ${scopeKey === `e:${d.id_entrepot}` ? 'is-active' : ''}`}
+              onClick={() => setScopeKey(`e:${d.id_entrepot}`)}
+            >
+              <Warehouse size={16} /> {d.nom}{d.ville ? <small>{d.ville}</small> : null}
+            </button>
+          ))}
+        </nav>
+      )}
 
       {/* STATS */}
       <div className="retours-stats">

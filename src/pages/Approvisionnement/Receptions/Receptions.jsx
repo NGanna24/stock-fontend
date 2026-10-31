@@ -5,7 +5,7 @@ import {
   RefreshCw, Grid, List, Package, Banknote, Calendar, Clock,
   AlertCircle, CheckCircle, Ban, FileText, Building, Truck,
   ClipboardList, CheckSquare, Square, AlertTriangle, Trash2,
-  ShoppingBag, ChevronDown
+  ShoppingBag, ChevronDown, Warehouse, Store
 } from "lucide-react";
 import ReceptionService from "../../../services/receptionService";
 import CommandeAchatService from "../../../services/commandeAchatService";
@@ -24,6 +24,19 @@ const Receptions = () => {
   const [commandesDisponibles, setCommandesDisponibles] = useState([]);
   const [fournisseurs, setFournisseurs] = useState([]);
   const [produits, setProduits] = useState([]);
+  // Destination : "magasin" ou "e:<id_entrepot>" (entrepôts dont le compte est propriétaire)
+  const [destinations, setDestinations] = useState([]);
+  const [scopeKey, setScopeKey] = useState("magasin");
+  const scopeParams = useMemo(
+    () => (scopeKey.startsWith("e:")
+      ? { destination: "entrepot", id_entrepot: Number(scopeKey.slice(2)) }
+      : { destination: "magasin" }),
+    [scopeKey]
+  );
+  const isEntrepot = scopeParams.destination === "entrepot";
+  const currentEntrepot = isEntrepot
+    ? destinations.find((d) => d.id_entrepot === scopeParams.id_entrepot)
+    : null;
   const [loading, setLoading] = useState(false);
   const [loadingCommandes, setLoadingCommandes] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -98,8 +111,32 @@ const Receptions = () => {
       loadCommandesDisponibles();
       loadFournisseurs();
       loadAllProduits();
+      (async () => {
+        try {
+          const r = await CommandeAchatService.getDestinations(token);
+          if (r.success) {
+          const liste = r.data || [];
+          setDestinations(liste);
+          // Propriétaire d'un entrepôt : la marchandise arrive d'abord à l'entrepôt
+          if (liste.length > 0) setScopeKey(`e:${liste[0].id_entrepot}`);
+        }
+        } catch (e) { console.error('❌ LoadDestinations error:', e); }
+      })();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, token]);
+
+  // Changement d'onglet : on recharge les réceptions et les commandes à livrer
+  const premierRendu = useRef(true);
+  useEffect(() => {
+    if (premierRendu.current) { premierRendu.current = false; return; }
+    if (!(isAuthenticated && token)) return;
+    setFilterStatut('');
+    setCurrentPage(1);
+    loadReceptions();
+    loadCommandesDisponibles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeKey]);
 
   useEffect(() => {
     return () => {
@@ -130,7 +167,7 @@ const Receptions = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await ReceptionService.getAllReceptions(token);
+      const response = await ReceptionService.getAllReceptions(token, scopeParams);
       if (response.success) {
         setReceptions(response.data || []);
       } else {
@@ -148,8 +185,8 @@ const Receptions = () => {
     setLoadingCommandes(true);
     try {
       const [responseEnAttente, responsePartiel] = await Promise.all([
-        CommandeAchatService.getCommandesByStatut(token, 'en_attente'),
-        CommandeAchatService.getCommandesByStatut(token, 'partiellement_recue')
+        CommandeAchatService.getCommandesByStatut(token, 'en_attente', scopeParams),
+        CommandeAchatService.getCommandesByStatut(token, 'partiellement_recue', scopeParams)
       ]);
 
       let commandesList = [];
@@ -255,7 +292,9 @@ const Receptions = () => {
             : null;
 
           return {
-            id_produit: l.id_produit,
+            id_produit: l.id_produit_entrepot ? l.id_produit_entrepot : l.id_produit,
+            id_produit_entrepot: l.id_produit_entrepot || null,
+            id_produit_magasin: l.id_produit || null,
             id_ligne_achat: l.id_ligne_achat || null,
             produit_nom: l.produit_nom || 'Produit inconnu',
             produit_reference: l.reference || '',
@@ -579,7 +618,11 @@ const Receptions = () => {
           }
 
           return {
-            id_produit: l.id_produit,
+            ...(isEntrepot
+              ? (l.id_produit_entrepot
+                  ? { id_produit_entrepot: l.id_produit_entrepot }
+                  : { id_produit: l.id_produit_magasin })
+              : { id_produit: l.id_produit }),
             id_ligne_achat: l.id_ligne_achat || null,
             id_unite_vente: l.id_unite_vente || null,
             nom_unite_vente: l.nom_unite_vente || 'Unité',
@@ -674,7 +717,7 @@ const Receptions = () => {
 
   const handleExport = async () => {
     try {
-      const response = await ReceptionService.exportReceptions(token);
+      const response = await ReceptionService.exportReceptions(token, scopeParams);
       if (response.success && response.data) {
         const headers = ["ID", "Numéro", "Date", "Fournisseur", "Commande", "Montant", "Statut", "Notes"];
         const rows = response.data.map(r => [
@@ -1265,7 +1308,7 @@ const Receptions = () => {
         <div>
           <h1 className="rc-title">Réceptions de stock</h1>
           <p className="rc-subtitle">
-            {stats.total} réception(s) · {commandesDisponibles.length} commande(s) en attente de livraison
+            {isEntrepot ? `Entrepôt ${currentEntrepot?.nom || ''} · ` : ''}{stats.total} réception(s) · {commandesDisponibles.length} commande(s) en attente de livraison
           </p>
         </div>
         <div className="rc-header-actions">
@@ -1290,6 +1333,25 @@ const Receptions = () => {
           )}
         </div>
       </div>
+
+      {/* DESTINATION */}
+      {destinations.length > 0 && (
+        <nav className="rc-scope" aria-label="Destination des réceptions">
+          <button type="button" className={`rc-scope-tab ${!isEntrepot ? 'is-active' : ''}`} onClick={() => setScopeKey('magasin')}>
+            <Store size={16} /> Magasin
+          </button>
+          {destinations.map((d) => (
+            <button
+              key={d.id_entrepot}
+              type="button"
+              className={`rc-scope-tab ${scopeKey === `e:${d.id_entrepot}` ? 'is-active' : ''}`}
+              onClick={() => setScopeKey(`e:${d.id_entrepot}`)}
+            >
+              <Warehouse size={16} /> {d.nom}{d.ville ? <small>{d.ville}</small> : null}
+            </button>
+          ))}
+        </nav>
+      )}
 
       {/* BANDEAU DE CHIFFRES */}
       <div className="rc-stats">

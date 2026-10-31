@@ -1,0 +1,132 @@
+/* pages/Entrepot/EntrepotPro.css — mise en page professionnelle de la page Entrepôt (préfixe ep2-)
+   À importer APRÈS Entrepot.css. N'affecte pas les fenêtres modales (ep-modal-*). */
+
+.ep2-page { max-width: 1280px; margin: 0 auto; padding: 24px 20px 48px; color: #0f172a; display: flex; flex-direction: column; gap: 20px; }
+
+/* ---------- En-tête ---------- */
+.ep2-head {
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap;
+    background: #fff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px 20px;
+}
+.ep2-id { display: flex; gap: 14px; align-items: flex-start; min-width: 0; }
+.ep2-logo { width: 46px; height: 46px; border-radius: 12px; background: #eff6ff; color: #1d4ed8; display: flex; align-items: center; justify-content: center; flex: none; }
+.ep2-title { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ep2-title h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+.ep2-role { padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; background: #eef2ff; color: #4338ca; }
+.ep2-role--owner { background: #fef3c7; color: #92400e; }
+.ep2-meta { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; color: #64748b; }
+.ep2-meta span { display: inline-flex; align-items: center; gap: 6px; }
+.ep2-code { display: inline-flex; align-items: center; gap: 6px; padding: 2px 4px 2px 9px; border: 1px dashed #cbd5e1; border-radius: 8px; background: #f8fafc; }
+.ep2-code b { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #0f172a; letter-spacing: .04em; }
+.ep2-code button { border: 0; background: transparent; cursor: pointer; color: #64748b; display: flex; padding: 4px; border-radius: 6px; }
+.ep2-code button:hover { background: #e2e8f0; }
+
+.ep2-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ep2-btn {
+    display: inline-flex; align-items: center; gap: 7px; padding: 9px 14px; border: 1px solid #cbd5e1; border-radius: 9px;
+    background: #fff; color: #0f172a; font: inherit; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap;
+}
+.ep2-btn:hover:not(:disabled) { background: #f8fafc; }
+.ep2-btn:disabled { opacity: .5; cursor: default; }
+.ep2-btn--primary { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.ep2-btn--primary:hover:not(:disabled) { background: #1e40af; }
+.ep2-select { padding: 9px 12px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; font: inherit; font-size: 14px; color: #0f172a; max-width: 220px; }
+
+/* ---------- Indicateurs ---------- */
+.ep2-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+.ep2-kpi {
+    text-align: left; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 14px 16px;
+    display: flex; flex-direction: column; gap: 6px; font: inherit; color: inherit;
+}
+button.ep2-kpi { cursor: pointer; }
+button.ep2-kpi:hover { border-color: #94a3b8; }
+.ep2-kpi.is-on { border-color: #1d4ed8; box-shadow: 0 0 0 3px rgba(29, 78, 216, .1); }
+.ep2-kpi-top { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: #64748b; font-weight: 500; }
+.ep2-kpi-ic { width: 30px; height: 30px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+.ep2-kpi-ic--blue { background: #eff6ff; color: #1d4ed8; }
+.ep2-kpi-ic--amber { background: #fffbeb; color: #b45309; }
+.ep2-kpi-ic--red { background: #fef2f2; color: #b91c1c; }
+.ep2-kpi-ic--green { background: #f0fdf4; color: #15803d; }
+.ep2-kpi strong { font-size: 26px; line-height: 1.1; font-weight: 700; letter-spacing: -.02em; }
+.ep2-kpi small { font-size: 12px; color: #94a3b8; }
+
+/* ---------- Onglets ---------- */
+.ep2-tabs { display: flex; gap: 4px; border-bottom: 1px solid #e2e8f0; }
+.ep2-tab {
+    display: inline-flex; align-items: center; gap: 8px; padding: 11px 16px; border: 0; background: transparent;
+    font: inherit; font-size: 15px; font-weight: 500; color: #64748b; cursor: pointer;
+    border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.ep2-tab:hover { color: #0f172a; }
+.ep2-tab.is-active { color: #1d4ed8; border-bottom-color: #1d4ed8; font-weight: 600; }
+.ep2-pill { min-width: 22px; padding: 1px 7px; border-radius: 999px; background: #f1f5f9; color: #475569; font-size: 12px; font-weight: 600; text-align: center; }
+.ep2-tab.is-active .ep2-pill { background: #dbeafe; color: #1d4ed8; }
+.ep2-pill--alert { background: #dc2626 !important; color: #fff !important; }
+
+/* ---------- Barre d'outils ---------- */
+.ep2-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.ep2-search { flex: 1 1 300px; display: flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #cbd5e1; border-radius: 9px; padding: 0 12px; color: #64748b; }
+.ep2-search:focus-within { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+.ep2-search input { flex: 1; border: 0; outline: 0; background: transparent; font: inherit; font-size: 14px; padding: 10px 0; color: #0f172a; }
+.ep2-search button { border: 0; background: transparent; cursor: pointer; color: #94a3b8; display: flex; padding: 2px; }
+.ep2-seg { display: inline-flex; background: #f1f5f9; border-radius: 9px; padding: 3px; gap: 2px; }
+.ep2-seg button { border: 0; background: transparent; padding: 7px 12px; border-radius: 7px; font: inherit; font-size: 13px; font-weight: 500; color: #475569; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.ep2-seg button.is-on { background: #fff; color: #0f172a; box-shadow: 0 1px 2px rgba(15, 23, 42, .12); font-weight: 600; }
+.ep2-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border: 1px solid #cbd5e1; border-radius: 9px; background: #fff; color: #475569; cursor: pointer; }
+.ep2-icon-btn:hover:not(:disabled) { background: #f8fafc; }
+
+/* ---------- Tableau produits ---------- */
+.ep2-wrap { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow-x: auto; }
+.ep2-table { width: 100%; border-collapse: collapse; font-size: 14px; min-width: 900px; }
+.ep2-table th { text-align: left; padding: 11px 14px; font-size: 12px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: #64748b; background: #f8fafc; border-bottom: 1px solid #e2e8f0; white-space: nowrap; }
+.ep2-table td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.ep2-table tbody tr:last-child td { border-bottom: 0; }
+.ep2-table tbody tr:hover { background: #f8fafc; }
+.ep2-table .r { text-align: right; }
+.ep2-sort { display: inline-flex; align-items: center; gap: 4px; border: 0; background: transparent; padding: 0; font: inherit; font-size: 12px; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; color: inherit; cursor: pointer; }
+.ep2-sort.is-on { color: #1d4ed8; }
+.ep2-pname { font-weight: 600; color: #0f172a; }
+.ep2-psub { margin-top: 2px; font-size: 12px; color: #64748b; max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ep2-loc { font-size: 13px; color: #475569; white-space: nowrap; }
+.ep2-muted { color: #94a3b8; }
+.ep2-stock { min-width: 150px; }
+.ep2-stock-line { display: flex; align-items: baseline; gap: 6px; }
+.ep2-stock-line strong { font-size: 16px; font-weight: 700; }
+.ep2-stock-line span { font-size: 12px; color: #64748b; }
+.ep2-stock .ep-level { margin-top: 6px; }
+.ep2-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ep2-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.ep2-badge--ok, .ep2-badge--high { background: #dcfce7; color: #166534; }
+.ep2-badge--low { background: #fef3c7; color: #92400e; }
+.ep2-badge--out { background: #fee2e2; color: #991b1b; }
+.ep2-row-actions { display: inline-flex; gap: 4px; justify-content: flex-end; }
+.ep2-ibtn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: #475569; cursor: pointer; }
+.ep2-ibtn:hover:not(:disabled) { background: #f1f5f9; border-color: #e2e8f0; color: #0f172a; }
+.ep2-ibtn:disabled { opacity: .35; cursor: default; }
+.ep2-ibtn--danger:hover:not(:disabled) { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.ep2-ibtn--send { color: #1d4ed8; }
+
+/* ---------- Pagination / états ---------- */
+.ep2-pager { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 13px; color: #64748b; }
+.ep2-pager-nav { display: inline-flex; align-items: center; gap: 10px; }
+.ep2-state { display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; padding: 56px 16px; background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; color: #64748b; }
+.ep2-state svg { color: #94a3b8; }
+.ep2-state strong { color: #0f172a; font-size: 16px; }
+
+@media (max-width: 900px) { .ep2-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 520px) { .ep2-page { padding: 14px 12px 40px; } .ep2-kpis { grid-template-columns: 1fr; } }
+
+/* ---------- Numérotation + sélection / panier ---------- */
+.ep2-num { width: 44px; text-align: center; color: #64748b; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ep2-check { width: 38px; text-align: center; }
+.ep2-check input { width: 16px; height: 16px; cursor: pointer; accent-color: #1d4ed8; }
+.ep2-table tr.is-selected td { background: #eff6ff; }
+.ep2-cart {
+    position: sticky; bottom: 14px; z-index: 20; margin: 14px auto 0; width: fit-content; max-width: 100%;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px;
+    background: #0f172a; color: #fff; border-radius: 14px; box-shadow: 0 8px 24px rgba(15, 23, 42, .28);
+}
+.ep2-cart b { font-variant-numeric: tabular-nums; }
+.ep2-cart-clear { background: transparent; border: 0; color: #cbd5e1; font: inherit; font-size: 13px; text-decoration: underline; cursor: pointer; }
+.ep2-cart-go { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border: 0; border-radius: 9px; background: #2563eb; color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.ep2-cart-go:hover { background: #1d4ed8; }

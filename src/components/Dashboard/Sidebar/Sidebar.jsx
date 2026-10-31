@@ -57,6 +57,8 @@ export const MENU_CONFIG = [
       { id: "commandes-achat", title: "Commandes fournisseurs", icon: ShoppingBasket, path: "/commandes-achat" },
       { id: "receptions", title: "Réceptions", icon: PackageCheck, path: "/receptions" },
       { id: "retours-fournisseurs", title: "Retours fournisseurs", icon: RotateCcw, path: "/retours-fournisseurs" },
+      { id: "transferts", title: "Transferts", icon: Truck, path: "/transferts" },
+      {id:'entrepot', title:'Entrepôt', icon: Warehouse, path:'/entrepot'},
     ],
   },
   {

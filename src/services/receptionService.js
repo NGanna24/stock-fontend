@@ -43,13 +43,14 @@ class ReceptionService {
     /**
      * Récupérer les réceptions par statut
      */
-    static async getReceptionsByStatut(token, statut) {
+    static async getReceptionsByStatut(token, statut, params = {}) {
         try {
             const response = await axios.get(API_URL.RECEPTION.GET_BY_STATUT(statut), {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                params
             });
             return response.data;
         } catch (error) {
@@ -79,13 +80,14 @@ class ReceptionService {
     /**
      * Récupérer les statistiques
      */
-    static async getStats(token) {
+    static async getStats(token, params = {}) {
         try {
             const response = await axios.get(API_URL.RECEPTION.GET_STATS, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                params
             });
             
             if (response.data && response.data.success && response.data.data) {
@@ -171,13 +173,14 @@ class ReceptionService {
     /**
      * Exporter les réceptions
      */
-    static async exportReceptions(token) {
+    static async exportReceptions(token, params = {}) {
         try {
             const response = await axios.get(API_URL.RECEPTION.EXPORT, {
                 headers: {
                     'Authorization': `Bearer ${token}`,
                     'Content-Type': 'application/json'
-                }
+                },
+                params
             });
             return response.data;
         } catch (error) {
