@@ -80,17 +80,42 @@ function bonHtml(t) {
 </body></html>`;
 }
 
+/**
+ * Imprime le bon dans une iframe cachée (aucune pop-up : fonctionne dans le navigateur
+ * ET dans l'application Electron, qui bloque window.open).
+ */
 export function imprimerBon(t) {
     if (t?.statut !== 'valide') return false; // pas de bon tant que la demande n'est pas approuvée
-    const w = window.open('', '_blank', 'width=900,height=1000');
-    if (!w) return false; // bloqué par le navigateur
-    w.document.open();
-    w.document.write(bonHtml(t));
-    w.document.close();
-    w.focus();
-    // laisse le temps au rendu avant d'ouvrir la boîte d'impression
-    setTimeout(() => w.print(), 300);
-    return true;
+    try {
+        const iframe = document.createElement('iframe');
+        iframe.setAttribute('aria-hidden', 'true');
+        iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+        document.body.appendChild(iframe);
+
+        const fenetre = iframe.contentWindow;
+        const doc = fenetre.document;
+        doc.open();
+        doc.write(bonHtml(t));
+        doc.close();
+
+        const retirer = () => { if (iframe.parentNode) iframe.parentNode.removeChild(iframe); };
+        // laisse le temps au rendu avant d'ouvrir la boîte d'impression
+        setTimeout(() => {
+            try {
+                fenetre.focus();
+                fenetre.addEventListener('afterprint', retirer);
+                fenetre.print();
+            } catch (e) {
+                console.error('Impression du bon :', e);
+                retirer();
+            }
+            setTimeout(retirer, 2 * 60 * 1000); // sécurité si « afterprint » ne se déclenche pas
+        }, 300);
+        return true;
+    } catch (e) {
+        console.error('Impression du bon :', e);
+        return false;
+    }
 }
 
 export default function BonTransfert({ transfert, onClose, onError }) {
@@ -99,7 +124,7 @@ export default function BonTransfert({ transfert, onClose, onError }) {
 
     const imprimer = () => {
         if (t.statut !== 'valide') return onError?.("Le bon n'est disponible qu'une fois la demande approuvée");
-        if (!imprimerBon(t)) onError?.("Le navigateur a bloqué la fenêtre d'impression : autorisez les pop-ups pour ce site.");
+        if (!imprimerBon(t)) onError?.("Impossible de lancer l'impression du bon. Réessayez.");
     };
 
     return (
