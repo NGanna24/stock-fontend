@@ -2,11 +2,13 @@
 import React, { useState } from 'react';
 import { Receipt, FileText, Download, Printer, Loader, X } from 'lucide-react';
 import FacturePDFService from '../../services/facturePDFService';
+import ApercuImpression from '../Impression/ApercuImpression';
 import './FormatChoiceModal.css';
 
 const FormatChoiceModal = ({ isOpen, factureData, action = 'print', onClose, onDone }) => {
   const [loading, setLoading] = useState(null); // 'ticket' | 'a4' | null
   const [error, setError] = useState(null);
+  const [apercu, setApercu] = useState(null); // 'ticket' | 'a4' | null
 
   if (!isOpen || !factureData) return null;
 
@@ -32,20 +34,10 @@ const FormatChoiceModal = ({ isOpen, factureData, action = 'print', onClose, onD
           await FacturePDFService.downloadPDF(factureData);
         }
       } else {
-        // Impression
-        let res;
-        if (format === 'ticket') {
-          res = await FacturePDFService.printTicket(factureData);
-        } else {
-          res = await FacturePDFService.print(factureData);
-        }
-        if (res?.fallback) {
-          setError(
-            "Impression directe indisponible : le PDF a été téléchargé à la place."
-          );
-          setLoading(null);
-          return;
-        }
+        // Impression : on passe d'abord par l'aperçu (choix de l'imprimante + impression)
+        setLoading(null);
+        setApercu(format);
+        return;
       }
       onDone?.(format);
     } catch (e) {
@@ -56,6 +48,22 @@ const FormatChoiceModal = ({ isOpen, factureData, action = 'print', onClose, onD
   };
 
   const canClose = !loading;
+
+  if (apercu) {
+    const ticket = apercu === 'ticket';
+    return (
+      <ApercuImpression
+        titre={ticket ? 'Ticket' : 'Facture A4'}
+        sousTitre={factureData.numero_facture}
+        etroit={ticket}
+        getBlob={() => FacturePDFService.getBlob(factureData, apercu)}
+        fileName={FacturePDFService.fileNameFor(factureData, apercu)}
+        printOptions={ticket ? { pageSize: { width: 80 * 2.83465, height: 'auto' }, margins: { top: 0, bottom: 0, left: 0, right: 0 }, scale: 'fit' } : undefined}
+        onClose={() => setApercu(null)}
+        onPrinted={(res) => { if (!res?.fallback) onDone?.(apercu); }}
+      />
+    );
+  }
 
   return (
     <div

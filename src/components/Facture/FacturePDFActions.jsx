@@ -2,9 +2,11 @@
 import React, { useState } from 'react';
 import { Download, Printer, X } from 'lucide-react';
 import FacturePDFService from '../../services/facturePDFService';
+import ApercuImpression from '../Impression/ApercuImpression';
 
 const FacturePDFActions = ({ factureData, onClose }) => {
     const [loading, setLoading] = useState(false);
+    const [apercu, setApercu] = useState(false);
 
     const handleDownload = async () => {
         if (!factureData) {
@@ -23,21 +25,13 @@ const FacturePDFActions = ({ factureData, onClose }) => {
         }
     };
 
-    const handlePrint = async () => {
+    // « Imprimer » ouvre l'aperçu : le choix de l'imprimante et l'impression s'y font.
+    const handlePrint = () => {
         if (!factureData) {
             alert('Aucune facture à imprimer');
             return;
         }
-
-        setLoading(true);
-        try {
-            await FacturePDFService.print(factureData);
-        } catch (error) {
-            console.error('❌ Print error:', error);
-            alert('Erreur lors de l\'impression');
-        } finally {
-            setLoading(false);
-        }
+        setApercu(true);
     };
 
     return (
@@ -76,6 +70,16 @@ const FacturePDFActions = ({ factureData, onClose }) => {
                     <div className="pdf-loading-spinner"></div>
                     <p>Génération du PDF...</p>
                 </div>
+            )}
+
+            {apercu && (
+                <ApercuImpression
+                    titre="Facture"
+                    sousTitre={factureData?.numero_facture}
+                    getBlob={() => FacturePDFService.getBlob(factureData, 'a4')}
+                    fileName={FacturePDFService.fileNameFor(factureData, 'a4')}
+                    onClose={() => setApercu(false)}
+                />
             )}
         </>
     );
