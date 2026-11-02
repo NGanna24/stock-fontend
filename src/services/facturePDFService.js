@@ -44,6 +44,86 @@ class FacturePDFService {
     }
 
     // ============================================================
+    // APERÇU + IMPRESSION GÉNÉRIQUES (utilisés par ApercuImpression)
+    // ============================================================
+
+    /** PDF de la facture : format 'a4' (défaut) ou 'ticket' (80 mm). */
+    static async getBlob(factureData, format = 'a4') {
+        return format === 'ticket'
+            ? this._generateTicketBlob(factureData)
+            : this._generateBlob(factureData);
+    }
+
+    static fileNameFor(factureData, format = 'a4') {
+        return format === 'ticket'
+            ? `Ticket_${factureData?.numero_facture || 'sans-numero'}.pdf`
+            : this._fileName(factureData);
+    }
+
+    /** Enregistre un blob PDF sur l'appareil. */
+    static downloadBlob(blob, fileName) {
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName || 'document.pdf';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+
+    /** Electron uniquement : envoie le PDF à l'imprimante (choisie ou par défaut de Windows). */
+    static async printBlobElectron(blob, options = {}) {
+        if (!this._hasElectronPrint()) throw new Error('Impression directe indisponible');
+        const res = await window.electronAPI.printPdf(await blob.arrayBuffer(), {
+            ...options,
+            printer: options.printer || this.getSelectedPrinter() || undefined,
+        });
+        if (!res?.success) throw new Error(res?.error || "Échec de l'impression");
+        return { success: true, fallback: !!res.fallback };
+    }
+
+    /** Ouvre le PDF dans le lecteur du système (Electron). */
+    static async openBlobElectron(blob) {
+        if (!this._hasElectronOpen()) throw new Error('Ouverture indisponible');
+        const res = await window.electronAPI.openPdf(await blob.arrayBuffer());
+        if (!res?.success) throw new Error(res?.error || "Impossible d'ouvrir le PDF");
+        return { success: true };
+    }
+
+    /** Navigateur : impression du PDF via une iframe cachée (repli : téléchargement). */
+    static async printBlobBrowser(blob, fileName) {
+        const url = URL.createObjectURL(blob);
+        const iframe = document.createElement('iframe');
+        iframe.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+        iframe.src = url;
+        document.body.appendChild(iframe);
+        const nettoyer = () => {
+            if (iframe.parentNode) iframe.parentNode.removeChild(iframe);
+            URL.revokeObjectURL(url);
+        };
+        await new Promise((resolve) => {
+            let fini = false;
+            const fin = () => { if (!fini) { fini = true; resolve(); } };
+            iframe.onload = () => setTimeout(() => {
+                try {
+                    iframe.contentWindow.focus();
+                    iframe.contentWindow.print();
+                } catch (e) {
+                    console.error('Impression navigateur :', e);
+                    this.downloadBlob(blob, fileName);
+                }
+                setTimeout(nettoyer, 60000);
+                fin();
+            }, 300);
+            setTimeout(() => { if (!fini) { this.downloadBlob(blob, fileName); nettoyer(); fin(); } }, 10000);
+        });
+    }
+
+    static isElectron() { return this._hasElectronPrint(); }
+    static isMobile() { return this._isMobile(); }
+
+    // ============================================================
     // IMPRIMANTES (Electron uniquement)
     // ============================================================
 
@@ -330,4 +410,3 @@ class FacturePDFService {
 }
 
 export default FacturePDFService;
- 

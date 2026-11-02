@@ -1,6 +1,7 @@
 // components/Impression/ApercuImpression.jsx
 // Fenêtre d'aperçu avant impression, commune aux factures A4, tickets et bons de transfert.
-//  - Affiche le PDF tel qu'il sortira de l'imprimante.
+//  - Affiche le PDF tel qu'il sortira de l'imprimante (rendu page par page avec pdf.js :
+//    ne dépend PAS du lecteur PDF intégré, qui reste blanc dans Electron).
 //  - Electron : choix de l'imprimante + impression directe (aucune pop-up, aucun window.open).
 //  - Navigateur : bouton Imprimer = boîte d'impression du navigateur sur le PDF affiché.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -38,7 +39,8 @@ export default function ApercuImpression({
     const [action, setAction] = useState(null); // 'print' | 'download' | 'open' | null
     const [imprimantes, setImprimantes] = useState([]);
     const [imprimante, setImprimante] = useState(() => FacturePDFService.getSelectedPrinter());
-    const frameRef = useRef(null);
+    const pagesRef = useRef(null);
+    const [rendu, setRendu] = useState('attente'); // 'attente' | 'ok' | 'echec'
     const electron = FacturePDFService.isElectron();
 
     // Génération du PDF
@@ -65,6 +67,49 @@ export default function ApercuImpression({
             if (objectUrl) URL.revokeObjectURL(objectUrl);
         };
     }, []);
+
+    // Rendu de l'aperçu (pdf.js → canvas)
+    useEffect(() => {
+        if (!blob || !pagesRef.current) return;
+        let annule = false;
+        let doc = null;
+        const zone = pagesRef.current;
+        zone.innerHTML = '';
+        setRendu('attente');
+        (async () => {
+            try {
+                const pdfjs = await import('pdfjs-dist');
+                pdfjs.GlobalWorkerOptions.workerSrc = `${process.env.PUBLIC_URL || ''}/pdf.worker.min.js`;
+                const data = new Uint8Array(await blob.arrayBuffer());
+                doc = await pdfjs.getDocument({ data }).promise;
+                const dpr = window.devicePixelRatio || 1;
+                for (let i = 1; i <= doc.numPages; i++) {
+                    const page = await doc.getPage(i);
+                    if (annule) return;
+                    const base = page.getViewport({ scale: 1 });
+                    const largeur = Math.max(240, zone.clientWidth - 32);
+                    const echelle = Math.min(largeur / base.width, 2);
+                    const vp = page.getViewport({ scale: echelle * dpr });
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.floor(vp.width);
+                    canvas.height = Math.floor(vp.height);
+                    canvas.style.width = `${Math.floor(vp.width / dpr)}px`;
+                    canvas.style.height = `${Math.floor(vp.height / dpr)}px`;
+                    canvas.className = 'apimp-page';
+                    zone.appendChild(canvas);
+                    await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+                }
+                if (!annule) setRendu('ok');
+            } catch (e) {
+                console.error('Aperçu pdf.js :', e);
+                if (!annule) setRendu('echec');
+            }
+        })();
+        return () => {
+            annule = true;
+            try { doc?.destroy(); } catch { /* déjà détruit */ }
+        };
+    }, [blob]);
 
     // Imprimantes (Electron)
     useEffect(() => {
@@ -120,16 +165,7 @@ export default function ApercuImpression({
                 telecharger();
                 setInfo("Impression non disponible sur mobile : le PDF a été téléchargé.");
             } else {
-                const w = frameRef.current?.contentWindow;
-                if (!w) throw new Error("L'aperçu n'est pas prêt");
-                try {
-                    w.focus();
-                    w.print();
-                } catch {
-                    // le lecteur PDF du navigateur refuse print() : on télécharge pour ne rien perdre
-                    telecharger();
-                    setInfo("Impression directe impossible : le PDF a été téléchargé.");
-                }
+                await FacturePDFService.printBlobBrowser(blob, fileName);
                 onPrinted?.({ success: true });
             }
         } catch (e) {
@@ -148,7 +184,7 @@ export default function ApercuImpression({
         finally { setAction(null); }
     };
 
-    const pret = !!url && !erreur;
+    const pret = !!blob && !erreur;
 
     return createPortal(
         <div className="apimp-overlay" onClick={() => !action && onClose?.()}>
@@ -169,16 +205,15 @@ export default function ApercuImpression({
 
                 <div className="apimp-body">
                     <div className="apimp-preview">
-                        {!url && !erreur && (
+                        {(!url || rendu === 'attente') && !erreur && (
                             <div className="apimp-wait"><Loader size={22} className="apimp-spin" /> Préparation de l'aperçu…</div>
                         )}
-                        {url && (
-                            <iframe
-                                ref={frameRef}
-                                title={titre}
-                                src={`${url}#toolbar=0&navpanes=0&view=FitH`}
-                                className="apimp-frame"
-                            />
+                        <div ref={pagesRef} className="apimp-pages" hidden={rendu === 'echec'} />
+                        {rendu === 'echec' && (
+                            <div className="apimp-wait apimp-wait--col">
+                                <p>L'aperçu ne peut pas s'afficher ici, mais l'impression reste possible.</p>
+                                <p className="apimp-hint">Pour l'activer : <code>npm i pdfjs-dist@3.11.174</code> puis copier <code>node_modules/pdfjs-dist/build/pdf.worker.min.js</code> dans le dossier <code>public</code>.</p>
+                            </div>
                         )}
                     </div>
 
