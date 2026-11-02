@@ -15,7 +15,9 @@ import './ApercuImpression.css';
  * @param {string}   sousTitre     texte secondaire (facultatif)
  * @param {() => Promise<Blob>} getBlob  génère le PDF
  * @param {string}   fileName      nom du fichier si téléchargé
- * @param {object}   printOptions  options transmises à l'impression Electron (pageSize, margins…)
+ * @param {object|function} printOptions  options transmises à l'impression Electron (pageSize, margins…),
+ *                                ou fonction (taillePagePts) => options, appelée avec la taille réelle
+ *                                de la 1re page du PDF ({ width, height } en points, ou null)
  * @param {boolean}  etroit        true pour un ticket (aperçu plus étroit)
  * @param {() => void} onClose
  * @param {(msg: string) => void} onError   (facultatif)
@@ -41,6 +43,7 @@ export default function ApercuImpression({
     const [imprimante, setImprimante] = useState(() => FacturePDFService.getSelectedPrinter());
     const pagesRef = useRef(null);
     const [rendu, setRendu] = useState('attente'); // 'attente' | 'ok' | 'echec'
+    const taillePageRef = useRef(null); // taille de la 1re page du PDF, en points
     const electron = FacturePDFService.isElectron();
 
     // Génération du PDF
@@ -78,7 +81,10 @@ export default function ApercuImpression({
         setRendu('attente');
         (async () => {
             try {
-                const pdfjs = await import('pdfjs-dist');
+                // pdfjs-dist 3 est un module UMD : selon l'outil de build, ses exports sont
+                // à la racine ou sous `default`.
+                const mod = await import('pdfjs-dist');
+                const pdfjs = mod?.GlobalWorkerOptions ? mod : (mod?.default || mod);
                 pdfjs.GlobalWorkerOptions.workerSrc = `${process.env.PUBLIC_URL || ''}/pdf.worker.min.js`;
                 const data = new Uint8Array(await blob.arrayBuffer());
                 doc = await pdfjs.getDocument({ data }).promise;
@@ -87,6 +93,7 @@ export default function ApercuImpression({
                     const page = await doc.getPage(i);
                     if (annule) return;
                     const base = page.getViewport({ scale: 1 });
+                    if (i === 1) taillePageRef.current = { width: base.width, height: base.height };
                     const largeur = Math.max(240, zone.clientWidth - 32);
                     const echelle = Math.min(largeur / base.width, 2);
                     const vp = page.getViewport({ scale: echelle * dpr });
@@ -151,8 +158,11 @@ export default function ApercuImpression({
         setErreur(''); setInfo(''); setAction('print');
         try {
             if (electron) {
+                const options = typeof printOptions === 'function'
+                    ? printOptions(taillePageRef.current)
+                    : printOptions;
                 const res = await FacturePDFService.printBlobElectron(blob, {
-                    ...(printOptions || {}),
+                    ...(options || {}),
                     printer: imprimante || undefined,
                 });
                 if (res.fallback) {

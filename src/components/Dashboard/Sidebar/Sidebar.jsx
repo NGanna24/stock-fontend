@@ -8,7 +8,7 @@ import {
   ChevronDown, LayoutDashboard, Package, Boxes, Tag, ShoppingBasket, Truck,
   PackageCheck, ShoppingCart, FileText, Users, RotateCcw, Warehouse, LayoutTemplate,
   ClipboardList, Layers, AlertTriangle, CreditCard, BarChart3, TrendingUp, Banknote,
-  Settings, PanelLeftClose, PanelLeftOpen, LogOut, Store, Ruler, Bot, User,
+  Settings, PanelLeftClose, PanelLeftOpen, LogOut, Store, Ruler, Bot, User, Wallet, Calculator, HandCoins, History, BellRing,
 } from "lucide-react";
 import ConfirmModal from "../../ConfirmModal/ConfirmModal";
 import "./Sidebar.css";
@@ -31,8 +31,11 @@ export const MENU_CONFIG = [
     items: [
       { id: "clients", title: "Clients", icon: Users, path: "/clients" },
       { id: "commandes-clients", title: "Vente", icon: ShoppingCart, path: "/commandes-clients" },
+      { id: "caisse", title: "Caisse", icon: Calculator, path: "/caisse" },
       { id: "factures", title: "Factures", icon: FileText, path: "/factures" },
+      { id: "relances", title: "Relances clients", icon: BellRing, path: "/relances" },
       { id: "recettes", title: "Recettes", icon: Banknote, path: "/recettes", highlight: "#43b57a" },
+      { id: "depenses", title: "Dépenses", icon: Wallet, path: "/depenses" },
       { id: "retours-clients", title: "Retours clients", icon: RotateCcw, path: "/retours-clients" },
     ],
   },
@@ -56,6 +59,7 @@ export const MENU_CONFIG = [
       { id: "fournisseurs", title: "Fournisseurs", icon: Truck, path: "/fournisseurs" },
       { id: "commandes-achat", title: "Commandes fournisseurs", icon: ShoppingBasket, path: "/commandes-achat" },
       { id: "receptions", title: "Réceptions", icon: PackageCheck, path: "/receptions" },
+      { id: "dettes-fournisseurs", title: "Dettes fournisseurs", icon: HandCoins, path: "/dettes-fournisseurs" },
       { id: "retours-fournisseurs", title: "Retours fournisseurs", icon: RotateCcw, path: "/retours-fournisseurs" },
       { id: "transferts", title: "Transferts", icon: Truck, path: "/transferts" },
       {id:'entrepot', title:'Entrepôt', icon: Warehouse, path:'/entrepot'},
@@ -79,6 +83,7 @@ export const MENU_CONFIG = [
       { id: "mon-profil", title: "Mon profil", icon: User, path: "/mon-profil" },
       { id: "mon-magasin", title: "Mon magasin", icon: Store, path: "/mon-magasin" },
       { id: "employes", title: "Employés", icon: Users, path: "/employes" },
+      { id: "journal", title: "Journal d'activité", icon: History, path: "/journal" },
       { id: "paiements", title: "Paiements", icon: CreditCard, path: "/paiements" },
     ],
   },

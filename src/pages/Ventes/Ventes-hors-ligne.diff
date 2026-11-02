@@ -1,0 +1,280 @@
+--- a/src/pages/Ventes/Ventes.jsx
++++ b/src/pages/Ventes/Ventes.jsx
+@@ -16,6 +16,12 @@
+ import { useUser } from "../../context/AuthContext";
+ import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
+ import FormatChoiceModal from '../../components/Facture/FormatChoiceModal';
++import {
++  useHorsLigne, estHorsLigne, estErreurReseau, verifierConnexion, preparer as preparerHorsLigne,
++  memoriserMagasin, magasinHorsLigne, rechercherProduits as rechercherProduitsHL,
++  unitesVente as unitesVenteHL, stockRestant as stockRestantHL, creerVente as creerVenteHL,
++  ajouterPaiement as ajouterPaiementHL,
++} from '../../offline/horsLigne';
+ 
+ import "./Ventes.css";
+ 
+@@ -453,6 +459,9 @@
+   const [deleting, setDeleting] = useState(false);
+   const [updatingStatut, setUpdatingStatut] = useState(null);
+ 
++  // ---------- Mode hors ligne ----------
++  const hl = useHorsLigne();
++
+   // ---------- Toast ----------
+   const [toast, setToast] = useState(null);
+   const toastTimer = useRef(null);
+@@ -535,6 +544,19 @@
+ 
+   useEffect(() => { setCurrentPage(1); }, [searchTerm, filterStatut]);
+ 
++  // Retour de la connexion, ou ventes hors ligne enregistrées : on rafraîchit la liste
++  useEffect(() => {
++    if (!hl.enLigne || !isAuthenticated || !token) return;
++    loadCommandes();
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [hl.enLigne]);
++  useEffect(() => {
++    const surSynchro = () => loadCommandes();
++    window.addEventListener('miyo:ventes-synchronisees', surSynchro);
++    return () => window.removeEventListener('miyo:ventes-synchronisees', surSynchro);
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, []);
++
+   useEffect(() => () => {
+     clearTimeout(toastTimer.current);
+     clearTimeout(searchDebounce.current);
+@@ -581,7 +603,11 @@
+       else setError(response.message || "Erreur lors du chargement des commandes");
+     } catch (err) {
+       console.error("LoadCommandes error:", err);
+-      setError(err.message || "Erreur lors du chargement des commandes");
++      setError(
++        estErreurReseau(err)
++          ? "Pas de connexion internet : la liste des ventes sera mise à jour au retour de la connexion. Vous pouvez quand même vendre."
++          : err.message || "Erreur lors du chargement des commandes"
++      );
+     } finally {
+       setLoading(false);
+     }
+@@ -598,9 +624,16 @@
+   const loadMagasin = async () => {
+     try {
+       const res = await MagasinService.getMonMagasin(token);
+-      if (res.success) setMagasin(res.magasin);
++      if (res.success) {
++        setMagasin(res.magasin);
++        // Prépare la vente sans internet : catalogue + fiche du magasin gardés sur l'appareil
++        memoriserMagasin(res.magasin).catch(() => {});
++        preparerHorsLigne().catch(() => {});
++      }
+     } catch (err) {
+       console.error("LoadMagasin error:", err);
++      const local = await magasinHorsLigne().catch(() => null);
++      if (local) setMagasin(local);
+     }
+   };
+ 
+@@ -715,6 +748,12 @@
+ 
+     searchDebounce.current = setTimeout(async () => {
+       try {
++        if (estHorsLigne()) {
++          // Sans internet : recherche dans le catalogue gardé sur l'appareil
++          const locaux = await rechercherProduitsHL(texte);
++          if (rid === searchReq.current) setProduitSearchResults(locaux);
++          return;
++        }
+         const response = await ProduitService.getProduitsByModele(token, texte);
+         if (rid !== searchReq.current) return;
+         if (response.success && response.data) {
+@@ -726,7 +765,13 @@
+         }
+       } catch (err) {
+         console.error("Recherche produit:", err);
+-        if (rid === searchReq.current) setProduitSearchResults([]);
++        if (rid !== searchReq.current) return;
++        if (estErreurReseau(err)) {
++          verifierConnexion();
++          setProduitSearchResults(await rechercherProduitsHL(texte).catch(() => []));
++        } else {
++          setProduitSearchResults([]);
++        }
+       } finally {
+         if (rid === searchReq.current) setIsSearching(false);
+       }
+@@ -759,9 +804,19 @@
+     };
+ 
+     try {
+-      const res = await UniteVenteService.getByProduit(token, produit.id_produit);
++      let perso;
++      if (produit._horsLigne || estHorsLigne()) {
++        perso = await unitesVenteHL(produit.id_produit);
++      } else {
++        try {
++          const res = await UniteVenteService.getByProduit(token, produit.id_produit);
++          perso = res.success && res.data ? res.data : [];
++        } catch (e) {
++          if (!estErreurReseau(e)) throw e;
++          perso = await unitesVenteHL(produit.id_produit);
++        }
++      }
+       if (rid !== unitReq.current) return;
+-      const perso = res.success && res.data ? res.data : [];
+       setUnitesVente([uniteBase, ...perso]);
+       const principale = perso.find((u) => u.est_principal === 1 || u.est_principal === true);
+       const defaut = principale || uniteBase;
+@@ -813,11 +868,16 @@
+     setAdding(true);
+     try {
+       let stockDisponible = parseFloat(selectedProduit.quantite_stock) || 0;
+-      try {
+-        const fresh = await ProduitService.getProduitById(token, selectedProduit.id_produit);
+-        if (fresh.success && fresh.data) stockDisponible = parseFloat(fresh.data.quantite_stock) || 0;
+-      } catch {
+-        console.warn("Impossible de rafraîchir le stock");
++      if (estHorsLigne() || selectedProduit._horsLigne) {
++        // Stock connu sur l'appareil, moins les ventes hors ligne pas encore envoyées
++        stockDisponible = await stockRestantHL(selectedProduit.id_produit);
++      } else {
++        try {
++          const fresh = await ProduitService.getProduitById(token, selectedProduit.id_produit);
++          if (fresh.success && fresh.data) stockDisponible = parseFloat(fresh.data.quantite_stock) || 0;
++        } catch {
++          console.warn("Impossible de rafraîchir le stock");
++        }
+       }
+ 
+       const qteBase = parseFloat(selectedUnite.quantite_base) || 1;
+@@ -1002,6 +1062,52 @@
+   const mapLignesFacture = (lignes) =>
+     (lignes || []).map((l) => ({ ...l, unite_symbole: l.unite_symbole || l.nom_unite_vente || "" }));
+ 
++  /** Vente sans internet : gardée sur l'appareil avec un numéro provisoire, envoyée plus tard. */
++  const finaliserHorsLigne = async () => {
++    const vente = await creerVenteHL({
++      nomclient: formData.nomclient.trim(),
++      telephone: formData.telephone.trim(),
++      mode_paiement: "especes",
++      lignes: formData.lignes,
++    });
++    const aujourdHui = new Date().toISOString().split("T")[0];
++    const magasinLocal = (await magasinHorsLigne().catch(() => null)) || (magasin ? { ...magasin, logo_url: null } : null);
++    const facture = {
++      id_facture: null,
++      id_local: vente.id_local,
++      hors_ligne: true,
++      numero_facture: vente.numero_provisoire,
++      numero_commande: vente.numero_provisoire,
++      date_facture: aujourdHui,
++      date_echeance: aujourdHui,
++      nomclient: vente.nomclient || "Client",
++      telephone: vente.telephone || "",
++      montant_total: vente.montant_total,
++      mode_paiement: "especes",
++      statut: "en_attente",
++      notes: "Vente faite hors ligne : numéro provisoire, le numéro définitif sera attribué à l'envoi.",
++      lignes: mapLignesFacture(vente.lignes.map((l) => ({ ...l, montant_total: l.quantite * l.prix_vente }))),
++      paiements: [],
++      total_paye: 0,
++      reste_a_payer: vente.montant_total,
++      id_commande: null,
++      magasin: magasinLocal,
++      utilisateur_nom: user?.fullname || user?.nom || "",
++    };
++    setFactureGeneree(facture);
++    setCommandeEnCours({
++      id_local: vente.id_local,
++      hors_ligne: true,
++      numero_commande: vente.numero_provisoire,
++      nomclient: vente.nomclient,
++      telephone: vente.telephone,
++      montant_total: vente.montant_total,
++    });
++    setShowModal(false);
++    setShowFactureModal(true);
++    showToast(`Vente ${vente.numero_provisoire} gardée sur l'appareil : elle sera envoyée au retour d'internet`, "info");
++  };
++
+   const handleFinaliserVente = async () => {
+     if (!formData.nomclient.trim()) {
+       showAlert("Client manquant", "Veuillez saisir le nom du client.");
+@@ -1020,6 +1126,18 @@
+     setSaving(true);
+     setError(null);
+ 
++    if (estHorsLigne()) {
++      try {
++        await finaliserHorsLigne();
++      } catch (err) {
++        console.error("Vente hors ligne:", err);
++        showAlert("Vente non enregistrée", err.message || "Impossible d'enregistrer la vente sur cet appareil.", "danger");
++      } finally {
++        setSaving(false);
++      }
++      return;
++    }
++
+     try {
+       const data = {
+         nomclient: formData.nomclient.trim(),
+@@ -1082,6 +1200,17 @@
+       loadProduits();
+     } catch (err) {
+       console.error("Finaliser error:", err);
++      if (estErreurReseau(err)) {
++        // La connexion a coupé pendant l'envoi : la vente a peut-être été reçue.
++        // On ne l'enregistre PAS hors ligne automatiquement (risque de doublon).
++        verifierConnexion();
++        showAlert(
++          "Connexion perdue",
++          "La connexion a coupé pendant l'enregistrement. Vérifiez dans la liste si la vente apparaît. Si elle n'y est pas, cliquez à nouveau sur « Générer la facture » : elle sera enregistrée sur cet appareil et envoyée au retour d'internet.",
++          "warning"
++        );
++        return;
++      }
+       setError(err.message || "Erreur lors de la finalisation");
+       showAlert("Erreur", err.message || "Erreur lors de la finalisation de la vente.", "danger");
+     } finally {
+@@ -1121,6 +1250,41 @@
+     setSaving(true);
+     setError(null);
+ 
++    if (commandeEnCours.id_local) {
++      // Vente hors ligne : le paiement est gardé avec la vente et envoyé avec elle
++      try {
++        const v = await ajouterPaiementHL(commandeEnCours.id_local, {
++          montant,
++          mode_paiement: paiementData.mode_paiement || "especes",
++        });
++        const paye = v.paiements.reduce((s, p) => s + p.montant, 0);
++        const reste = Math.max(0, v.montant_total - paye);
++        const statut = reste <= 0.001 ? "payee" : "partiellement_payee";
++        setFactureGeneree((prev) => ({
++          ...prev,
++          statut,
++          total_paye: paye,
++          reste_a_payer: reste,
++          paiements: v.paiements.map((p) => ({ montant: p.montant, mode_paiement: p.mode_paiement, date_paiement: p.date.split("T")[0] })),
++        }));
++        if (statut === "payee") {
++          setShowPaiementModal(false);
++          setCommandeEnCours(null);
++          setPaiementData({ mode_paiement: "especes", montant: "" });
++          setShowFactureModal(true);
++          showToast("Vente payée et gardée sur l'appareil (envoi au retour d'internet)", "success");
++        } else {
++          setPaiementData((p) => ({ ...p, montant: "" }));
++          showToast(`Paiement partiel gardé sur l'appareil. Reste : ${formatMontant(reste)}`, "success");
++        }
++      } catch (err) {
++        showAlert("Paiement non enregistré", err.message || "Erreur lors du paiement", "danger");
++      } finally {
++        setSaving(false);
++      }
++      return;
++    }
++
+     try {
+       const paiementResponse = await CommandeVenteService.addPaiement(
+         token,

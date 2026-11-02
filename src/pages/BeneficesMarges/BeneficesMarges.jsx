@@ -1,10 +1,11 @@
 // pages/Rapports/BeneficesMarges/BeneficesMarges.jsx
 import React, { useState, useEffect, useCallback } from "react";
+import { Link, useParams } from "react-router-dom";
 import {
     TrendingUp, TrendingDown, Download, RefreshCw,
     Banknote, Percent, ShoppingCart, Package, Award,
     Users, BarChart3, Receipt, Target, ArrowUp, ArrowDown,
-    AlertTriangle, Info
+    AlertTriangle, Info, Wallet, Minus, Equal
 } from "lucide-react";
 import {
     ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
@@ -81,6 +82,7 @@ const CATEGORIE_COLORS = [
 
 const BeneficesMarges = () => {
     const { isAuthenticated } = useUser();
+    const { slug = '' } = useParams();
     const token = localStorage.getItem('token');
 
     const today = new Date();
@@ -184,6 +186,7 @@ const BeneficesMarges = () => {
         taux_couverture: 100
     };
 
+    const resultatNet = data?.resultat_net || null;
     const commandes = data?.commandes || [];
     const parProduit = data?.par_produit || [];
     const parCategorie = data?.par_categorie || [];
@@ -376,6 +379,58 @@ const BeneficesMarges = () => {
                     </div>
                 </div>
             </div>
+
+            {/* ==================== RÉSULTAT NET (marge brute - dépenses) ==================== */}
+            {resultatNet && (
+                <section className="bm-net" aria-label="Résultat net de la période">
+                    <div className="bm-net-calc">
+                        <div className="bm-net-term">
+                            <span className="bm-net-label">
+                                Bénéfice brut
+                                {resultatNet.estimation && <span className="badge-inline-warning"><AlertTriangle size={11} /> Estimation</span>}
+                            </span>
+                            <span className="bm-net-value">{formatMontant(resultatNet.benefice_brut)}</span>
+                        </div>
+                        <Minus size={18} className="bm-net-op" aria-label="moins" />
+                        <div className="bm-net-term">
+                            <span className="bm-net-label">Dépenses de fonctionnement</span>
+                            <span className="bm-net-value bm-net-dep">{formatMontant(resultatNet.depenses)}</span>
+                            <span className="bm-net-sub">
+                                {resultatNet.nombre_depenses > 0
+                                    ? `${resultatNet.nombre_depenses} dépense${resultatNet.nombre_depenses > 1 ? 's' : ''}`
+                                    : 'Aucune dépense saisie'}
+                                {' · '}
+                                <Link to={`/${slug}/depenses`} className="bm-net-link">
+                                    {resultatNet.nombre_depenses > 0 ? 'Voir le détail' : 'Saisir les dépenses'}
+                                </Link>
+                            </span>
+                        </div>
+                        <Equal size={18} className="bm-net-op" aria-label="égale" />
+                        <div className={`bm-net-term bm-net-result ${resultatNet.benefice_net < 0 ? 'is-neg' : ''}`}>
+                            <span className="bm-net-label">Bénéfice net</span>
+                            <span className="bm-net-value">{formatMontant(resultatNet.benefice_net)}</span>
+                            <span className="bm-net-sub">
+                                {resultatNet.marge_nette_pct !== null
+                                    ? `Marge nette : ${formatPct(resultatNet.marge_nette_pct)}`
+                                    : resultatNet.benefice_net < 0 ? 'Perte sur la période' : '—'}
+                            </span>
+                        </div>
+                    </div>
+                    {resultatNet.depenses_par_categorie?.length > 0 && (
+                        <div className="bm-net-cats">
+                            <Wallet size={14} />
+                            {resultatNet.depenses_par_categorie.slice(0, 5).map((c) => (
+                                <span key={c.categorie_nom} className="bm-net-cat">
+                                    {c.categorie_nom} <strong>{formatMontant(c.total)}</strong>
+                                </span>
+                            ))}
+                            {resultatNet.depenses_par_categorie.length > 5 && (
+                                <span className="bm-net-cat">+{resultatNet.depenses_par_categorie.length - 5} autre(s)</span>
+                            )}
+                        </div>
+                    )}
+                </section>
+            )}
 
             {/* ==================== ONGLETS ==================== */}
             <div className="benefices-tabs">

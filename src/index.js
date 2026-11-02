@@ -22,3 +22,17 @@ root.render(
 // to log results (for example: reportWebVitals(console.log))
 // or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
 reportWebVitals();
+
+// ✅ Mode hors ligne : garde l'application sur l'appareil pour pouvoir l'ouvrir sans internet.
+//    Uniquement sur la version construite (npm run build) servie en http(s).
+if (
+  process.env.NODE_ENV === 'production' &&
+  'serviceWorker' in navigator &&
+  /^https?:$/.test(window.location.protocol)
+) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker
+      .register(`${process.env.PUBLIC_URL}/service-worker.js`)
+      .catch((err) => console.warn('Service worker non enregistré :', err));
+  });
+}

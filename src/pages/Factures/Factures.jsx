@@ -1,1255 +1,933 @@
 // pages/Factures/Factures.jsx
-import React, { useState, useEffect, useRef } from "react";
+//
+// Même interface que la page Ventes (Ventes.css, préfixe vt-) :
+// synthèse + filtres par statut, recherche, tableau, détail, encaissement.
+// Impression / téléchargement : toujours via le choix Ticket / Facture A4 (+ aperçu).
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback } from "react";
 import {
-  Search,
-  Eye,
-  ChevronLeft,
-  ChevronRight,
-  Download,
-  X,
-  RefreshCw,
-  FileText,
-  Banknote,
-  Calendar,
-  Clock,
-  User,
-  TrendingUp,
-  AlertCircle,
-  CheckCircle,
-  Ban,
-  Wallet,
-  CreditCard,
-  Building,
-  Coins,
-  Printer,
-  Loader,
-  Phone,
-  Box,
-} from "lucide-react"; 
+  Download, X, RefreshCw, FileText, Wallet, CreditCard, Building, Coins, Printer, Loader,
+  User, CheckCircle, AlertTriangle, ChevronLeft, ChevronRight, MoreVertical,
+} from "lucide-react";
 import FactureService from "../../services/factureService";
 import CommandeVenteService from "../../services/commandeVenteService";
 import MagasinService from "../../services/magasinService";
 import { useUser } from "../../context/AuthContext";
-import FacturePDFActions from "../../components/Facture/FacturePDFActions";
+import FormatChoiceModal from "../../components/Facture/FormatChoiceModal";
+import "../Ventes/Ventes.css";
 import "./Factures.css";
 
 // ============================================================
 // HELPERS
 // ============================================================
+const NBSP = " ";
+
 const formatMontant = (value) => {
-  const num = Number(value || 0);
-  if (isNaN(num)) return '0 FCFA';
-  const fixed = Math.round(num).toString();
-  const formatted = fixed.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  return `${formatted} FCFA`;
+  const num = typeof value === "string" ? parseFloat(value.replace(/,/g, "")) : Number(value);
+  if (value === null || value === undefined || isNaN(num)) return `0${NBSP}FCFA`;
+  return `${Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, NBSP)}${NBSP}FCFA`;
 };
 
 const formatDateFR = (date) => {
-  if (!date) return '-';
-  try {
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return '-';
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
-  } catch {
-    return '-';
-  }
+  if (!date) return "-";
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return "-";
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
 };
 
-const getTodayISO = () => new Date().toISOString().split('T')[0];
+const getTodayISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
+const toNum = (v) => {
+  if (v === "" || v === null || v === undefined) return NaN;
+  return parseFloat(String(v).replace(/\s/g, "").replace(",", "."));
+};
+const DECIMAL_RE = /^\d*[.,]?\d*$/;
+
+const getMontantPaye = (f) => {
+  if (!f) return 0;
+  if (Array.isArray(f.paiements) && f.paiements.length > 0) {
+    return f.paiements.reduce((s, p) => s + (parseFloat(p.montant) || 0), 0);
+  }
+  return parseFloat(f.total_paye) || 0;
+};
+const getResteAPayer = (f) => Math.max(0, (parseFloat(f?.montant_total) || 0) - getMontantPaye(f));
+
+const getStatut = (f) => {
+  if (!f) return "en_attente";
+  if (f.statut === "annulee" || f.statut_effectif === "annulee") return "annulee";
+  const total = parseFloat(f.montant_total) || 0;
+  const paye = getMontantPaye(f);
+  const reste = Math.max(0, total - paye);
+  if (total > 0 && reste <= 0) return "payee";
+  const ech = f.date_echeance ? new Date(f.date_echeance) : null;
+  if (ech && !isNaN(ech) && ech < new Date(new Date().toDateString()) && reste > 0) return "en_retard";
+  if (paye > 0) return "partiellement_payee";
+  return f.statut_effectif || f.statut || "en_attente";
+};
+
+// Statuts de facture → couleurs déjà définies dans Ventes.css (data-p / data-s)
+const STATUTS = [
+  { value: "impayees", label: "Impayées", s: "confirmee" },
+  { value: "en_attente", label: "En attente", s: "en_attente" },
+  { value: "partiellement_payee", label: "Partielles", s: "en_preparation" },
+  { value: "en_retard", label: "En retard", s: "annulee" },
+  { value: "payee", label: "Payées", s: "livree" },
+  { value: "annulee", label: "Annulées", s: "annulee" },
+];
+const LIBELLES_STATUT = {
+  en_attente: "Non payée",
+  partiellement_payee: "Partielle",
+  en_retard: "En retard",
+  payee: "Soldée",
+  annulee: "Annulée",
+};
+
+const MODES_PAIEMENT = [
+  { value: "especes", label: "Espèces", Icon: Coins },
+  { value: "carte", label: "Carte", Icon: CreditCard },
+  { value: "virement", label: "Virement", Icon: Building },
+  { value: "cheque", label: "Chèque", Icon: FileText },
+];
+const modeLabel = (v) => MODES_PAIEMENT.find((m) => m.value === v)?.label || (v === "mobile_money" ? "Mobile money" : v || "-");
+
+const mapLignes = (lignes) =>
+  (lignes || []).map((l) => {
+    const qte = parseFloat(l.quantite) || 0;
+    const prix = parseFloat(l.prix_vente) || 0;
+    return {
+      ...l,
+      produit_nom: l.produit_nom || "-",
+      nom_unite_vente: l.nom_unite_vente || l.unite_vente_nom || "Unité",
+      unite_symbole: l.unite_symbole || l.nom_unite_vente || "",
+      quantite_base: parseFloat(l.quantite_base) || 1,
+      quantite_totale_base: parseFloat(l.quantite_totale_base) || qte * (parseFloat(l.quantite_base) || 1),
+      prix_vente: prix,
+      montant_total: parseFloat(l.montant_total) || qte * prix,
+    };
+  });
 
 // ============================================================
-// COMPOSANT
+// MODAL + MENU (même comportement que la page Ventes)
 // ============================================================
+let lockDepth = 0;
+const lockScroll = () => { if (lockDepth++ === 0) document.body.style.overflow = "hidden"; };
+const unlockScroll = () => {
+  lockDepth = Math.max(0, lockDepth - 1);
+  if (lockDepth === 0) document.body.style.overflow = "";
+};
+
+const Modal = ({ onClose, dismissable = true, size = "md", busy = false, labelledBy, children }) => {
+  const ref = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement;
+    lockScroll();
+    if (ref.current && !ref.current.contains(document.activeElement)) ref.current.focus({ preventScroll: true });
+    return () => {
+      unlockScroll();
+      if (previous && typeof previous.focus === "function" && document.contains(previous)) previous.focus({ preventScroll: true });
+    };
+  }, []);
+  useEffect(() => {
+    if (!dismissable) return undefined;
+    const onKey = (e) => { if (e.key === "Escape" && !e.defaultPrevented) onCloseRef.current?.(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [dismissable]);
+  return (
+    <div className="vt-overlay" onMouseDown={(e) => { if (dismissable && e.target === e.currentTarget) onCloseRef.current?.(); }}>
+      <div ref={ref} className={`vt-modal vt-modal--${size}`} role="dialog" aria-modal="true"
+           aria-labelledby={labelledBy} aria-busy={busy || undefined} tabIndex={-1}>
+        {busy && <div className="vt-busybar" />}
+        {children}
+      </div>
+    </div>
+  );
+};
+
+const ModalHead = ({ id, title, sub, onClose, disabled, children }) => (
+  <div className="vt-modal-head">
+    <div className="vt-modal-titles">
+      <h2 id={id} className="vt-modal-title">{title}</h2>
+      {sub && <p className="vt-modal-sub">{sub}</p>}
+    </div>
+    {children}
+    <button type="button" className="vt-iconbtn" onClick={() => !disabled && onClose()} aria-label="Fermer">
+      <X size={18} />
+    </button>
+  </div>
+);
+
+const AnchoredMenu = ({ open, anchorRef, onClose, width = 200, children }) => {
+  const menuRef = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  const [pos, setPos] = useState(null);
+  useLayoutEffect(() => {
+    if (!open) { setPos(null); return; }
+    const r = anchorRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const below = window.innerHeight - r.bottom;
+    const left = Math.min(Math.max(8, r.right - width), window.innerWidth - width - 8);
+    setPos(below < 140 ? { left, bottom: window.innerHeight - r.top + 6 } : { left, top: r.bottom + 6 });
+  }, [open, anchorRef, width]);
+  useEffect(() => {
+    if (!open) return undefined;
+    const onDown = (e) => {
+      if (menuRef.current?.contains(e.target) || anchorRef.current?.contains(e.target)) return;
+      closeRef.current();
+    };
+    const onKey = (e) => { if (e.key === "Escape") closeRef.current(); };
+    const onScroll = () => closeRef.current();
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, [open, anchorRef]);
+  if (!open || !pos) return null;
+  return <div ref={menuRef} className="vt-menu" role="menu" style={{ ...pos, width }}>{children}</div>;
+};
+
+const PaiementTag = ({ facture }) => {
+  const key = getStatut(facture);
+  const total = parseFloat(facture.montant_total) || 0;
+  const ratio = key === "payee" ? 1 : total > 0 ? Math.min(1, getMontantPaye(facture) / total) : 0;
+  let label = LIBELLES_STATUT[key] || LIBELLES_STATUT.en_attente;
+  if (key === "partiellement_payee" && ratio > 0) label = `${label}${NBSP}${Math.round(ratio * 100)}${NBSP}%`;
+  return (
+    <span className="vt-pay">
+      <span className="vt-pay-label" data-p={key}>{label}</span>
+      <span className="vt-meter" aria-hidden="true">
+        <i data-p={key} style={{ width: `${Math.round(ratio * 100)}%` }} />
+      </span>
+    </span>
+  );
+};
+
+const RowMenu = ({ facture, onPrint, onDownload }) => {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef(null);
+  return (
+    <>
+      <button ref={btnRef} type="button" className="vt-iconbtn" aria-haspopup="menu" aria-expanded={open}
+              aria-label={`Autres actions pour ${facture.numero_facture}`} title="Imprimer / télécharger"
+              onClick={() => setOpen((o) => !o)}>
+        <MoreVertical size={18} />
+      </button>
+      <AnchoredMenu open={open} anchorRef={btnRef} onClose={() => setOpen(false)} width={200}>
+        <button type="button" role="menuitem" className="vt-menu-item" onClick={() => { setOpen(false); onPrint(facture); }}>
+          <Printer size={15} /><span>Imprimer…</span>
+        </button>
+        <button type="button" role="menuitem" className="vt-menu-item" onClick={() => { setOpen(false); onDownload(facture); }}>
+          <Download size={15} /><span>Télécharger…</span>
+        </button>
+      </AnchoredMenu>
+    </>
+  );
+};
+
+// ============================================================
+// PAGE
+// ============================================================
+const PAR_PAGE = 10;
+
 const Factures = () => {
   const { user, isAuthenticated } = useUser();
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem("token");
+  const canManage = !!user && ["admin", "manager", "caissier"].includes(user.role);
 
-  // États principaux
+  // Données
   const [factures, setFactures] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
+  const [loading, setLoading] = useState(!!token);
   const [error, setError] = useState(null);
+  const [magasin, setMagasin] = useState(null);
+  const [stats, setStats] = useState({
+    total_factures: 0, total_montant: 0, en_attente: 0, payee: 0, partiellement_payee: 0,
+    en_retard: 0, annulee: 0, total_impayees: 0, montant_impaye: 0, montant_moyen: 0,
+  });
 
   // Filtres
+  const [searchTerm, setSearchTerm] = useState("");
   const [filterStatut, setFilterStatut] = useState("");
-  const [filterDateDebut, setFilterDateDebut] = useState("");
-  const [filterDateFin, setFilterDateFin] = useState("");
+  const [dateDebut, setDateDebut] = useState("");
+  const [dateFin, setDateFin] = useState("");
+  const [page, setPage] = useState(1);
+  const searchRef = useRef(null);
+  const reqId = useRef(0);
 
-  const debounceRef = useRef(null);
-
-  // Modals
-  const [showDetailModal, setShowDetailModal] = useState(false);
-  const [selectedFacture, setSelectedFacture] = useState(null);
-
-  // Modal Paiement
-  const [showPaiementModal, setShowPaiementModal] = useState(false);
-  const [factureEnCours, setFactureEnCours] = useState(null);
-  const [paiementData, setPaiementData] = useState({
-    montant: "",
-    mode_paiement: "especes",
-  });
-  const [savingPaiement, setSavingPaiement] = useState(false);
-
-  // Modal Facture (après paiement)
-  const [showFactureModal, setShowFactureModal] = useState(false);
-  const [facturePourImpression, setFacturePourImpression] = useState(null);
-
-  // Magasin
-  const [magasin, setMagasin] = useState(null);
+  // Modales
+  const [detail, setDetail] = useState(null);          // facture affichée
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [justePayee, setJustePayee] = useState(false);
+  const [aEncaisser, setAEncaisser] = useState(null);  // facture à encaisser
+  const [paiement, setPaiement] = useState({ montant: "", mode_paiement: "especes" });
+  const [saving, setSaving] = useState(false);
+  const [erreurPaiement, setErreurPaiement] = useState(null);
+  const [formatChoice, setFormatChoice] = useState(null); // { action: 'print'|'download', data }
+  const [preparing, setPreparing] = useState(null);       // id_facture en préparation d'impression
 
   // Toast
   const [toast, setToast] = useState(null);
-  const showToast = (message, type = 'info') => {
+  const toastTimer = useRef(null);
+  const showToast = useCallback((message, type = "info") => {
+    clearTimeout(toastTimer.current);
     setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
-
-  // Stats
-  const [stats, setStats] = useState({
-    total_factures: 0,
-    total_montant: 0,
-    en_attente: 0,
-    payee: 0,
-    partiellement_payee: 0,
-    en_retard: 0,
-    annulee: 0,
-    total_impayees: 0,
-    montant_impaye: 0,
-    montant_moyen: 0,
-  });
-
-  const canManage = user && ['admin', 'manager', 'caissier'].includes(user.role);
+    toastTimer.current = setTimeout(() => setToast(null), 4000);
+  }, []);
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
 
   // ============================================================
   // CHARGEMENT
   // ============================================================
-  useEffect(() => {
-    if (isAuthenticated && token) {
-      loadFactures();
-      loadStats();
-      loadMagasin();
-    }
-  }, [isAuthenticated, token]);
-
-  // Debounce filtres
-  useEffect(() => {
-    if (!isAuthenticated || !token) return;
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => {
-      setCurrentPage(1);
-      loadFactures();
-    }, 400);
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
-  }, [searchTerm, filterStatut, filterDateDebut, filterDateFin, isAuthenticated, token]);
-
-  const loadFactures = async () => {
+  const loadFactures = useCallback(async () => {
+    if (!token) return;
+    const rid = ++reqId.current;
     setLoading(true);
     setError(null);
     try {
       const params = {};
-      if (searchTerm) params.search = searchTerm;
+      if (searchTerm.trim()) params.search = searchTerm.trim();
       if (filterStatut) params.statut = filterStatut;
-      if (filterDateDebut) params.date_debut = filterDateDebut;
-      if (filterDateFin) params.date_fin = filterDateFin;
-
-      const response = await FactureService.getAllFactures(token, params);
-      if (response.success) {
-        setFactures(response.data || []);
-      } else {
-        setError(response.message || 'Erreur lors du chargement');
-      }
-    } catch (error) {
-      console.error('❌ LoadFactures error:', error);
-      setError(error.message || 'Erreur lors du chargement');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadStats = async () => {
-    try {
-      const response = await FactureService.getStats(token);
-      if (response.success) setStats(response.data);
-    } catch (error) {
-      console.error('❌ LoadStats error:', error);
-    }
-  };
-
-  const loadMagasin = async () => {
-    try {
-      const res = await MagasinService.getMonMagasin(token);
-      if (res.success) setMagasin(res.magasin);
-    } catch (error) {
-      console.error('❌ LoadMagasin error:', error);
-    }
-  };
-
-  // ============================================================
-  // HELPERS DE CALCUL
-  // ============================================================
-  const getMontantPaye = (facture) => {
-    if (facture.paiements && facture.paiements.length > 0) {
-      return facture.paiements.reduce(
-        (sum, p) => sum + parseFloat(p.montant || 0),
-        0
-      );
-    }
-    return parseFloat(facture.total_paye || 0);
-  };
-
-  const getResteAPayer = (facture) => {
-    const total = parseFloat(facture.montant_total || 0);
-    const paye = getMontantPaye(facture);
-    return Math.max(0, total - paye);
-  };
-
-  const getStatutCalcule = (facture) => {
-    if (facture.statut_effectif) return facture.statut_effectif;
-
-    if (facture.statut === 'annulee') return 'annulee';
-    const total = parseFloat(facture.montant_total || 0);
-    const paye = getMontantPaye(facture);
-    const reste = Math.max(0, total - paye);
-
-    if (reste <= 0 && total > 0) return 'payee';
-    if (paye > 0 && reste > 0) return 'partiellement_payee';
-
-    const dateEch = facture.date_echeance ? new Date(facture.date_echeance) : null;
-    if (dateEch && dateEch < new Date() && reste > 0) return 'en_retard';
-
-    return facture.statut || 'en_attente';
-  };
-
-  // ✅ Construire une facture complète depuis une commande (même logique que Ventes.jsx)
-  const construireFactureComplete = (commandeComplete) => {
-    const montantTotal = parseFloat(commandeComplete.montant_total) || 0;
-    const totalPaye = (commandeComplete.paiements || []).reduce(
-      (sum, p) => sum + (parseFloat(p.montant) || 0),
-      0
-    );
-    const resteAPayer = montantTotal - totalPaye;
-
-    return {
-      id_facture: commandeComplete.id_facture,
-      numero_facture: commandeComplete.numero_facture,
-      date_facture: commandeComplete.date_facture,
-      date_echeance: commandeComplete.date_echeance,
-      nomclient: commandeComplete.nomclient,
-      telephone: commandeComplete.telephone,
-      montant_total: montantTotal,
-      statut: commandeComplete.statut_facture || 'en_attente',
-      statut_effectif: commandeComplete.statut_facture || 'en_attente',
-      mode_paiement: commandeComplete.mode_paiement || 'especes',
-      notes: commandeComplete.notes,
-      // ✅ Lignes avec fallback complet
-      lignes: (commandeComplete.lignes || []).map(l => ({
-        ...l,
-        produit_nom: l.produit_nom || '-',
-        nom_unite_vente: l.nom_unite_vente || l.unite_vente_nom || 'Unité',
-        unite_symbole: l.unite_symbole || l.nom_unite_vente || '',
-        quantite_base: parseFloat(l.quantite_base) || 1,
-        quantite_totale_base: parseFloat(l.quantite_totale_base)
-          || (parseFloat(l.quantite) * (parseFloat(l.quantite_base) || 1)),
-        prix_vente: parseFloat(l.prix_vente) || 0,
-        montant_total: parseFloat(l.montant_total)
-          || (parseFloat(l.quantite) * parseFloat(l.prix_vente || 0)),
-      })),
-      paiements: commandeComplete.paiements || [],
-      total_paye: totalPaye,
-      reste_a_payer: resteAPayer,
-      numero_commande: commandeComplete.numero_commande,
-      id_commande: commandeComplete.id_commande,
-      magasin: magasin,
-    };
-  };
-
-  // ============================================================
-  // ACTIONS
-  // ============================================================
-  const handleView = async (facture) => {
-    setSelectedFacture(facture);
-    setShowDetailModal(true);
-
-    try {
-      const res = await FactureService.getFactureById(token, facture.id_facture);
-      if (res.success && res.data) {
-        setSelectedFacture(res.data);
-      }
+      if (dateDebut) params.date_debut = dateDebut;
+      if (dateFin) params.date_fin = dateFin;
+      const res = await FactureService.getAllFactures(token, params);
+      if (rid !== reqId.current) return;
+      if (res.success) setFactures(res.data || []);
+      else setError(res.message || "Erreur lors du chargement des factures");
     } catch (err) {
-      console.error('❌ Impossible de charger la facture complète :', err);
-    }
-  };
-
-  // ✅ Ouvrir le modal de paiement
-  const handleOpenPaiement = (facture) => {
-    const reste = getResteAPayer(facture);
-    if (reste <= 0) {
-      showToast('Cette facture est déjà totalement payée', 'info');
-      return;
-    }
-    if (facture.statut === 'annulee') {
-      showToast('Impossible de payer une facture annulée', 'error');
-      return;
-    }
-
-    setFactureEnCours(facture);
-    setPaiementData({
-      montant: reste.toString(),
-      mode_paiement: facture.mode_paiement || 'especes',
-    });
-    setShowPaiementModal(true);
-    setShowDetailModal(false);
-  };
-
-  // ✅ Enregistrer le paiement (même logique que Ventes.jsx)
-  const handleSavePaiement = async () => {
-    if (!factureEnCours) return;
-
-    const montant = parseFloat(paiementData.montant);
-    if (!montant || montant <= 0) {
-      showToast('Veuillez saisir un montant valide', 'warning');
-      return;
-    }
-
-    const reste = getResteAPayer(factureEnCours);
-    if (montant > reste) {
-      showToast(
-        `Le montant ne peut pas dépasser le reste à payer (${formatMontant(reste)})`,
-        'warning'
-      );
-      return;
-    }
-
-    // ✅ Vérifier qu'on a bien un id_commande pour utiliser l'API de CommandeVente
-    if (!factureEnCours.id_commande) {
-      showToast('Impossible de trouver la commande associée', 'error');
-      return;
-    }
-
-    setSavingPaiement(true);
-    try {
-      // ✅ Utiliser l'API CommandeVente (comme dans Ventes.jsx)
-      const paiementResponse = await CommandeVenteService.addPaiement(
-        token,
-        factureEnCours.id_commande,
-        {
-          id_facture: factureEnCours.id_facture,
-          date_paiement: getTodayISO(),
-          montant: montant,
-          mode_paiement: paiementData.mode_paiement || 'especes',
-          note: `Paiement pour facture ${factureEnCours.numero_facture}`,
-          reference: null,
-        }
-      );
-
-      if (!paiementResponse.success) {
-        throw new Error(paiementResponse.message || 'Erreur lors du paiement');
-      }
-
-      // ✅ Recharger la COMMANDE complète (comme dans Ventes.jsx)
-      const commandeComplete = await CommandeVenteService.getCommandeById(
-        token,
-        factureEnCours.id_commande
-      );
-
-      let factureComplete = null;
-
-      if (commandeComplete.success && commandeComplete.data) {
-        factureComplete = construireFactureComplete(commandeComplete.data);
-
-        setFactureEnCours(factureComplete);
-        setFacturePourImpression(factureComplete);
-      }
-
-      // ✅ Recharger la liste + stats
-      await Promise.all([loadFactures(), loadStats()]);
-
-      // ✅ Fermer le modal paiement
-      setShowPaiementModal(false);
-
-      // ✅ Ouvrir le modal Facture
-      if (factureComplete) {
-        setFacturePourImpression(factureComplete);
-        setShowFactureModal(true);
-      }
-
-      showToast(
-        `Paiement de ${formatMontant(montant)} enregistré avec succès`,
-        'success'
-      );
-    } catch (e) {
-      console.error('❌ SavePaiement error:', e);
-      showToast(e.message || 'Erreur lors du paiement', 'error');
+      if (rid === reqId.current) setError(err.message || "Erreur lors du chargement des factures");
     } finally {
-      setSavingPaiement(false);
+      if (rid === reqId.current) setLoading(false);
     }
-  };
+  }, [token, searchTerm, filterStatut, dateDebut, dateFin]);
 
-  const handleExport = async () => {
+  const loadStats = useCallback(async () => {
     try {
-      const response = await FactureService.exportFactures(token);
-      if (response.success && response.data) {
-        const headers = [
-          "ID", "Numéro", "Date", "Échéance", "Client", "Téléphone",
-          "Commande", "Montant", "Payé", "Reste", "Statut", "Mode",
-          "Notes", "Utilisateur",
-        ];
-        const rows = response.data.map((f) => [
-          f.id,
-          f.numero,
-          f.date,
-          f.echeance,
-          f.client,
-          f.telephone,
-          f.commande,
-          formatMontant(f.montant),
-          formatMontant(f.paye),
-          formatMontant(f.reste),
-          f.statut,
-          f.mode,
-          f.notes,
-          f.utilisateur,
-        ]);
+      const res = await FactureService.getStats(token);
+      if (res.success && res.data) setStats((s) => ({ ...s, ...res.data }));
+    } catch (err) {
+      console.error("Stats factures :", err);
+    }
+  }, [token]);
 
-        let csv = headers.join(",") + "\n";
-        rows.forEach((row) => {
-          csv += row.map((cell) => `"${cell}"`).join(",") + "\n";
-        });
+  useEffect(() => {
+    if (!isAuthenticated || !token) return;
+    loadStats();
+    MagasinService.getMonMagasin(token).then((r) => { if (r.success) setMagasin(r.magasin); }).catch(() => {});
+  }, [isAuthenticated, token, loadStats]);
 
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `factures_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
+  // Recherche et filtres : appel serveur avec un petit délai
+  useEffect(() => {
+    if (!isAuthenticated || !token) return undefined;
+    const t = setTimeout(() => { setPage(1); loadFactures(); }, searchTerm ? 350 : 0);
+    return () => clearTimeout(t);
+  }, [loadFactures, isAuthenticated, token, searchTerm]);
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
       }
-    } catch (error) {
-      console.error('❌ Export error:', error);
-      showToast('Erreur lors de l\'exportation', 'error');
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  const rafraichir = () => { loadFactures(); loadStats(); };
+
+  // ============================================================
+  // DONNÉES POUR L'IMPRESSION (même format que la page Ventes)
+  // ============================================================
+  const versDonneesImpression = useCallback((f) => {
+    const total = parseFloat(f.montant_total) || 0;
+    const paye = getMontantPaye(f);
+    return {
+      ...f,
+      montant_total: total,
+      total_paye: paye,
+      reste_a_payer: Math.max(0, total - paye),
+      statut: getStatut(f),
+      lignes: mapLignes(f.lignes),
+      paiements: f.paiements || [],
+      mode_paiement: f.mode_paiement || "especes",
+      magasin: magasin || f.magasin || null,
+      utilisateur_nom: f.utilisateur_nom || user?.fullname || user?.nom || "",
+    };
+  }, [magasin, user]);
+
+  /** Charge la facture complète (lignes + paiements) si besoin. */
+  const factureComplete = useCallback(async (f) => {
+    if (Array.isArray(f.lignes) && f.lignes.length > 0) return f;
+    const res = await FactureService.getFactureById(token, f.id_facture);
+    if (!res.success || !res.data) throw new Error(res.message || "Impossible de charger la facture");
+    return { ...f, ...res.data };
+  }, [token]);
+
+  const ouvrirFormat = async (action, f) => {
+    setPreparing(f.id_facture);
+    try {
+      const complete = await factureComplete(f);
+      setFormatChoice({ action, data: versDonneesImpression(complete) });
+    } catch (err) {
+      showToast(err.message || "Impossible de préparer la facture", "error");
+    } finally {
+      setPreparing(null);
     }
   };
 
-  const handleRefresh = () => {
-    loadFactures();
-    loadStats();
-    loadMagasin();
+  // ============================================================
+  // DÉTAIL
+  // ============================================================
+  const ouvrirDetail = async (f) => {
+    setJustePayee(false);
+    setDetail(f);
+    setLoadingDetail(true);
+    try {
+      const res = await FactureService.getFactureById(token, f.id_facture);
+      if (res.success && res.data) setDetail((cur) => (cur && cur.id_facture === f.id_facture ? { ...f, ...res.data } : cur));
+    } catch (err) {
+      console.error("Détail facture :", err);
+    } finally {
+      setLoadingDetail(false);
+    }
   };
-
-  const handleResetFilters = () => {
-    setSearchTerm("");
-    setFilterStatut("");
-    setFilterDateDebut("");
-    setFilterDateFin("");
-    setCurrentPage(1);
-  };
-
-  const hasActiveFilters = searchTerm || filterStatut || filterDateDebut || filterDateFin;
-
-  const getStatutBadge = (statut) => {
-    const configs = {
-      en_attente: { label: 'En attente', className: 'status-en-attente', icon: Clock },
-      payee: { label: 'Payée', className: 'status-payee', icon: CheckCircle },
-      partiellement_payee: { label: 'Partiellement payée', className: 'status-partiel', icon: AlertCircle },
-      en_retard: { label: 'En retard', className: 'status-retard', icon: AlertCircle },
-      annulee: { label: 'Annulée', className: 'status-annulee', icon: Ban },
-    };
-    const config = configs[statut] || configs['en_attente'];
-    const Icon = config.icon;
-    return (
-      <span className={`status-badge ${config.className}`}>
-        <Icon size={14} />
-        {config.label}
-      </span>
-    );
-  };
-
-  // Pagination
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = factures.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(factures.length / itemsPerPage);
 
   // ============================================================
-  // RENDER LIGNE
+  // ENCAISSEMENT
   // ============================================================
-  const renderFactureRow = (facture) => {
-    const statutCalcule = getStatutCalcule(facture);
-    const reste = getResteAPayer(facture);
-    const peutPayer = canManage && facture.statut !== 'annulee' && reste > 0;
+  const preparerPaiement = (f) => {
+    if (getStatut(f) === "annulee") { showToast("Impossible d'encaisser une facture annulée", "error"); return; }
+    if (getResteAPayer(f) <= 0) { showToast("Cette facture est déjà soldée", "info"); return; }
+    setErreurPaiement(null);
+    setPaiement({ montant: "", mode_paiement: "especes" });
+    setAEncaisser(f);
+  };
 
-    return (
-      <tr key={facture.id_facture}>
-        <td className="numero-cell">
-          <span className="facture-numero">{facture.numero_facture}</span>
-        </td>
-        <td>{facture.date_facture_formatee || formatDateFR(facture.date_facture)}</td>
-        <td>{facture.date_echeance_formatee || formatDateFR(facture.date_echeance)}</td>
-        <td className="client-cell">
-          <User size={14} />
-          <span>{facture.nomclient || '-'}</span>
-        </td>
-        <td>{facture.telephone || '-'}</td>
-        <td>{facture.numero_commande || '-'}</td>
-        <td className="montant-cell">
-          <strong>{formatMontant(facture.montant_total)}</strong>
-        </td>
-        <td>{getStatutBadge(statutCalcule)}</td>
-        <td className="actions-cell">
-          <div className="actions-buttons">
-            <button
-              className="action-btn btn-view"
-              onClick={() => handleView(facture)}
-              title="Voir les détails"
-            >
-              <Eye size={16} />
+  const encaisser = async () => {
+    if (!aEncaisser || saving) return;
+    const reste = getResteAPayer(aEncaisser);
+    const montant = paiement.montant ? toNum(paiement.montant) : reste;
+    if (!(montant > 0) || montant > reste + 0.001) {
+      setErreurPaiement(`Le montant doit être supérieur à 0 et ne pas dépasser le reste à payer (${formatMontant(reste)}).`);
+      return;
+    }
+    if (!aEncaisser.id_commande) {
+      setErreurPaiement("Impossible de trouver la vente associée à cette facture.");
+      return;
+    }
+    setSaving(true);
+    setErreurPaiement(null);
+    try {
+      const res = await CommandeVenteService.addPaiement(token, aEncaisser.id_commande, {
+        id_facture: aEncaisser.id_facture,
+        date_paiement: getTodayISO(),
+        montant,
+        mode_paiement: paiement.mode_paiement || "especes",
+        note: `Paiement pour facture ${aEncaisser.numero_facture}`,
+        reference: null,
+      });
+      if (!res.success) throw new Error(res.message || "Erreur lors du paiement");
+
+      // Facture à jour (lignes + paiements) pour l'affichage et l'impression
+      let aJour = null;
+      try {
+        const r = await FactureService.getFactureById(token, aEncaisser.id_facture);
+        if (r.success && r.data) aJour = { ...aEncaisser, ...r.data };
+      } catch { /* on garde la version locale */ }
+      if (!aJour) {
+        aJour = { ...aEncaisser, paiements: [...(aEncaisser.paiements || []), { montant, mode_paiement: paiement.mode_paiement, date_paiement: getTodayISO() }] };
+      }
+
+      setAEncaisser(null);
+      setJustePayee(true);
+      setDetail(aJour);
+      showToast(`Paiement de ${formatMontant(montant)} enregistré`, "success");
+      rafraichir();
+    } catch (err) {
+      setErreurPaiement(err.message || "Erreur lors du paiement");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // ============================================================
+  // EXPORT
+  // ============================================================
+  const exporter = async () => {
+    try {
+      const res = await FactureService.exportFactures(token);
+      if (!res.success || !res.data) throw new Error(res.message || "Export impossible");
+      const clean = (v) => String(v ?? "").replace(/"/g, '""');
+      const entetes = ["Numéro", "Date", "Échéance", "Client", "Téléphone", "Commande", "Montant", "Payé", "Reste", "Statut", "Mode", "Notes", "Utilisateur"];
+      let csv = entetes.map((h) => `"${h}"`).join(";") + "\n";
+      res.data.forEach((f) => {
+        csv += [f.numero, f.date, f.echeance, f.client, f.telephone, f.commande,
+          Math.round(f.montant || 0), Math.round(f.paye || 0), Math.round(f.reste || 0),
+          f.statut, f.mode, f.notes, f.utilisateur].map((c) => `"${clean(c)}"`).join(";") + "\n";
+      });
+      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `factures_${getTodayISO()}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showToast(err.message || "Erreur lors de l'exportation", "error");
+    }
+  };
+
+  // ============================================================
+  // DÉRIVÉS
+  // ============================================================
+  // factureService.getStats ne renvoie pas toujours total_impayees : on le recalcule si besoin
+  const nbImpayees = stats.total_impayees
+    || (stats.en_attente || 0) + (stats.partiellement_payee || 0) + (stats.en_retard || 0);
+  const compteurs = useMemo(() => ({
+    impayees: nbImpayees,
+    en_attente: stats.en_attente,
+    partiellement_payee: stats.partiellement_payee,
+    en_retard: stats.en_retard,
+    payee: stats.payee,
+    annulee: stats.annulee,
+  }), [stats, nbImpayees]);
+
+  const totalPages = Math.max(1, Math.ceil(factures.length / PAR_PAGE));
+  const pageCourante = Math.min(page, totalPages);
+  const debutIdx = (pageCourante - 1) * PAR_PAGE;
+  const visibles = factures.slice(debutIdx, debutIdx + PAR_PAGE);
+  const filtresActifs = !!(searchTerm || filterStatut || dateDebut || dateFin);
+  const peutEncaisser = (f) => canManage && getStatut(f) !== "annulee" && getResteAPayer(f) > 0;
+
+  const resteEncaisser = aEncaisser ? getResteAPayer(aEncaisser) : 0;
+  const montantSaisi = paiement.montant ? toNum(paiement.montant) || 0 : resteEncaisser;
+
+  // ============================================================
+  // RENDU
+  // ============================================================
+  return (
+    <div className="ventes-container vt fac">
+      {/* ---------- En-tête ---------- */}
+      <header className="vt-head">
+        <div>
+          <h1 className="vt-title">Factures</h1>
+          <p className="vt-sub">
+            {stats.total_factures} facture{stats.total_factures > 1 ? "s" : ""}
+            {nbImpayees > 0 && <>, dont {nbImpayees} à encaisser</>}
+          </p>
+        </div>
+        <div className="vt-head-actions">
+          <button type="button" className="vt-btn" onClick={exporter}>
+            <Download size={16} /> Exporter
+          </button>
+          <button type="button" className="vt-btn vt-btn--icon" onClick={rafraichir} disabled={loading}
+                  aria-label="Rafraîchir" title="Rafraîchir">
+            <RefreshCw size={16} className={loading ? "vt-spin" : ""} />
+          </button>
+        </div>
+      </header>
+
+      {/* ---------- Synthèse ---------- */}
+      <section className="vt-overview" aria-label="Synthèse des factures">
+        <div className="vt-ca">
+          <span className="vt-label">Reste à encaisser</span>
+          <strong className="vt-ca-value vt-num" title={formatMontant(stats.montant_impaye)}>
+            {formatMontant(stats.montant_impaye)}
+          </strong>
+          <span className="vt-ca-note">
+            Facturé : {formatMontant(stats.total_montant)} · Panier moyen : {formatMontant(stats.montant_moyen)}
+          </span>
+        </div>
+        <div className="vt-rail" role="group" aria-label="Filtrer par statut">
+          <button type="button" className="vt-stage vt-stage--all" data-s="all" aria-pressed={filterStatut === ""}
+                  onClick={() => setFilterStatut("")}>
+            <span className="vt-stage-count vt-num">{stats.total_factures}</span>
+            <span className="vt-stage-label">Toutes</span>
+          </button>
+          {STATUTS.map((s) => (
+            <button key={s.value} type="button"
+                    className={`vt-stage ${s.value === "annulee" ? "vt-stage--apart" : ""}`}
+                    data-s={s.s} aria-pressed={filterStatut === s.value}
+                    onClick={() => setFilterStatut(filterStatut === s.value ? "" : s.value)}>
+              <span className="vt-stage-count vt-num">{compteurs[s.value] || 0}</span>
+              <span className="vt-stage-label">{s.label}</span>
             </button>
+          ))}
+        </div>
+      </section>
 
-            {peutPayer && (
-              <button
-                className="action-btn btn-pay"
-                onClick={() => handleOpenPaiement(facture)}
-                title={`Enregistrer un paiement (reste: ${formatMontant(reste)})`}
-              >
-                <Wallet size={16} />
+      {/* ---------- Recherche + dates ---------- */}
+      <div className="vt-toolbar fac-toolbar">
+        <div className="vt-search">
+          <input ref={searchRef} type="text" className="vt-input vt-search-input"
+                 placeholder="Numéro, client, téléphone ou commande" aria-label="Rechercher une facture"
+                 value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} spellCheck={false} />
+          {searchTerm ? (
+            <button type="button" className="vt-search-clear" onClick={() => setSearchTerm("")} aria-label="Effacer la recherche">
+              <X size={14} />
+            </button>
+          ) : (
+            <kbd className="vt-kbd">Ctrl K</kbd>
+          )}
+        </div>
+        <div className="fac-dates">
+          <input type="date" className="vt-input" value={dateDebut} max={dateFin || undefined}
+                 onChange={(e) => setDateDebut(e.target.value)} aria-label="Du" title="Du" />
+          <span className="vt-muted">au</span>
+          <input type="date" className="vt-input" value={dateFin} min={dateDebut || undefined}
+                 onChange={(e) => setDateFin(e.target.value)} aria-label="Au" title="Au" />
+        </div>
+        {filtresActifs && (
+          <button type="button" className="vt-btn vt-btn--sm"
+                  onClick={() => { setSearchTerm(""); setFilterStatut(""); setDateDebut(""); setDateFin(""); }}>
+            <X size={14} /> Effacer
+          </button>
+        )}
+        <span className="vt-count" aria-live="polite">
+          {factures.length} résultat{factures.length > 1 ? "s" : ""}
+        </span>
+      </div>
+
+      {error && !loading && (
+        <div className="vt-error" role="alert">
+          <AlertTriangle size={16} /><span>{error}</span>
+          <button type="button" className="vt-btn vt-btn--sm" onClick={loadFactures}>Réessayer</button>
+        </div>
+      )}
+
+      {/* ---------- Tableau ---------- */}
+      <div className="vt-table-wrap" aria-busy={loading || undefined}>
+        {loading && factures.length > 0 && <div className="vt-busybar" />}
+        <table className="vt-table">
+          <colgroup>
+            <col style={{ width: "36px" }} />
+            <col style={{ width: "15%" }} />
+            <col style={{ width: "19%" }} />
+            <col style={{ width: "12%" }} />
+            <col style={{ width: "11%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "13%" }} />
+            <col style={{ width: "16%" }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th className="vt-th-index">#</th>
+              <th>Facture</th>
+              <th>Client</th>
+              <th>Commande</th>
+              <th>Échéance</th>
+              <th className="vt-th-right">Montant</th>
+              <th>Paiement</th>
+              <th className="vt-th-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && factures.length === 0
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={`sk-${i}`} className="vt-skel-row" aria-hidden="true">
+                    {[40, 70, 70, 50, 50, 60, 60, 60].map((w, j) => <td key={j}><span className="vt-skel" style={{ width: `${w}%` }} /></td>)}
+                  </tr>
+                ))
+              : visibles.map((f, i) => {
+                  const statut = getStatut(f);
+                  const reste = getResteAPayer(f);
+                  return (
+                    <tr key={f.id_facture}>
+                      <td className="vt-td-index">{debutIdx + i + 1}</td>
+                      <td>
+                        <button type="button" className="vt-link vt-cell-main" onClick={() => ouvrirDetail(f)}>
+                          {f.numero_facture}
+                        </button>
+                        <div className="vt-cell-sub">{f.date_facture_formatee || formatDateFR(f.date_facture)}</div>
+                      </td>
+                      <td>
+                        <div className="vt-cell-main" title={f.nomclient || ""}>{f.nomclient || "-"}</div>
+                        <div className="vt-cell-sub">{f.telephone || "-"}</div>
+                      </td>
+                      <td><div className="vt-cell-main vt-cell-main--plain">{f.numero_commande || "-"}</div></td>
+                      <td>
+                        <div className={`vt-cell-main vt-cell-main--plain ${statut === "en_retard" ? "fac-late" : ""}`}>
+                          {f.date_echeance_formatee || formatDateFR(f.date_echeance)}
+                        </div>
+                      </td>
+                      <td className="vt-td-right">
+                        <div className="vt-cell-main vt-num">{formatMontant(f.montant_total)}</div>
+                        {statut !== "payee" && statut !== "annulee" && reste > 0 && reste < (parseFloat(f.montant_total) || 0) && (
+                          <div className="vt-cell-sub vt-num">reste {formatMontant(reste)}</div>
+                        )}
+                      </td>
+                      <td><PaiementTag facture={f} /></td>
+                      <td className="vt-td-right">
+                        <div className="vt-actions">
+                          {peutEncaisser(f) && (
+                            <button type="button" className="vt-btn vt-btn--sm vt-btn--cash" onClick={() => preparerPaiement(f)}>
+                              <Wallet size={14} /> {statut === "partiellement_payee" ? "Compléter" : "Encaisser"}
+                            </button>
+                          )}
+                          <button type="button" className="vt-btn vt-btn--sm" onClick={() => ouvrirDetail(f)}>Détails</button>
+                          {preparing === f.id_facture
+                            ? <span className="vt-iconbtn" aria-label="Préparation"><Loader size={16} className="vt-spin" /></span>
+                            : <RowMenu facture={f} onPrint={(x) => ouvrirFormat("print", x)} onDownload={(x) => ouvrirFormat("download", x)} />}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+          </tbody>
+        </table>
+        {!loading && visibles.length === 0 && (
+          <div className="vt-empty">
+            <FileText size={30} />
+            <p className="vt-empty-title">{filtresActifs ? "Aucune facture ne correspond" : "Aucune facture"}</p>
+            <p className="vt-empty-text">
+              {filtresActifs ? "Modifiez la recherche, les dates ou le statut sélectionné." : "Les factures apparaissent ici dès qu'une vente est enregistrée."}
+            </p>
+            {filtresActifs && (
+              <button type="button" className="vt-btn vt-btn--sm"
+                      onClick={() => { setSearchTerm(""); setFilterStatut(""); setDateDebut(""); setDateFin(""); }}>
+                Effacer les filtres
               </button>
             )}
           </div>
-        </td>
-      </tr>
-    );
-  };
-
-  return (
-    <div className="factures-container">
-      {/* Toast */}
-      {toast && (
-        <div className={`factures-toast factures-toast-${toast.type}`}>
-          <span className="toast-message">{toast.message}</span>
-          <button className="toast-close" onClick={() => setToast(null)}>×</button>
-        </div>
-      )}
-
-      {/* En-tête */}
-      <div className="factures-header">
-        <div>
-          <h1 className="factures-title">Factures</h1>
-          <p className="factures-subtitle">
-            {stats.total_factures} factures au total
-            {hasActiveFilters && ` • ${factures.length} résultat(s) affiché(s)`}
-          </p>
-        </div>
-        <div className="factures-actions">
-          <button className="btn btn-secondary" onClick={handleExport}>
-            <Download size={18} />
-            <span>Exporter</span>
-          </button>
-          <button
-            className="btn btn-secondary"
-            onClick={handleRefresh}
-            title="Rafraîchir"
-            disabled={loading}
-          >
-            <RefreshCw size={18} className={loading ? 'spinning' : ''} />
-          </button>
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="factures-stats">
-        <div className="stat-card">
-          <div className="stat-icon total"><FileText size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Total</span>
-            <span className="stat-value">{stats.total_factures}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon montant"><Banknote /></div>
-          <div className="stat-info">
-            <span className="stat-label">Montant total</span>
-            <span className="stat-value">{formatMontant(stats.total_montant)}</span>
-          </div>
-        </div>
-
-        <div
-          className="stat-card clickable"
-          onClick={() => setFilterStatut('impayees')}
-          title="Cliquer pour voir toutes les factures impayées"
-        >
-          <div className="stat-icon impaye"><AlertCircle size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">
-              Impayées
-              {stats.total_impayees > 0 && (
-                <span className="badge-count">{stats.total_impayees}</span>
-              )}
-            </span>
-            <span className="stat-value">{formatMontant(stats.montant_impaye)}</span>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-icon moyen"><TrendingUp size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Panier moyen</span>
-            <span className="stat-value">{formatMontant(stats.montant_moyen)}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon payee"><CheckCircle size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">Payées</span>
-            <span className="stat-value">{stats.payee}</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon retard"><AlertCircle size={20} /></div>
-          <div className="stat-info">
-            <span className="stat-label">En retard</span>
-            <span className="stat-value">{stats.en_retard}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Filtres */}
-      <div className="factures-filters">
-        <div className="search-box">
-          <Search size={20}  />
-          <input
-            type="text"
-            placeholder="Rechercher une facture..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
-          {searchTerm && (
-            <button className="search-clear" onClick={() => setSearchTerm('')}>
-              <X size={16} />
-            </button>
-          )}
-        </div>
-        <div className="filter-group">
-          <select
-            className="filter-select"
-            value={filterStatut}
-            onChange={(e) => setFilterStatut(e.target.value)}
-          >
-            <option value="">Tous les statuts</option>
-            <option value="impayees">🔴 Impayées (toutes)</option>
-            <option value="en_attente">En attente</option>
-            <option value="partiellement_payee">Partiellement payée</option>
-            <option value="en_retard">En retard</option>
-            <option value="payee">Payée</option>
-            <option value="annulee">Annulée</option>
-          </select>
-        </div>
-        <div className="filter-group">
-          <input
-            type="date"
-            className="filter-date"
-            value={filterDateDebut}
-            onChange={(e) => setFilterDateDebut(e.target.value)}
-            title="Date de début"
-          />
-        </div>
-        <div className="filter-group">
-          <input
-            type="date"
-            className="filter-date"
-            value={filterDateFin}
-            onChange={(e) => setFilterDateFin(e.target.value)}
-            title="Date de fin"
-          />
-        </div>
-        {hasActiveFilters && (
-          <button
-            className="btn btn-secondary btn-filter"
-            onClick={handleResetFilters}
-          >
-            <X size={16} />
-            <span>Réinitialiser</span>
-          </button>
         )}
       </div>
 
-      {/* Tableau */}
-      {loading && (
-        <div className="loading-container">
-          <div className="spinner"></div>
-          <p>Chargement des factures...</p>
+      {/* ---------- Pagination ---------- */}
+      <nav className="vt-pager" aria-label="Pagination">
+        <span className="vt-pager-info">
+          {factures.length === 0 ? "0 facture" : `${debutIdx + 1} à ${Math.min(debutIdx + PAR_PAGE, factures.length)} sur ${factures.length}`}
+        </span>
+        <div className="vt-pager-ctrl">
+          <button type="button" className="vt-iconbtn vt-iconbtn--boxed" onClick={() => setPage(Math.max(pageCourante - 1, 1))}
+                  disabled={pageCourante === 1} aria-label="Page précédente"><ChevronLeft size={18} /></button>
+          <span className="vt-pager-page">Page {pageCourante} sur {totalPages}</span>
+          <button type="button" className="vt-iconbtn vt-iconbtn--boxed" onClick={() => setPage(Math.min(pageCourante + 1, totalPages))}
+                  disabled={pageCourante === totalPages} aria-label="Page suivante"><ChevronRight size={18} /></button>
         </div>
-      )}
-
-      {error && !loading && (
-        <div className="error-container">
-          <p className="error-message">{error}</p>
-          <button className="btn btn-secondary" onClick={loadFactures}>
-            Réessayer
-          </button>
-        </div>
-      )}
-
-      {!loading && !error && (
-        <div className="factures-table-container">
-          <table className="factures-table">
-            <thead>
-              <tr>
-                <th>Numéro</th>
-                <th>Date</th>
-                <th>Échéance</th>
-                <th>Client</th>
-                <th>Téléphone</th>
-                <th>Commande</th>
-                <th>Montant</th>
-                <th>Statut</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentItems.length === 0 ? (
-                <tr>
-                  <td colSpan="9" className="empty-state">
-                    <FileText size={32} />
-                    <p>Aucune facture trouvée</p>
-                    {hasActiveFilters && (
-                      <small>Essayez de modifier vos filtres</small>
-                    )}
-                  </td>
-                </tr>
-              ) : (
-                currentItems.map(renderFactureRow)
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Pagination */}
-      {!loading && !error && factures.length > itemsPerPage && (
-        <div className="factures-pagination">
-          <button
-            className="pagination-btn"
-            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-            disabled={currentPage === 1}
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <span className="pagination-info">
-            Page {currentPage} sur {totalPages}
-          </span>
-          <button
-            className="pagination-btn"
-            onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
-            disabled={currentPage === totalPages}
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-      )}
+      </nav>
 
       {/* ============================================================
-          MODAL DÉTAILS
+          MODAL : DÉTAIL DE LA FACTURE
           ============================================================ */}
-      {showDetailModal && selectedFacture && (() => {
-        const montantTotal = parseFloat(selectedFacture.montant_total || 0);
-        const montantPaye = getMontantPaye(selectedFacture);
-        const resteAPayer = getResteAPayer(selectedFacture);
-        const statutCalcule = getStatutCalcule(selectedFacture);
-        const peutPayer = canManage && selectedFacture.statut !== 'annulee' && resteAPayer > 0;
-
+      {detail && !formatChoice && (() => {
+        const total = parseFloat(detail.montant_total) || 0;
+        const paye = getMontantPaye(detail);
+        const reste = getResteAPayer(detail);
+        const statut = getStatut(detail);
         return (
-          <div className="modal-overlay">
-            <div className="modal-content large">
-              <div className="modal-header">
-                <h2>Détails de la facture</h2>
-                <button className="modal-close" onClick={() => setShowDetailModal(false)}>
-                  <X size={24} />
-                </button>
+          <Modal size="lg" busy={loadingDetail} labelledBy="fac-det-title" onClose={() => setDetail(null)}>
+            <ModalHead
+              id="fac-det-title"
+              title={`Facture ${detail.numero_facture}`}
+              sub={`${detail.numero_commande ? `Commande ${detail.numero_commande} · ` : ""}du ${detail.date_facture_formatee || formatDateFR(detail.date_facture)}`}
+              onClose={() => setDetail(null)}
+            >
+              <div className="vt-head-tags"><PaiementTag facture={detail} /></div>
+            </ModalHead>
+
+            <div className="vt-modal-body">
+              {justePayee && (
+                <div className="vt-paid-banner fac-banner">
+                  <CheckCircle size={18} />
+                  <span>
+                    Paiement enregistré.{" "}
+                    {statut === "payee" ? "La facture est soldée." : `Reste à payer : ${formatMontant(reste)}.`}
+                    {" "}Vous pouvez imprimer le reçu.
+                  </span>
+                </div>
+              )}
+
+              <dl className="vt-facts">
+                <div><dt>Client</dt><dd>{detail.nomclient || "-"}</dd></div>
+                <div><dt>Téléphone</dt><dd>{detail.telephone || "-"}</dd></div>
+                <div><dt>Date</dt><dd>{detail.date_facture_formatee || formatDateFR(detail.date_facture)}</dd></div>
+                <div><dt>Échéance</dt><dd className={statut === "en_retard" ? "fac-late" : ""}>{detail.date_echeance_formatee || formatDateFR(detail.date_echeance)}</dd></div>
+              </dl>
+
+              {loadingDetail && !(detail.lignes?.length) ? (
+                <div className="fac-state"><Loader size={16} className="vt-spin" /> Chargement des produits…</div>
+              ) : detail.lignes?.length > 0 ? (
+                <div className="vt-doc-scroll">
+                  <table className="vt-doc">
+                    <thead>
+                      <tr>
+                        <th>Produit</th>
+                        <th>Unité</th>
+                        <th className="vt-th-right">Qté</th>
+                        <th className="vt-th-right">Prix unitaire</th>
+                        <th className="vt-th-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mapLignes(detail.lignes).map((l, idx) => (
+                        <tr key={idx}>
+                          <td>{l.produit_nom}{l.marque_nom && <span className="vt-muted"> {l.marque_nom}</span>}</td>
+                          <td>{l.nom_unite_vente}{l.quantite_base > 1 && ` (${l.quantite_base})`}</td>
+                          <td className="vt-td-right vt-num">{l.quantite}</td>
+                          <td className="vt-td-right vt-num">{formatMontant(l.prix_vente)}</td>
+                          <td className="vt-td-right vt-num">{formatMontant(l.montant_total)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="vt-muted">Aucun produit sur cette facture.</p>
+              )}
+
+              <div className="vt-sums">
+                <div><span>Total</span><strong className="vt-num">{formatMontant(total)}</strong></div>
+                {paye > 0 && <div><span>Déjà payé</span><span className="vt-num">{formatMontant(paye)}</span></div>}
+                <div className="vt-sums-due"><span>Reste à payer</span><strong className="vt-num">{formatMontant(reste)}</strong></div>
               </div>
-              <div className="modal-body">
-                <div className="detail-header">
-                  <div className="detail-header-left">
-                    <div className="detail-icon"><FileText size={28} /></div>
-                    <div>
-                      <h3 className="detail-numero">{selectedFacture.numero_facture}</h3>
-                      <span className="detail-date">
-                        <Calendar size={14} />
-                        {selectedFacture.date_facture_formatee ||
-                          formatDateFR(selectedFacture.date_facture)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="detail-header-right">
-                    {getStatutBadge(statutCalcule)}
-                  </div>
-                </div>
 
-                <div className="detail-grid">
-                  <div className="detail-section">
-                    <h4><User size={16} /> Client</h4>
-                    <div className="detail-item">
-                      <label>Nom</label>
-                      <span>{selectedFacture.nomclient || '-'}</span>
-                    </div>
-                    <div className="detail-item">
-                      <label>Téléphone</label>
-                      <span>{selectedFacture.telephone || '-'}</span>
-                    </div>
-                  </div>
-                  <div className="detail-section">
-                    <h4><FileText size={16} /> Informations</h4>
-                    <div className="detail-item">
-                      <label>Commande</label>
-                      <span>{selectedFacture.numero_commande || '-'}</span>
-                    </div>
-                    <div className="detail-item">
-                      <label>Date d'échéance</label>
-                      <span>
-                        {selectedFacture.date_echeance_formatee ||
-                          formatDateFR(selectedFacture.date_echeance)}
-                      </span>
-                    </div>
-                    <div className="detail-item">
-                      <label>Mode de paiement</label>
-                      <span>{selectedFacture.mode_paiement || '-'}</span>
-                    </div>
-                    <div className="detail-item">
-                      <label>Montant total</label>
-                      <span className="montant-total">{formatMontant(montantTotal)}</span>
-                    </div>
-                    <div className="detail-item">
-                      <label>Montant payé</label>
-                      <span className="montant-paye">{formatMontant(montantPaye)}</span>
-                    </div>
-                    <div className="detail-item">
-                      <label>Reste à payer</label>
-                      <span
-                        className="montant-reste"
-                        style={{ color: resteAPayer > 0 ? '#ef4444' : '#10b981' }}
-                      >
-                        {formatMontant(resteAPayer)}
-                      </span>
-                    </div>
-                    <div className="detail-item">
-                      <label>Notes</label>
-                      <span>{selectedFacture.notes || '-'}</span>
-                    </div>
-                    <div className="detail-item">
-                      <label>Enregistré par</label>
-                      <span>{selectedFacture.utilisateur_nom || '-'}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {selectedFacture.lignes && selectedFacture.lignes.length > 0 && (
-                  <div className="detail-lignes">
-                    <h4>Produits</h4>
-                    <div className="detail-lignes-wrapper">
-                      <table className="detail-lignes-table">
-                        <thead>
-                          <tr>
-                            <th>Produit</th>
-                            <th>Unité</th>
-                            <th>Quantité</th>
-                            <th>Prix unitaire</th>
-                            <th>Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {selectedFacture.lignes.map((ligne, index) => {
-                            const qte = parseFloat(ligne.quantite || 0);
-                            const prix = parseFloat(ligne.prix_vente || 0);
-                            const remise = parseFloat(ligne.remise || 0);
-                            const totalLigne = qte * prix * (1 - remise / 100);
-                            return (
-                              <tr key={index}>
-                                <td>
-                                  <span className="produit-nom">{ligne.produit_nom}</span>
-                                  {ligne.marque_nom && (
-                                    <span className="produit-marque"> - {ligne.marque_nom}</span>
-                                  )}
-                                </td>
-                                <td>
-                                  <span className="unite-badge">
-                                    <Box size={11} />
-                                    {ligne.nom_unite_vente || ligne.unite_symbole || 'Unité'}
-                                    {ligne.quantite_base > 1 && ` (${ligne.quantite_base})`}
-                                  </span>
-                                </td>
-                                <td>{qte}</td>
-                                <td>{formatMontant(prix)}</td>
-                                <td className="montant-cell">{formatMontant(totalLigne)}</td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot>
-                          <tr className="total-row">
-                            <td colSpan="4"><strong>Total</strong></td>
-                            <td><strong>{formatMontant(montantTotal)}</strong></td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {selectedFacture.paiements && selectedFacture.paiements.length > 0 && (
-                  <div className="detail-paiements">
-                    <h4>Paiements</h4>
-                    <table className="detail-paiements-table">
+              {detail.paiements?.length > 0 && (
+                <section className="vt-det-block">
+                  <h3 className="vt-section-title">Paiements</h3>
+                  <div className="vt-doc-scroll">
+                    <table className="vt-doc">
                       <thead>
                         <tr>
-                          <th>Date</th>
-                          <th>Montant</th>
-                          <th>Mode</th>
-                          <th>Référence</th>
-                          <th>Par</th>
+                          <th>Date</th><th>Mode</th><th>Référence</th><th>Par</th>
+                          <th className="vt-th-right">Montant</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {selectedFacture.paiements.map((paiement, index) => (
-                          <tr key={index}>
-                            <td>
-                              {paiement.date_paiement_formatee ||
-                                formatDateFR(paiement.date_paiement)}
-                            </td>
-                            <td className="montant-cell">{formatMontant(paiement.montant)}</td>
-                            <td>{paiement.mode_paiement}</td>
-                            <td>{paiement.reference || '-'}</td>
-                            <td>{paiement.utilisateur_nom || '-'}</td>
+                        {detail.paiements.map((p, idx) => (
+                          <tr key={idx}>
+                            <td>{p.date_paiement_formatee || formatDateFR(p.date_paiement)}</td>
+                            <td>{modeLabel(p.mode_paiement)}</td>
+                            <td>{p.reference || "-"}</td>
+                            <td>{p.utilisateur_nom || "-"}</td>
+                            <td className="vt-td-right vt-num">{formatMontant(p.montant)}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                )}
-              </div>
+                </section>
+              )}
 
-              <div className="modal-footer">
-                <button
-                  className="btn btn-secondary"
-                  onClick={() => setShowDetailModal(false)}
-                >
-                  Fermer
+              {(detail.notes || detail.utilisateur_nom) && (
+                <dl className="vt-kv fac-meta">
+                  {detail.notes && <div><dt>Notes</dt><dd>{detail.notes}</dd></div>}
+                  {detail.utilisateur_nom && <div><dt>Enregistrée par</dt><dd>{detail.utilisateur_nom}</dd></div>}
+                </dl>
+              )}
+            </div>
+
+            <div className="vt-modal-foot">
+              <div className="vt-foot-actions">
+                <button type="button" className="vt-btn" onClick={() => ouvrirFormat("download", detail)} disabled={preparing === detail.id_facture}>
+                  <Download size={16} /> Télécharger
                 </button>
-
-                {peutPayer && (
-                  <button
-                    className="btn btn-success"
-                    onClick={() => handleOpenPaiement(selectedFacture)}
-                  >
-                    <Wallet size={16} />
-                    <span>
-                      {statutCalcule === 'partiellement_payee'
-                        ? 'Compléter le paiement'
-                        : 'Payer'}
-                    </span>
+                <button type="button" className={`vt-btn ${justePayee || !peutEncaisser(detail) ? "vt-btn--primary" : ""}`}
+                        onClick={() => ouvrirFormat("print", detail)} disabled={preparing === detail.id_facture}>
+                  {preparing === detail.id_facture ? <Loader size={16} className="vt-spin" /> : <Printer size={16} />} Imprimer
+                </button>
+              </div>
+              <div className="vt-foot-actions">
+                <button type="button" className="vt-btn" onClick={() => setDetail(null)}>Fermer</button>
+                {peutEncaisser(detail) && (
+                  <button type="button" className="vt-btn vt-btn--cash" onClick={() => { setDetail(null); preparerPaiement(detail); }}>
+                    <Wallet size={16} /> {statut === "partiellement_payee" ? "Compléter le paiement" : "Encaisser"}
                   </button>
                 )}
-
-                <FacturePDFActions
-                  factureData={{
-                    ...selectedFacture,
-                    montant_total: montantTotal,
-                    total_paye: montantPaye,
-                    reste_a_payer: resteAPayer,
-                    statut: statutCalcule,
-                    magasin: magasin,
-                  }}
-                  onClose={() => setShowDetailModal(false)}
-                />
               </div>
             </div>
-          </div>
+          </Modal>
         );
       })()}
 
       {/* ============================================================
-          MODAL PAIEMENT
+          MODAL : ENCAISSEMENT
           ============================================================ */}
-      {showPaiementModal && factureEnCours && (
-        <div
-          className="modal-overlay"
-          onClick={() => !savingPaiement && setShowPaiementModal(false)}
-        >
-          <div
-            className="modal-content modal-paiement"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="modal-header">
-              <div className="modal-title-group">
-                <div className="modal-icon success">
-                  <Wallet size={22} />
-                </div>
-                <div>
-                  <h2>Paiement de la facture</h2>
-                  <p className="modal-subtitle">
-                    Facture {factureEnCours.numero_facture}
-                  </p>
-                </div>
-              </div>
-              <button
-                className="modal-close"
-                onClick={() => !savingPaiement && setShowPaiementModal(false)}
-              >
-                <X size={20} />
-              </button>
+      {aEncaisser && (
+        <Modal size="md" busy={saving} labelledBy="fac-pay-title" dismissable={!saving} onClose={() => setAEncaisser(null)}>
+          <ModalHead id="fac-pay-title" title="Encaisser un paiement" sub={`Facture ${aEncaisser.numero_facture}`}
+                     onClose={() => setAEncaisser(null)} disabled={saving} />
+          <div className="vt-modal-body">
+            {erreurPaiement && (
+              <div className="vt-error" role="alert"><AlertTriangle size={16} /><span>{erreurPaiement}</span></div>
+            )}
+            <div className="vt-due">
+              <span className="vt-due-client"><User size={15} /> {aEncaisser.nomclient || "Client"}</span>
+              <span className="vt-due-label">Reste à payer</span>
+              <strong className="vt-due-amount vt-num">{formatMontant(resteEncaisser)}</strong>
+              <dl className="vt-due-detail">
+                <div><dt>Total facture</dt><dd className="vt-num">{formatMontant(aEncaisser.montant_total)}</dd></div>
+                <div><dt>Déjà payé</dt><dd className="vt-num">{formatMontant(getMontantPaye(aEncaisser))}</dd></div>
+              </dl>
             </div>
 
-            <div className="modal-body">
-              <div className="paiement-recap">
-                <div className="recap-client">
-                  <User size={18} />
-                  <span>{factureEnCours.nomclient || 'Client'}</span>
-                </div>
-                <div className="recap-line">
-                  <span>Montant total</span>
-                  <strong>{formatMontant(factureEnCours.montant_total)}</strong>
-                </div>
-                <div className="recap-line">
-                  <span>Déjà payé</span>
-                  <strong className="text-success">
-                    {formatMontant(getMontantPaye(factureEnCours))}
-                  </strong>
-                </div>
-                <div className="recap-line highlight">
-                  <span>Reste à payer</span>
-                  <strong className="text-danger">
-                    {formatMontant(getResteAPayer(factureEnCours))}
-                  </strong>
-                </div>
+            <div className="vt-field vt-field--spaced">
+              <label htmlFor="fac-montant">Montant encaissé</label>
+              <div className="vt-inline">
+                <input id="fac-montant" type="text" inputMode="decimal" className="vt-input vt-num"
+                       placeholder={String(Math.round(resteEncaisser))} value={paiement.montant}
+                       onChange={(e) => DECIMAL_RE.test(e.target.value) && setPaiement((p) => ({ ...p, montant: e.target.value }))}
+                       readOnly={saving} autoComplete="off" autoFocus />
+                <button type="button" className="vt-btn" onClick={() => setPaiement((p) => ({ ...p, montant: "" }))}
+                        disabled={saving || !paiement.montant}>
+                  Tout le solde
+                </button>
               </div>
-
-              <div className="form-group">
-                <label>
-                  Montant à payer <span className="required">*</span>
-                </label>
-                <input
-                  type="number"
-                  className="form-input"
-                  value={paiementData.montant}
-                  onChange={(e) =>
-                    setPaiementData({ ...paiementData, montant: e.target.value })
-                  }
-                  placeholder="0"
-                  min="0"
-                  step="0.01"
-                  autoFocus
-                  disabled={savingPaiement}
-                />
-                <small>
-                  Maximum : {formatMontant(getResteAPayer(factureEnCours))}
-                </small>
-              </div>
-
-              <div className="form-group">
-                <label>Mode de paiement</label>
-                <div className="paiement-modes">
-                  <button
-                    type="button"
-                    className={`paiement-mode-btn ${paiementData.mode_paiement === 'especes' ? 'active' : ''}`}
-                    onClick={() => setPaiementData({ ...paiementData, mode_paiement: 'especes' })}
-                    disabled={savingPaiement}
-                  >
-                    <Coins size={20} />
-                    <span>Espèces</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`paiement-mode-btn ${paiementData.mode_paiement === 'carte' ? 'active' : ''}`}
-                    onClick={() => setPaiementData({ ...paiementData, mode_paiement: 'carte' })}
-                    disabled={savingPaiement}
-                  >
-                    <CreditCard size={20} />
-                    <span>Carte</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`paiement-mode-btn ${paiementData.mode_paiement === 'virement' ? 'active' : ''}`}
-                    onClick={() => setPaiementData({ ...paiementData, mode_paiement: 'virement' })}
-                    disabled={savingPaiement}
-                  >
-                    <Building size={20} />
-                    <span>Virement</span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`paiement-mode-btn ${paiementData.mode_paiement === 'cheque' ? 'active' : ''}`}
-                    onClick={() => setPaiementData({ ...paiementData, mode_paiement: 'cheque' })}
-                    disabled={savingPaiement}
-                  >
-                    <FileText size={20} />
-                    <span>Chèque</span>
-                  </button>
-                </div>
-              </div>
+              <small className="vt-hint">Laissez vide pour encaisser la totalité du reste à payer.</small>
             </div>
 
-            <div className="modal-footer">
-              <button
-                className="btn btn-secondary"
-                onClick={() => setShowPaiementModal(false)}
-                disabled={savingPaiement}
-              >
-                Annuler
-              </button>
-              <button
-                className="btn btn-success"
-                onClick={handleSavePaiement}
-                disabled={savingPaiement || !paiementData.montant}
-              >
-                {savingPaiement ? (
-                  <>
-                    <Loader size={16} className="spinning" />
-                    <span>Paiement...</span>
-                  </>
-                ) : (
-                  <>
-                    <Wallet size={16} />
-                    <span>Payer {formatMontant(paiementData.montant || 0)}</span>
-                  </>
-                )}
-              </button>
+            <div className="vt-field">
+              <span className="vt-field-label" id="fac-mode-label">Mode de paiement</span>
+              <div className="vt-modes" role="radiogroup" aria-labelledby="fac-mode-label">
+                {MODES_PAIEMENT.map(({ value, label, Icon }) => (
+                  <button key={value} type="button" role="radio" aria-checked={paiement.mode_paiement === value}
+                          className={`vt-mode ${paiement.mode_paiement === value ? "is-active" : ""}`}
+                          onClick={() => setPaiement((p) => ({ ...p, mode_paiement: value }))}>
+                    <Icon size={20} /><span>{label}</span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
+          <div className="vt-modal-foot vt-modal-foot--end">
+            <button type="button" className="vt-btn" onClick={() => setAEncaisser(null)} disabled={saving}>Annuler</button>
+            <button type="button" className="vt-btn vt-btn--cash vt-btn--lg" onClick={encaisser} disabled={saving}>
+              {saving ? <Loader size={16} className="vt-spin" /> : <Wallet size={16} />}
+              {saving ? "Paiement en cours" : `Encaisser ${formatMontant(montantSaisi)}`}
+            </button>
+          </div>
+        </Modal>
       )}
 
-      {/* ============================================================
-          MODAL FACTURE (après paiement)
-          ============================================================ */}
-      {showFactureModal && facturePourImpression && (
-        <div className="modal-overlay">
-          <div className="modal-content large">
-            <div className="modal-header">
-              <div className="modal-title-group">
-                <div className="modal-icon">
-                  <FileText size={20} />
-                </div>
-                <div>
-                  <h2>Facture {facturePourImpression.numero_facture}</h2>
-                  <p className="modal-subtitle">
-                    {getStatutCalcule(facturePourImpression) === 'payee'
-                      ? '✅ Facture totalement payée'
-                      : `Reste à payer : ${formatMontant(getResteAPayer(facturePourImpression))}`
-                    }
-                  </p>
-                </div>
-              </div>
-              <button
-                className="modal-close"
-                onClick={() => setShowFactureModal(false)}
-              >
-                <X size={20} />
-              </button>
-            </div>
+      {/* ---------- Choix Ticket / Facture A4 (+ aperçu avant impression) ---------- */}
+      <FormatChoiceModal
+        isOpen={!!formatChoice}
+        factureData={formatChoice?.data}
+        action={formatChoice?.action}
+        onClose={() => setFormatChoice(null)}
+        onDone={(format) => {
+          const quoi = format === "ticket" ? "Ticket" : "Facture A4";
+          showToast(`${quoi} ${formatChoice?.action === "download" ? "téléchargé" : "imprimé"}`, "success");
+          setFormatChoice(null);
+        }}
+      />
 
-            <div className="modal-body">
-              <div className="paiement-recap">
-                <div className="recap-client">
-                  <User size={18} />
-                  <span>{facturePourImpression.nomclient || 'Client'}</span>
-                </div>
-                <div className="recap-line">
-                  <span>Montant total</span>
-                  <strong>{formatMontant(facturePourImpression.montant_total)}</strong>
-                </div>
-                <div className="recap-line">
-                  <span>Total payé</span>
-                  <strong className="text-success">
-                    {formatMontant(getMontantPaye(facturePourImpression))}
-                  </strong>
-                </div>
-                <div className="recap-line highlight">
-                  <span>Reste à payer</span>
-                  <strong className={
-                    getResteAPayer(facturePourImpression) > 0 ? 'text-danger' : 'text-success'
-                  }>
-                    {formatMontant(getResteAPayer(facturePourImpression))}
-                  </strong>
-                </div>
-              </div>
-
-              {facturePourImpression.lignes && facturePourImpression.lignes.length > 0 ? (
-                <div className="detail-lignes">
-                  <h4>Produits ({facturePourImpression.lignes.length})</h4>
-                  <table className="detail-lignes-table">
-                    <thead>
-                      <tr>
-                        <th>Produit</th>
-                        <th>Unité</th>
-                        <th>Qté</th>
-                        <th>Prix unitaire</th>
-                        <th>Total</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {facturePourImpression.lignes.map((l, i) => (
-                        <tr key={i}>
-                          <td>{l.produit_nom || '-'}</td>
-                          <td>
-                            {l.nom_unite_vente || l.unite_symbole || 'Unité'}
-                            {l.quantite_base > 1 && ` (${l.quantite_base})`}
-                          </td>
-                          <td>{l.quantite}</td>
-                          <td>{formatMontant(l.prix_vente)}</td>
-                          <td className="montant-cell">
-                            {formatMontant(l.montant_total || (l.quantite * l.prix_vente))}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot>
-                      <tr className="total-row">
-                        <td colSpan="4"><strong>TOTAL</strong></td>
-                        <td><strong>{formatMontant(facturePourImpression.montant_total)}</strong></td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
-              ) : (
-                <div className="facture-info-banner warning">
-                  <AlertCircle size={20} />
-                  <span>
-                    ⚠️ Aucune ligne détectée. Vérifiez que la facture contient bien des produits.
-                  </span>
-                </div>
-              )}
-
-              <div className="facture-info-banner">
-                <CheckCircle size={20} />
-                <span>
-                  Vous pouvez maintenant imprimer ou télécharger la facture.
-                </span>
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button
-                className="btn btn-secondary"
-                onClick={() => setShowFactureModal(false)}
-              >
-                Fermer
-              </button>
-
-              <FacturePDFActions
-                factureData={{
-                  ...facturePourImpression,
-                  magasin: magasin,
-                }}
-                onClose={() => setShowFactureModal(false)}
-              />
-            </div>
-          </div>
+      {/* ---------- Toast ---------- */}
+      {toast && (
+        <div className="vt-toast" data-type={toast.type} role="status" aria-live="polite">
+          <span className="vt-toast-bar" />
+          <span className="vt-toast-msg">{toast.message}</span>
+          <button type="button" className="vt-iconbtn vt-iconbtn--sm" onClick={() => setToast(null)} aria-label="Fermer">
+            <X size={14} />
+          </button>
         </div>
       )}
     </div>

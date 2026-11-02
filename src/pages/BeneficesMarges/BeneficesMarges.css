@@ -697,3 +697,54 @@
     transition: none !important;
   }
 }
+/* ==================== RÉSULTAT NET (marge brute - dépenses) ==================== */
+.bm-net {
+  background: var(--miyo-surface);
+  border: 1px solid var(--miyo-border);
+  border-radius: var(--miyo-radius-lg);
+  box-shadow: var(--miyo-shadow-sm);
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.bm-net-calc {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  align-items: center;
+  gap: 16px;
+}
+.bm-net-term { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bm-net-label {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  font-size: 12.5px; font-weight: 600; color: var(--miyo-text-secondary);
+}
+.bm-net-value {
+  font-size: 20px; font-weight: 700; color: var(--miyo-text);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.bm-net-dep { color: var(--miyo-danger); }
+.bm-net-sub { font-size: 12px; color: var(--miyo-text-tertiary); }
+.bm-net-link { color: var(--miyo-primary); font-weight: 600; text-decoration: none; }
+.bm-net-link:hover { text-decoration: underline; }
+.bm-net-op { color: var(--miyo-text-tertiary); }
+.bm-net-result {
+  padding: 10px 14px;
+  border-radius: var(--miyo-radius);
+  background: var(--miyo-success-soft);
+}
+.bm-net-result .bm-net-value { color: var(--miyo-success); font-size: 22px; }
+.bm-net-result.is-neg { background: var(--miyo-danger-soft); }
+.bm-net-result.is-neg .bm-net-value { color: var(--miyo-danger); }
+.bm-net-cats {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px;
+  padding-top: 10px; border-top: 1px dashed var(--miyo-border);
+  font-size: 12.5px; color: var(--miyo-text-secondary);
+}
+.bm-net-cats strong { color: var(--miyo-text); font-weight: 600; }
+
+@media (max-width: 900px) {
+  .bm-net-calc { grid-template-columns: 1fr; gap: 8px; }
+  .bm-net-op { display: none; }
+}

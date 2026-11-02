@@ -566,4 +566,4 @@ const InventaireDetail = () => {
     );
 };
 
-export default InventaireDetail;
+export default InventaireDetail; 

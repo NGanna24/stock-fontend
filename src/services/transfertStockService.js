@@ -36,6 +36,19 @@ class TransfertStockService {
         }
     }
 
+        /** Vue centrale : tous mes transferts (tous entrepôts) */
+    static async listMes(token, statut = null) {
+        try {
+            const r = await axios.get(API_URL.TRANSFERT.MES, {
+                headers: this._headers(token),
+                params: statut ? { statut } : {},
+            });
+            return r.data;
+        } catch (error) {
+            console.error('❌ List mes transferts error:', error);
+            throw this.handleError(error);
+        }
+    }
     /** Produits de MON catalogue qui peuvent recevoir le stock → { terme, produit_source, produits } */
     static async produitsMagasin(token, id_entrepot, id_produit_entrepot, q = '') {
         try {

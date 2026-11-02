@@ -6,6 +6,28 @@ import API_URL from "../config/api";
 const KEY_TOKEN = "miyo:superadmin-token";
 const KEY_USER  = "miyo:superadmin-user";
 
+// Les routes de l'espace super admin exigent désormais le jeton super admin.
+// Les services superAdmin/* ne l'envoyaient pas : on l'ajoute ici, une seule fois,
+// uniquement pour ces URL (et sans écraser un en-tête déjà fourni).
+const SUPER_ADMIN_URL = /\/api\/(admin|super-admin)(\/|\?|$)/;
+if (!axios.__miyoSuperAdminInterceptor) {
+    axios.__miyoSuperAdminInterceptor = axios.interceptors.request.use((config) => {
+        const url = config.url || "";
+        if (SUPER_ADMIN_URL.test(url) && !/\/super-admin\/auth\/(login|register)/.test(url)) {
+            const token = localStorage.getItem(KEY_TOKEN);
+            config.headers = config.headers || {};
+            const dejaLa = typeof config.headers.get === "function"
+                ? config.headers.get("Authorization")
+                : config.headers.Authorization;
+            if (token && !dejaLa) {
+                if (typeof config.headers.set === "function") config.headers.set("Authorization", `Bearer ${token}`);
+                else config.headers.Authorization = `Bearer ${token}`;
+            }
+        }
+        return config;
+    });
+}
+
 const SuperAdminAuthContext = createContext(null);
 
 export const SuperAdminAuthProvider = ({ children }) => {

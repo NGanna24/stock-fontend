@@ -58,7 +58,7 @@ const FormatChoiceModal = ({ isOpen, factureData, action = 'print', onClose, onD
         etroit={ticket}
         getBlob={() => FacturePDFService.getBlob(factureData, apercu)}
         fileName={FacturePDFService.fileNameFor(factureData, apercu)}
-        printOptions={ticket ? { pageSize: { width: 80 * 2.83465, height: 'auto' }, margins: { top: 0, bottom: 0, left: 0, right: 0 }, scale: 'fit' } : undefined}
+        printOptions={ticket ? (taille) => FacturePDFService.optionsTicketElectron(taille) : undefined}
         onClose={() => setApercu(null)}
         onPrinted={(res) => { if (!res?.fallback) onDone?.(apercu); }}
       />

@@ -9,7 +9,7 @@ export const ROLE_PERMISSIONS = {
         // Catalogue & stock
         'produits', 'categories', 'marques', 'modeles', 'unites', 'mouvements', 'inventaires',
         // Approvisionnement
-        'fournisseurs', 'commandes-achat', 'receptions', 'retours-fournisseurs', 'depenses',
+        'fournisseurs', 'commandes-achat', 'receptions', 'retours-fournisseurs', 'depenses', 'transferts',
         // Rapports
         'rapport-ventes', 'rapport-achats', 'rapport-stocks', 'benefices',
         // Principal

@@ -1,300 +1,374 @@
 // pages/Transferts/Transferts.jsx
-import React, { useState, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+//
+// Vue centrale des transferts ENTREPÔT -> MON MAGASIN, tous entrepôts confondus.
+//   - Propriétaire d'un entrepôt : approuve / refuse les demandes de ses membres.
+//   - Membre : suit ses demandes et peut les annuler tant qu'elles sont en attente.
+//   - « Nouveau transfert » : choisir un entrepôt, cocher les produits, puis le panier
+//     habituel (ModalTransfertLot).
+// Le registre réutilise TransfertsEntrepot (sans entrepotId = tous les entrepôts).
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
-    ArrowRightLeft, Plus, Check, X, AlertCircle, CheckCircle,
-    RefreshCw, Loader, Store, Warehouse
+    ArrowRightLeft, Plus, Warehouse, Loader, Search, X, Check, AlertTriangle, Store,
 } from 'lucide-react';
-import TransfertService from '../../services/transfertService';
-import EntrepotService from '../../services/entrepotService';
+import TrModal, { fmtNum } from '../../components/Transfert/TrModal';
+import TransfertsEntrepot from '../../components/Transfert/TransfertsEntrepot';
+import ModalTransfertLot from '../../components/Transfert/ModalTransfertLot';
+import TransfertStockService from '../../services/transfertStockService';
+import ProduitEntrepotService from '../../services/produitEntrepotService';
 import { useUser } from '../../context/AuthContext';
+import '../../components/Transfert/Transfert.css';
 import './Transferts.css';
 
-const STATUTS = [
-    { id: '', label: 'Tous' },
-    { id: 'en_attente', label: 'En attente' },
-    { id: 'valide', label: 'Validés' },
-    { id: 'refuse', label: 'Refusés' },
-    { id: 'annule', label: 'Annulés' },
-];
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const num = (v) => Number(v || 0);
+const estProprio = (ent) => ent?.role_membre === 'proprietaire';
 
-export default function Transferts() {
-    const { user, entrepots } = useUser();
-    const token = localStorage.getItem('token');
-
-    const [statut, setStatut] = useState('');
-    const [transferts, setTransferts] = useState([]);
+/* ============================================================
+   Modale : choisir l'entrepôt et les produits à transférer
+   ============================================================ */
+function ModalChoixProduits({ token, entrepots, entrepotInitial, onClose, onContinuer }) {
+    const [idEntrepot, setIdEntrepot] = useState(String(entrepotInitial || entrepots[0]?.id_entrepot || ''));
+    const [produits, setProduits] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [toast, setToast] = useState(null);
-    const [showCreate, setShowCreate] = useState(false);
+    const [erreur, setErreur] = useState(null);
+    const [q, setQ] = useState('');
+    const [choix, setChoix] = useState({}); // { [id_produit_entrepot]: true }
 
-    // Données pour le formulaire
-    const [entrepotsDispo, setEntrepotsDispo] = useState([]);
-    const [stockEntrepot, setStockEntrepot] = useState([]);
-    const [idEntrepotSource, setIdEntrepotSource] = useState('');
-    const [magasins, setMagasins] = useState([]);
-
-    const showToast = (type, message) => {
-        setToast({ type, message });
-        setTimeout(() => setToast(null), 3500);
-    };
-
-    const loadTransferts = useCallback(async () => {
-        if (!user?.id_magasin) return;
-        setLoading(true);
-        try {
-            const r = await TransfertService.getByMagasin(token, user.id_magasin, statut || null);
-            setTransferts(r.data || []);
-        } catch (e) {
-            showToast('error', e.message);
-        } finally {
-            setLoading(false);
-        }
-    }, [token, user, statut]);
-
-    useEffect(() => { loadTransferts(); }, [loadTransferts]);
-
-    // Charge les entrepôts + magasins + stock pour le formulaire de création
     useEffect(() => {
+        if (!idEntrepot) return undefined;
+        let annule = false;
+        setLoading(true);
+        setErreur(null);
+        setChoix({});
         (async () => {
             try {
-                const rEntrepots = await EntrepotService.getMesEntrepots(token);
-                setEntrepotsDispo(rEntrepots.data || []);
-            } catch { /* ignore */ }
+                const res = await ProduitEntrepotService.getAllProduits(token, idEntrepot);
+                const list = res?.produits || res?.data || (Array.isArray(res) ? res : []);
+                if (!annule) setProduits(list);
+            } catch (err) {
+                if (!annule) {
+                    setProduits([]);
+                    setErreur(err.message || 'Impossible de charger les produits de cet entrepôt');
+                }
+            } finally {
+                if (!annule) setLoading(false);
+            }
         })();
-    }, [token]);
+        return () => { annule = true; };
+    }, [token, idEntrepot]);
 
-    const loadStockSource = async (idEntrepot) => {
-        if (!idEntrepot) return setStockEntrepot([]);
-        try {
-            const r = await EntrepotService.getStock(token, idEntrepot);
-            setStockEntrepot(r.data || []);
-        } catch { setStockEntrepot([]); }
-    };
+    const enStock = useMemo(() => produits.filter((p) => num(p.quantite_stock) > 0), [produits]);
+    const visibles = useMemo(() => {
+        const t = norm(q.trim());
+        if (!t) return enStock;
+        return enStock.filter((p) =>
+            norm([p.nom, p.marque_nom, p.modele_nom, p.categorie_nom, p.code_barre, p.reference]
+                .filter(Boolean).join(' ')).includes(t));
+    }, [enStock, q]);
 
-    const handleValider = async (t) => {
-        try {
-            await TransfertService.valider(token, t.id_transfert);
-            showToast('success', 'Transfert validé');
-            loadTransferts();
-        } catch (e) { showToast('error', e.message); }
-    };
+    const nbChoisis = Object.keys(choix).length;
+    const basculer = (id) => setChoix((prev) => {
+        const n = { ...prev };
+        if (n[id]) delete n[id]; else n[id] = true;
+        return n;
+    });
+    const toutCocher = visibles.length > 0 && visibles.every((p) => choix[p.id_produit_entrepot]);
+    const basculerTout = () => setChoix((prev) => {
+        const n = { ...prev };
+        visibles.forEach((p) => {
+            if (toutCocher) delete n[p.id_produit_entrepot];
+            else n[p.id_produit_entrepot] = true;
+        });
+        return n;
+    });
 
-    const handleRefuser = async (t) => {
-        const motif = window.prompt('Motif du refus :');
-        if (!motif) return;
-        try {
-            await TransfertService.refuser(token, t.id_transfert, motif);
-            showToast('success', 'Transfert refusé');
-            loadTransferts();
-        } catch (e) { showToast('error', e.message); }
-    };
-
-    const handleAnnuler = async (t) => {
-        if (!window.confirm(`Annuler le transfert ${t.numero_transfert} ?`)) return;
-        try {
-            await TransfertService.annuler(token, t.id_transfert);
-            showToast('success', 'Transfert annulé');
-            loadTransferts();
-        } catch (e) { showToast('error', e.message); }
-    };
-
-    if (!user) return null;
+    const entrepot = entrepots.find((e) => String(e.id_entrepot) === idEntrepot);
 
     return (
-        <div className="tr-root">
-            {toast && (
-                <div className={`tr-toast tr-toast--${toast.type}`}>
-                    {toast.type === 'success' ? <CheckCircle size={18} /> : <AlertCircle size={18} />}
-                    <span>{toast.message}</span>
-                </div>
-            )}
-
-            <header className="tr-head">
-                <div className="tr-head-id">
-                    <span className="tr-head-mark"><ArrowRightLeft size={22} /></span>
-                    <div>
-                        <h1>Transferts</h1>
-                        <p>Gérez les demandes de transfert entre magasins et entrepôts.</p>
-                    </div>
-                </div>
-                <div className="tr-head-actions">
-                    <button className="tr-btn tr-btn--icon" onClick={loadTransferts} disabled={loading}>
-                        <RefreshCw size={16} className={loading ? 'tr-spin' : ''} />
-                    </button>
-                    <button className="tr-btn tr-btn--signal" onClick={() => setShowCreate(true)}>
-                        <Plus size={16} /> Nouveau transfert
-                    </button>
-                </div>
-            </header>
-
-            <nav className="tr-tabs">
-                {STATUTS.map((s) => (
+        <TrModal
+            wide
+            onClose={onClose}
+            title="Nouveau transfert"
+            subtitle="Choisissez l'entrepôt puis cochez les produits à faire venir dans votre magasin"
+            footer={
+                <>
+                    <button className="tr-btn" onClick={onClose}>Annuler</button>
                     <button
-                        key={s.id}
-                        className={`tr-tab ${statut === s.id ? 'is-active' : ''}`}
-                        onClick={() => setStatut(s.id)}
+                        className="tr-btn tr-btn--primary"
+                        disabled={nbChoisis === 0}
+                        onClick={() => onContinuer(entrepot, produits.filter((p) => choix[p.id_produit_entrepot]))}
                     >
-                        {s.label}
+                        Continuer{nbChoisis > 0 ? ` (${nbChoisis})` : ''}
                     </button>
-                ))}
-            </nav>
-
-            <div className="tr-content">
-                {loading && <div className="tr-loading"><Loader className="tr-spin" size={20} /> Chargement…</div>}
-
-                {!loading && transferts.length === 0 && (
-                    <p className="tr-hint">Aucun transfert {statut ? `avec le statut "${statut}"` : ''}.</p>
+                </>
+            }
+        >
+            <div className="tr-field">
+                <label className="tr-lbl" htmlFor="trp-ent">Entrepôt source</label>
+                <select
+                    id="trp-ent"
+                    className="tr-input"
+                    value={idEntrepot}
+                    onChange={(e) => setIdEntrepot(e.target.value)}
+                >
+                    {entrepots.map((e) => (
+                        <option key={e.id_entrepot} value={e.id_entrepot}>
+                            {e.nom}{estProprio(e) ? ' (mon entrepôt)' : ''}
+                        </option>
+                    ))}
+                </select>
+                {entrepot && !estProprio(entrepot) && (
+                    <span className="trp-hint">
+                        Vous êtes membre : votre demande devra être approuvée par {entrepot.proprietaire_nom || 'le propriétaire'}.
+                    </span>
                 )}
-
-                {!loading && transferts.length > 0 && (
-                    <div className="tr-tablewrap">
-                        <table className="tr-table">
-                            <thead>
-                                <tr>
-                                    <th>N°</th>
-                                    <th>Produit</th>
-                                    <th className="tr-num">Qté</th>
-                                    <th>Source</th>
-                                    <th>Destination</th>
-                                    <th>Statut</th>
-                                    <th />
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {transferts.map((t) => (
-                                    <tr key={t.id_transfert}>
-                                        <td><strong>{t.numero_transfert}</strong></td>
-                                        <td>{t.produit_nom}</td>
-                                        <td className="tr-num">{parseFloat(t.quantite)}</td>
-                                        <td>{t.entrepot_nom || '—'}</td>
-                                        <td>{t.magasin_nom || '—'}</td>
-                                        <td><span className={`tr-tag tr-tag--${t.statut}`}>{t.statut}</span></td>
-                                        <td className="tr-num">
-                                            {t.statut === 'en_attente' && (
-                                                <>
-                                                    <button className="tr-ibtn tr-ibtn--ok" title="Valider" onClick={() => handleValider(t)}>
-                                                        <Check size={14} />
-                                                    </button>
-                                                    <button className="tr-ibtn tr-ibtn--danger" title="Refuser" onClick={() => handleRefuser(t)}>
-                                                        <X size={14} />
-                                                    </button>
-                                                    <button className="tr-ibtn" title="Annuler" onClick={() => handleAnnuler(t)}>
-                                                        <X size={14} />
-                                                    </button>
-                                                </>
-                                            )}
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
+                {entrepot && estProprio(entrepot) && (
+                    <span className="trp-hint">C'est votre entrepôt : le transfert sera appliqué immédiatement.</span>
                 )}
             </div>
 
-            {showCreate && (
-                <Modal onClose={() => setShowCreate(false)} title="Nouveau transfert">
-                    <form
-                        className="tr-form"
-                        onSubmit={async (e) => {
-                            e.preventDefault();
-                            const fd = new FormData(e.target);
-                            setLoading(true);
-                            try {
-                                await TransfertService.create(token, {
-                                    id_entrepot: parseInt(fd.get('id_entrepot')),
-                                    id_produit: parseInt(fd.get('id_produit')),
-                                    quantite: parseFloat(fd.get('quantite')),
-                                    id_magasin_destination: parseInt(fd.get('id_magasin_destination')),
-                                });
-                                setShowCreate(false);
-                                showToast('success', 'Transfert créé !');
-                                loadTransferts();
-                            } catch (err) { showToast('error', err.message); }
-                            finally { setLoading(false); }
-                        }}
-                    >
-                        <label className="tr-field">
-                            <span>Entrepôt source *</span>
-                            <select
-                                name="id_entrepot"
-                                required
-                                className="tr-input"
-                                value={idEntrepotSource}
-                                onChange={(e) => {
-                                    setIdEntrepotSource(e.target.value);
-                                    loadStockSource(e.target.value);
-                                }}
-                            >
-                                <option value="">— Choisir —</option>
-                                {entrepotsDispo.map((ep) => (
-                                    <option key={ep.id_entrepot} value={ep.id_entrepot}>{ep.nom}</option>
-                                ))}
-                            </select>
-                        </label>
+            <div className="trx-search trp-search">
+                <Search size={15} />
+                <input
+                    type="text"
+                    placeholder="Rechercher un produit…"
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    autoFocus
+                />
+                {q && (
+                    <button className="trx-clear" onClick={() => setQ('')} aria-label="Effacer la recherche">
+                        <X size={14} />
+                    </button>
+                )}
+            </div>
 
-                        <label className="tr-field">
-                            <span>Produit *</span>
-                            <select name="id_produit" required className="tr-input" disabled={!idEntrepotSource}>
-                                <option value="">— Choisir un produit —</option>
-                                {stockEntrepot.map((s) => (
-                                    <option key={s.id_stock_entrepot} value={s.id_produit}>
-                                        {s.produit_nom} (dispo : {parseFloat(s.quantite) || 0})
-                                    </option>
-                                ))}
-                            </select>
-                        </label>
-
-                        <label className="tr-field">
-                            <span>Quantité *</span>
-                            <input name="quantite" type="number" min="1" step="1" required className="tr-input" placeholder="10" />
-                        </label>
-
-                        <label className="tr-field">
-                            <span>Magasin destination *</span>
-                            <select name="id_magasin_destination" required className="tr-input">
-                                <option value="">— Choisir —</option>
-                                {magasins.map((m) => (
-                                    <option key={m.id_magasin} value={m.id_magasin}>{m.nom}</option>
-                                ))}
-                            </select>
-                        </label>
-
-                        <div className="tr-form-actions">
-                            <button type="button" className="tr-btn" onClick={() => setShowCreate(false)}>Annuler</button>
-                            <button type="submit" className="tr-btn tr-btn--signal" disabled={loading}>
-                                {loading ? <Loader className="tr-spin" size={15} /> : <ArrowRightLeft size={15} />} Créer
-                            </button>
-                        </div>
-                    </form>
-                </Modal>
+            {erreur && (
+                <div className="tr-alert tr-alert--err" role="alert">
+                    <AlertTriangle size={16} /><span>{erreur}</span>
+                </div>
             )}
-        </div>
+
+            {loading ? (
+                <div className="trx-state"><Loader className="tr-spin" size={18} /> Chargement des produits…</div>
+            ) : visibles.length === 0 ? (
+                <div className="trx-state trx-state--empty">
+                    <Warehouse size={28} />
+                    <strong>{enStock.length === 0 ? 'Aucun produit en stock dans cet entrepôt' : 'Aucun résultat'}</strong>
+                </div>
+            ) : (
+                <div className="trp-list" role="list">
+                    <label className="trp-row trp-row--head">
+                        <input type="checkbox" checked={toutCocher} onChange={basculerTout} />
+                        <span>{toutCocher ? 'Tout décocher' : 'Tout cocher'} ({visibles.length})</span>
+                        <span className="trp-stock">Stock</span>
+                    </label>
+                    {visibles.map((p) => {
+                        const id = p.id_produit_entrepot;
+                        return (
+                            <label key={id} className={`trp-row ${choix[id] ? 'is-checked' : ''}`} role="listitem">
+                                <input type="checkbox" checked={!!choix[id]} onChange={() => basculer(id)} />
+                                <span className="trp-name">
+                                    <strong>{p.nom}</strong>
+                                    {(p.marque_nom || p.modele_nom) && (
+                                        <small>{[p.marque_nom, p.modele_nom].filter(Boolean).join(' · ')}</small>
+                                    )}
+                                </span>
+                                <span className="trp-stock">
+                                    {fmtNum(p.quantite_stock)} {p.unite_symbole || p.unite_nom || ''}
+                                </span>
+                            </label>
+                        );
+                    })}
+                </div>
+            )}
+        </TrModal>
     );
 }
 
-function Modal({ title, onClose, children }) {
-    useEffect(() => {
-        const onKey = (e) => e.key === 'Escape' && onClose();
-        document.addEventListener('keydown', onKey);
-        document.body.style.overflow = 'hidden';
-        return () => {
-            document.removeEventListener('keydown', onKey);
-            document.body.style.overflow = '';
-        };
-    }, [onClose]);
+/* ============================================================
+   PAGE
+   ============================================================ */
+export default function Transferts() {
+    const { token: tokenCtx, entrepots: mesEntrepots = [] } = useUser();
+    const token = tokenCtx || localStorage.getItem('token');
+    const navigate = useNavigate();
+    const { slug } = useParams();
 
-    return createPortal(
-        <div className="tr-modal-overlay" onMouseDown={onClose}>
-            <div className="tr-modal" onMouseDown={(e) => e.stopPropagation()}>
-                <header className="tr-modal-head">
-                    <h3>{title}</h3>
-                    <button className="tr-modal-close" onClick={onClose}><X size={18} /></button>
+    const [selection, setSelection] = useState('');        // '' = tous les entrepôts
+    const [reloadKey, setReloadKey] = useState(0);
+    const [compteurs, setCompteurs] = useState({});         // { [id_entrepot]: { count, est_proprietaire } }
+    const [toast, setToast] = useState(null);
+    const [choixOuvert, setChoixOuvert] = useState(false);
+    const [panier, setPanier] = useState(null);             // { entrepot, produits }
+
+    const toastTimer = useRef(null);
+    const showToast = useCallback((type, message) => {
+        setToast({ type, message });
+        window.clearTimeout(toastTimer.current);
+        toastTimer.current = window.setTimeout(() => setToast(null), 4000);
+    }, []);
+    useEffect(() => () => window.clearTimeout(toastTimer.current), []);
+
+    /* ---- Demandes en attente par entrepôt (badges) ---- */
+    const refreshCompteurs = useCallback(async () => {
+        if (!token || mesEntrepots.length === 0) return;
+        const res = await Promise.all(
+            mesEntrepots.map((e) => TransfertStockService.countEnAttente(token, e.id_entrepot))
+        );
+        const c = {};
+        mesEntrepots.forEach((e, i) => { c[e.id_entrepot] = res[i]; });
+        setCompteurs(c);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [token, mesEntrepots.map((e) => e.id_entrepot).join(',')]);
+
+    useEffect(() => { refreshCompteurs(); }, [refreshCompteurs]);
+
+    // Si l'entrepôt sélectionné n'existe plus (quitté / supprimé), retour à « Tous »
+    useEffect(() => {
+        if (selection && !mesEntrepots.some((e) => String(e.id_entrepot) === selection)) setSelection('');
+    }, [mesEntrepots, selection]);
+
+    const aApprouver = useMemo(() => mesEntrepots
+        .filter((e) => compteurs[e.id_entrepot]?.est_proprietaire)
+        .reduce((s, e) => s + (compteurs[e.id_entrepot]?.count || 0), 0), [mesEntrepots, compteurs]);
+    const mesEnAttente = useMemo(() => mesEntrepots
+        .filter((e) => compteurs[e.id_entrepot] && !compteurs[e.id_entrepot].est_proprietaire)
+        .reduce((s, e) => s + (compteurs[e.id_entrepot]?.count || 0), 0), [mesEntrepots, compteurs]);
+
+    const apresChangement = (message) => {
+        if (message) showToast('success', message);
+        refreshCompteurs();
+    };
+
+    /* ---- Aucun entrepôt : on explique et on renvoie vers la page Entrepôt ---- */
+    if (mesEntrepots.length === 0) {
+        return (
+            <div className="trp">
+                <header className="trp-head">
+                    <div>
+                        <h1><ArrowRightLeft size={22} /> Transferts</h1>
+                        <p>Faites venir du stock de vos entrepôts vers votre magasin.</p>
+                    </div>
                 </header>
-                <div className="tr-modal-body">{children}</div>
+                <div className="trx-state trx-state--empty trp-empty">
+                    <Warehouse size={40} />
+                    <strong>Vous n'avez encore aucun entrepôt</strong>
+                    <span>Créez un entrepôt ou rejoignez-en un avec son code d'accès pour pouvoir transférer du stock.</span>
+                    <button className="tr-btn tr-btn--primary" onClick={() => navigate(slug ? `/${slug}/entrepot` : '/entrepot')}>
+                        <Warehouse size={15} /> Aller aux entrepôts
+                    </button>
+                </div>
             </div>
-        </div>,
-        document.body
+        );
+    }
+
+    return (
+        <div className="trp">
+            {/* ---------- En-tête ---------- */}
+            <header className="trp-head">
+                <div>
+                    <h1><ArrowRightLeft size={22} /> Transferts</h1>
+                    <p>
+                        Entrepôt <span aria-hidden="true">→</span> mon magasin
+                        {aApprouver > 0 && <> · <b className="trp-alert">{aApprouver} demande{aApprouver > 1 ? 's' : ''} à approuver</b></>}
+                        {mesEnAttente > 0 && <> · {mesEnAttente} en attente d'approbation</>}
+                    </p>
+                </div>
+                <button className="tr-btn tr-btn--primary" onClick={() => setChoixOuvert(true)}>
+                    <Plus size={16} /> Nouveau transfert
+                </button>
+            </header>
+
+            {/* ---------- Choix de l'entrepôt ---------- */}
+            <div className="trp-ents" role="tablist" aria-label="Entrepôt">
+                <button
+                    role="tab"
+                    aria-selected={selection === ''}
+                    className={`trp-ent ${selection === '' ? 'is-active' : ''}`}
+                    onClick={() => setSelection('')}
+                >
+                    <Store size={15} /> Tous les entrepôts
+                </button>
+                {mesEntrepots.map((e) => {
+                    const c = compteurs[e.id_entrepot];
+                    const id = String(e.id_entrepot);
+                    return (
+                        <button
+                            key={id}
+                            role="tab"
+                            aria-selected={selection === id}
+                            className={`trp-ent ${selection === id ? 'is-active' : ''}`}
+                            onClick={() => setSelection(id)}
+                            title={estProprio(e) ? 'Mon entrepôt' : `Membre · propriétaire : ${e.proprietaire_nom || '-'}`}
+                        >
+                            <Warehouse size={15} />
+                            <span className="trp-ent-name">{e.nom}</span>
+                            {estProprio(e) && <Check size={13} className="trp-ent-owner" aria-label="Mon entrepôt" />}
+                            {c?.count > 0 && (
+                                <span className={`trp-badge ${c.est_proprietaire ? 'trp-badge--todo' : ''}`}>{c.count}</span>
+                            )}
+                        </button>
+                    );
+                })}
+            </div>
+
+            {/* ---------- Registre ---------- */}
+            <TransfertsEntrepot
+                key={`${selection || 'all'}-${reloadKey}`}
+                token={token}
+                entrepotId={selection ? Number(selection) : null}
+                onError={(msg) => showToast('error', msg)}
+                onChanged={apresChangement}
+            />
+
+            {/* ---------- Nouveau transfert : étape 1 ---------- */}
+            {choixOuvert && (
+                <ModalChoixProduits
+                    token={token}
+                    entrepots={mesEntrepots}
+                    entrepotInitial={selection}
+                    onClose={() => setChoixOuvert(false)}
+                    onContinuer={(entrepot, produits) => {
+                        setChoixOuvert(false);
+                        setPanier({ entrepot, produits });
+                    }}
+                />
+            )}
+
+            {/* ---------- Nouveau transfert : étape 2 (panier existant) ---------- */}
+            {panier && (
+                <ModalTransfertLot
+                    token={token}
+                    entrepotId={panier.entrepot.id_entrepot}
+                    produits={panier.produits}
+                    estProprietaire={estProprio(panier.entrepot)}
+                    onClose={() => setPanier(null)}
+                    onRetirer={(id) => setPanier((prev) => prev && ({
+                        ...prev,
+                        produits: prev.produits.filter((p) => p.id_produit_entrepot !== id),
+                    }))}
+                    onError={(msg) => showToast('error', msg)}
+                    onCreated={(res) => {
+                        setPanier(null);
+                        const liste = res?.data || [];
+                        const applique = liste.length > 0 && liste.every((r) => r.statut === 'valide');
+                        showToast('success', res?.message || (applique ? 'Transferts effectués' : 'Demandes envoyées'));
+                        setReloadKey((k) => k + 1);
+                        refreshCompteurs();
+                    }}
+                />
+            )}
+
+            {/* ---------- Toast ---------- */}
+            {toast && (
+                <div className={`trp-toast trp-toast--${toast.type}`} role="status" aria-live="polite">
+                    {toast.type === 'error' ? <AlertTriangle size={16} /> : <Check size={16} />}
+                    <span>{toast.message}</span>
+                    <button onClick={() => setToast(null)} aria-label="Fermer"><X size={14} /></button>
+                </div>
+            )}
+        </div>
     );
 }

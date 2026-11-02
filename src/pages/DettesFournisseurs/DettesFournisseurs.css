@@ -1,0 +1,64 @@
+/* pages/DettesFournisseurs/DettesFournisseurs.css — complète Ventes.css (préfixe df-) */
+
+.df-overview { align-items: stretch; }
+.df-overview .vt-ca { border-right: 1px solid var(--line); }
+.df-kpis { flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.df-kpis > div { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 14px 20px; }
+.df-kpis > div + div { border-left: 1px solid var(--line); }
+.df-kpis span { font-size: 12.5px; color: var(--ink-3); }
+.df-kpis strong { font-size: 18px; }
+
+.df-search { padding-left: 12px; padding-right: 36px; }
+.df-seg button { width: auto; padding: 0 14px; font-size: 13px; }
+
+.df-wrap { min-height: 0; }
+.df-table { min-width: 960px; table-layout: auto; }
+.df-table td { vertical-align: middle; }
+
+.df-solde {
+  display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: var(--radius-full);
+  font-size: 13px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.df-solde[data-s="du"] { background: var(--bad-soft); color: var(--bad); }
+.df-solde[data-s="avance"] { background: var(--signal-soft); color: var(--signal-edge); }
+.df-solde[data-s="solde"] { background: var(--ok-soft); color: var(--ok); }
+.df-retours-cours { color: #b45309; }
+
+.df-facts { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.df-reste { font-size: 16px; }
+.df-infos { display: flex; flex-direction: column; gap: 6px; margin: 0 0 16px; }
+.df-infos p {
+  display: flex; gap: 8px; margin: 0; padding: 8px 12px; border-radius: var(--radius);
+  background: var(--sunken); color: var(--ink-2); font-size: 12.5px; line-height: 1.45;
+}
+.df-infos svg { flex: none; margin-top: 2px; color: var(--signal); }
+.df-du { color: var(--bad); }
+.df-ok { color: var(--ok); font-weight: 600; }
+.df-avance-tag {
+  display: inline-block; padding: 1px 8px; border-radius: var(--radius-full);
+  background: var(--signal-soft); color: var(--signal-edge); font-size: 12px; font-weight: 600;
+}
+.df-del:hover:not(:disabled) { color: var(--bad); background: var(--bad-soft); }
+
+.df-modes { grid-template-columns: repeat(3, 1fr); }
+.df-modes .vt-mode { height: 56px; }
+.df-grid { margin-top: 14px; }
+.df-note { margin-top: 12px; }
+.df-grid label, .df-note label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.df-warn { color: #b45309; font-weight: 600; }
+
+@media (max-width: 900px) {
+  .df-overview { flex-direction: column; }
+  .df-overview .vt-ca { border-right: 0; border-bottom: 1px solid var(--line); }
+  .df-kpis { grid-template-columns: 1fr; }
+  .df-kpis > div + div { border-left: 0; border-top: 1px solid var(--line); }
+  .df-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .df-table { min-width: 0; }
+  .df .vt-table.df-table .df-col-hide { display: none; }
+  .df .vt-table.df-table th, .df .vt-table.df-table td { padding-left: 8px; padding-right: 8px; }
+  .df-table .vt-actions { flex-direction: column; align-items: flex-end; gap: 4px; }
+  .df-modes { grid-template-columns: repeat(2, 1fr); }
+}

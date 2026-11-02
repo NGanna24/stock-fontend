@@ -7,6 +7,12 @@ import FactureTicketPDF from '../components/Facture/FactureTicketPDF';
 
 const PRINTER_STORAGE_KEY = 'printer_facture';
 
+// Délai maximum d'une impression Electron : au-delà, on rend la main à l'utilisateur
+// au lieu de laisser la fenêtre bloquée.
+const PRINT_TIMEOUT_MS = 45000;
+
+const POINT_EN_MICRONS = 352.7778; // 1 pt = 1/72 pouce = 352,78 µm
+
 class FacturePDFService {
     // ============================================================
     // UTILITAIRES
@@ -72,13 +78,45 @@ class FacturePDFService {
         setTimeout(() => URL.revokeObjectURL(url), 5000);
     }
 
+    /**
+     * Options d'impression Electron pour un ticket 80 mm, au format attendu par
+     * webContents.print() : pageSize en MICRONS (largeur ET hauteur numériques),
+     * marges via marginType. `taillePts` = taille réelle de la page du PDF en points
+     * (lue par l'aperçu) ; sans elle, on laisse le format papier de l'imprimante.
+     *
+     * ⚠️ L'ancienne version envoyait { width: 226.77, height: 'auto' }, des marges sans
+     *    marginType et scale: 'fit' : format refusé par Electron → l'impression du ticket bloquait.
+     */
+    static optionsTicketElectron(taillePts) {
+        const options = { margins: { marginType: 'none' }, printBackground: true };
+        if (taillePts && taillePts.width > 0 && taillePts.height > 0) {
+            options.pageSize = {
+                width: Math.round(taillePts.width * POINT_EN_MICRONS),
+                height: Math.round(taillePts.height * POINT_EN_MICRONS),
+            };
+        }
+        return options;
+    }
+
+    /** Rejette si la promesse ne se termine pas à temps (imprimante qui ne répond pas). */
+    static _avecDelai(promesse, ms = PRINT_TIMEOUT_MS) {
+        let minuteur;
+        const delai = new Promise((_, reject) => {
+            minuteur = setTimeout(() => reject(new Error(
+                "L'imprimante ne répond pas. Vérifiez qu'elle est allumée et connectée, "
+                + 'ou téléchargez le PDF pour l\'imprimer autrement.'
+            )), ms);
+        });
+        return Promise.race([promesse, delai]).finally(() => clearTimeout(minuteur));
+    }
+
     /** Electron uniquement : envoie le PDF à l'imprimante (choisie ou par défaut de Windows). */
     static async printBlobElectron(blob, options = {}) {
         if (!this._hasElectronPrint()) throw new Error('Impression directe indisponible');
-        const res = await window.electronAPI.printPdf(await blob.arrayBuffer(), {
+        const res = await this._avecDelai(window.electronAPI.printPdf(await blob.arrayBuffer(), {
             ...options,
             printer: options.printer || this.getSelectedPrinter() || undefined,
-        });
+        }));
         if (!res?.success) throw new Error(res?.error || "Échec de l'impression");
         return { success: true, fallback: !!res.fallback };
     }
@@ -195,9 +233,9 @@ class FacturePDFService {
             if (this._hasElectronPrint()) {
                 const blob = await this._generateBlob(factureData);
                 const buffer = await blob.arrayBuffer();
-                const res = await window.electronAPI.printPdf(buffer, {
+                const res = await this._avecDelai(window.electronAPI.printPdf(buffer, {
                     printer: this.getSelectedPrinter() || undefined,
-                });
+                }));
 
                 if (!res?.success) {
                     throw new Error(res?.error || "Échec de l'impression");
@@ -370,12 +408,10 @@ class FacturePDFService {
             if (this._hasElectronPrint()) {
                 const blob = await this._generateTicketBlob(factureData);
                 const buffer = await blob.arrayBuffer();
-                const res = await window.electronAPI.printPdf(buffer, {
+                const res = await this._avecDelai(window.electronAPI.printPdf(buffer, {
+                    ...this.optionsTicketElectron(),
                     printer: this.getSelectedPrinter() || undefined,
-                    pageSize: { width: 80 * 2.83465, height: 'auto' }, // 80mm
-                    margins: { top: 0, bottom: 0, left: 0, right: 0 },
-                    scale: 'fit',
-                });
+                }));
                 if (!res?.success) throw new Error(res?.error || "Échec de l'impression");
                 return { success: true, fallback: !!res.fallback };
             }

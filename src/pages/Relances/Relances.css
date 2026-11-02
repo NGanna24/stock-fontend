@@ -1,0 +1,97 @@
+/* pages/Relances/Relances.css — complète Ventes.css (préfixe rl-) */
+
+.rl [data-r="all"]     { --c: var(--s-all); }
+.rl [data-r="retard"]  { --c: var(--miyo-danger); }
+.rl [data-r="jamais"]  { --c: var(--miyo-warning); }
+.rl [data-r="recents"] { --c: var(--miyo-success); }
+
+.rl-info {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin: 0 0 14px; padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--sunken); color: var(--ink-2);
+  font-size: 13px; line-height: 1.45;
+}
+.rl-info svg { flex: none; margin-top: 2px; color: var(--signal); }
+
+.rl-search { flex: 1 1 260px; max-width: 420px; }
+.rl-search .vt-search-input { padding-left: 12px; padding-right: 36px; }
+
+.rl-wrap { min-height: 0; }
+.rl-table { min-width: 860px; }
+.rl-table th:nth-child(2) { width: 19%; }
+.rl-table th:nth-child(3) { width: 18%; }
+.rl-table th:nth-child(4) { width: 22%; }
+.rl-table th:nth-child(5) { width: 170px; }
+.rl-du { font-weight: 700; color: var(--bad); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.rl-retard {
+  display: inline-flex; align-items: center;
+  padding: 2px 9px; border-radius: var(--radius-full);
+  font-size: 12.5px; font-weight: 600; white-space: nowrap;
+}
+.rl-retard[data-r="fort"] { background: var(--bad-soft); color: var(--bad); }
+.rl-retard[data-r="oui"]  { background: #fef3c7; color: #b45309; }
+.rl-retard[data-r="non"]  { background: var(--sunken); color: var(--ink-2); font-weight: 500; }
+
+.rl-last { display: flex; align-items: center; gap: 6px; font-weight: 600; color: var(--ink); font-size: 13.5px; }
+.rl-last svg { color: var(--ink-3); }
+
+/* Bouton WhatsApp (vert WhatsApp, lisible) */
+.vt-btn.rl-btn-wa { background: #128c4a; border-color: #128c4a; color: #fff; }
+.vt-btn.rl-btn-wa:hover:not(:disabled) { background: #0e7a40; border-color: #0e7a40; }
+.vt-btn.rl-btn-wa:disabled { opacity: .55; }
+
+/* Modal relance */
+.rl-modeles { display: flex; width: 100%; margin-bottom: 14px; }
+.rl-modeles button { flex: 1; width: auto; padding: 0 10px; font-size: 13px; white-space: nowrap; }
+.rl-msg-label .vt-muted { font-weight: 400; }
+.rl-msg {
+  height: auto; min-height: 220px; padding: 10px 12px;
+  line-height: 1.5; resize: vertical; font-family: inherit; white-space: pre-wrap;
+}
+.rl-msg--skel { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius); min-height: 220px; }
+.rl-avert {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin: 0 0 14px; padding: 9px 12px;
+  border-radius: var(--radius);
+  background: #fef3c7; color: #92400e; font-size: 13px; line-height: 1.45;
+}
+.rl-avert svg { flex: none; margin-top: 2px; }
+.rl-foot { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.rl-foot-left { display: flex; gap: 6px; margin-right: auto; }
+
+/* Modal détail */
+.rl-facts .rl-du { font-size: 16px; }
+.rl-sub { min-height: 0; margin-bottom: 4px; box-shadow: none; }
+.rl-sub-table { min-width: 0; table-layout: auto; }
+.rl-sub-table tbody td { height: 50px; }
+.rl-gap { margin-top: 20px; }
+.rl-none { margin: 0; font-size: 13px; }
+.rl-histo { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.rl-histo li { display: flex; gap: 10px; align-items: flex-start; }
+.rl-histo-ico {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--sunken); color: var(--ink-2);
+}
+.rl-histo-ico[data-c="whatsapp"] { background: #dcfce7; color: #128c4a; }
+.rl-histo-ico[data-c="sms"] { background: #dbeafe; color: #1d4ed8; }
+.rl-histo-ico[data-c="appel"] { background: #fef3c7; color: #b45309; }
+.rl-histo-main { font-size: 13.5px; color: var(--ink-2); }
+.rl-histo-main strong { color: var(--ink); }
+
+@media (max-width: 640px) {
+  .rl-table, .rl-sub-table { min-width: 0; }
+  .rl .vt-table .rl-col-hide { display: none; }
+  .rl .vt-table th, .rl .vt-table td { padding-left: 8px; padding-right: 8px; }
+  .rl-table th:nth-child(2) { width: 34%; }
+  .rl-table th:nth-child(5) { width: 92px; }
+  .rl-wa-txt { display: none; }
+  .rl-table .rl-btn-wa { padding: 0 10px; }
+  .rl-table tbody td { height: auto; padding-top: 10px; padding-bottom: 10px; }
+  .rl-search { max-width: none; }
+  .rl-modeles { overflow-x: auto; }
+  .rl-foot-left { width: 100%; margin-right: 0; }
+  .rl-foot > .vt-btn { flex: 1; justify-content: center; }
+}

@@ -206,6 +206,56 @@ export const API_URL = {
         DELETE: (id) => `${BASE_URL}/api/recettes/${id}`,
     },
 
+    // ==================== URLS DETTES FOURNISSEURS ====================
+    DETTE_FOURNISSEUR: {
+        LISTE: `${BASE_URL}/api/dettes-fournisseurs`,
+        FOURNISSEUR: (id) => `${BASE_URL}/api/dettes-fournisseurs/fournisseurs/${id}`,
+        PAIEMENTS: `${BASE_URL}/api/dettes-fournisseurs/paiements`,
+        PAIEMENT: (id) => `${BASE_URL}/api/dettes-fournisseurs/paiements/${id}`,
+    },
+
+    // ==================== URLS MODE HORS LIGNE (ventes) ====================
+    HORS_LIGNE: {
+        CATALOGUE: `${BASE_URL}/api/hors-ligne/catalogue`,
+        VENTES: `${BASE_URL}/api/hors-ligne/ventes`,
+        HISTORIQUE: `${BASE_URL}/api/hors-ligne/historique`,
+        // Simple test de joignabilité du serveur (n'importe quelle réponse HTTP suffit)
+        PING: `${BASE_URL}/favicon.ico`,
+    },
+
+    // ==================== URLS RELANCES CLIENTS ====================
+    RELANCE: {
+        LISTE: `${BASE_URL}/api/relances`,
+        CLIENT: `${BASE_URL}/api/relances/client`,
+    },
+
+    // ==================== URLS JOURNAL D'ACTIVITÉ (admin) ====================
+    JOURNAL: {
+        LISTE: `${BASE_URL}/api/journal`,
+        FACETTES: `${BASE_URL}/api/journal/facettes`,
+        EXPORT: `${BASE_URL}/api/journal/export`,
+        ONE: (id) => `${BASE_URL}/api/journal/${id}`,
+    },
+
+    // ==================== URLS CAISSE JOURNALIÈRE ====================
+    CAISSE: {
+        COURANTE: `${BASE_URL}/api/caisse/courante`,
+        OUVRIR: `${BASE_URL}/api/caisse/ouvrir`,
+        CLOTURER: (id) => `${BASE_URL}/api/caisse/${id}/cloturer`,
+        HISTORIQUE: `${BASE_URL}/api/caisse/historique`,
+        ONE: (id) => `${BASE_URL}/api/caisse/${id}`,
+    },
+
+    // ==================== URLS DÉPENSES (frais de fonctionnement) ====================
+    DEPENSE: {
+        BASE: `${BASE_URL}/api/depenses`,
+        ONE: (id) => `${BASE_URL}/api/depenses/${id}`,
+        LOT: `${BASE_URL}/api/depenses/lot`,
+        REPRISE: (mois) => `${BASE_URL}/api/depenses/reprise?mois=${encodeURIComponent(mois)}`,
+        CATEGORIES: `${BASE_URL}/api/depenses/categories`,
+        CATEGORIE: (id) => `${BASE_URL}/api/depenses/categories/${id}`,
+    },
+
     // ==================== URLS RETOURS CLIENTS ====================
     RETOUR_CLIENT: {
         GET_ALL: `${BASE_URL}/api/retours-clients`,
@@ -453,6 +503,8 @@ INVENTAIRE_ENTREPOT: {
 },
 // ==================== URLS TRANSFERTS (entrepôt -> mon magasin, approuvé par le propriétaire) ====================
 TRANSFERT: {
+    // Vue centrale : tous mes transferts, tous entrepôts confondus
+    MES: `${BASE_URL}/api/transferts`,
     BY_ENTREPOT: (id_entrepot) =>
         `${BASE_URL}/api/entrepots/${id_entrepot}/transferts`,
     LOT: (id_entrepot) =>

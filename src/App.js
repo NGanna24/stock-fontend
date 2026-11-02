@@ -51,6 +51,12 @@ import SuperAdminLogin from "./pages/SuperAdmin/Auth/SuperAdminLogin";
 import SuperAdminRegister from "./pages/SuperAdmin/Auth/SuperAdminRegister";
 import SuperAdminRoute from "./pages/SuperAdminRoute";
 import Entrepot from "./pages/Entrepot/Entrepot";
+import Transferts from "./pages/Transferts/Transferts";
+import Depenses from "./pages/Depenses/Depenses";
+import Caisse from "./pages/Caisse/Caisse";
+import Journal from "./pages/Journal/Journal";
+import Relances from "./pages/Relances/Relances";
+import DettesFournisseurs from "./pages/DettesFournisseurs/DettesFournisseurs";
 
 // ==================== COMPOSANTS UTILITAIRES ====================
 
@@ -245,6 +251,38 @@ function AppContent() {
                         }
                     />
                     <Route
+                        path="relances"
+                        element={
+                            <ProtectedRouteByRole itemId="relances">
+                                <Relances />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="journal"
+                        element={
+                            <ProtectedRouteByRole itemId="journal">
+                                <Journal />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="caisse"
+                        element={
+                            <ProtectedRouteByRole itemId="caisse">
+                                <Caisse />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="depenses"
+                        element={
+                            <ProtectedRouteByRole itemId="depenses">
+                                <Depenses />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
                         path="retours-clients"
                         element={
                             <ProtectedRouteByRole itemId="retours-clients">
@@ -330,6 +368,14 @@ function AppContent() {
                         }
                     />
                     <Route
+                        path="dettes-fournisseurs"
+                        element={
+                            <ProtectedRouteByRole itemId="dettes-fournisseurs">
+                                <DettesFournisseurs />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
                         path="receptions"
                         element={
                             <ProtectedRouteByRole itemId="receptions">
@@ -346,6 +392,14 @@ function AppContent() {
                         }
                     />
                     <Route path="entrepot"     element={<Entrepot />} />
+                    <Route
+                        path="transferts"
+                        element={
+                            <ProtectedRouteByRole itemId="transferts">
+                                <Transferts />
+                            </ProtectedRouteByRole>
+                        }
+                    />
                    
                     <Route
                         path="entrees"

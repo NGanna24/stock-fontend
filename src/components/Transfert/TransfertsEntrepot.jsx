@@ -3,6 +3,9 @@
 //   - Propriétaire : voit toutes les demandes, les approuve ou les refuse.
 //   - Membre       : voit les siennes, peut annuler tant qu'elles sont en attente.
 // Les demandes sont chargées une fois (500 max) puis filtrées côté navigateur.
+//
+// Sans `entrepotId` (page /transferts) : vue centrale, tous mes entrepôts confondus.
+// Chaque ligne porte alors son propre `est_proprietaire` et `id_entrepot_source`.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ArrowDown, ArrowUp, Check, ChevronLeft, ChevronRight, FileText, Inbox,
@@ -59,7 +62,10 @@ function regrouper(transferts) {
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 const jour = (v) => (v ? new Date(v).toISOString().slice(0, 10) : '');
 
-export default function TransfertsEntrepot({ token, entrepotId, onError, onChanged, onLoaded }) {
+export default function TransfertsEntrepot({ token, entrepotId = null, onError, onChanged, onLoaded }) {
+    // Un vrai numéro d'entrepôt -> registre de cet entrepôt ; sinon (null, undefined, '') -> tous mes entrepôts.
+    const idEntrepot = Number(entrepotId);
+    const vueGlobale = !(Number.isInteger(idEntrepot) && idEntrepot > 0);
     const [brut, setBrut] = useState([]);
     const tous = useMemo(() => regrouper(brut), [brut]);
     const [estProprietaire, setEstProprietaire] = useState(false);
@@ -84,9 +90,13 @@ export default function TransfertsEntrepot({ token, entrepotId, onError, onChang
     const load = useCallback(async () => {
         setLoading(true);
         try {
-            const res = await TransfertStockService.list(token, entrepotId, null);
+            const res = vueGlobale
+                ? await TransfertStockService.listMes(token, null)
+                : await TransfertStockService.list(token, idEntrepot, null);
             setBrut(res.transferts || []);
-            setEstProprietaire(!!res.est_proprietaire);
+            setEstProprietaire(vueGlobale
+                ? (res.transferts || []).some((t) => t.est_proprietaire)
+                : !!res.est_proprietaire);
             onLoaded?.(res);
         } catch (err) {
             onError?.(err.message || 'Impossible de charger les transferts');
@@ -96,6 +106,10 @@ export default function TransfertsEntrepot({ token, entrepotId, onError, onChang
     }, [token, entrepotId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => { load(); }, [load]);
+
+    // En vue centrale, les droits et l'entrepôt viennent de chaque ligne
+    const proprio = (t) => (vueGlobale ? !!t.est_proprietaire : estProprietaire);
+    const idEnt = (t) => (vueGlobale ? t.id_entrepot_source : idEntrepot);
 
     /* ---- Compteurs par statut (sur l'ensemble, hors filtre de statut) ---- */
     const compteurs = useMemo(() => {
@@ -122,7 +136,7 @@ export default function TransfertsEntrepot({ token, entrepotId, onError, onChang
             if (!q) return true;
             return norm([
                 t.numero_transfert, t.produit_nom, t.marque_nom, t.modele_nom,
-                t.magasin_nom, t.demandeur_nom, t.motif, t.produit_destination_nom,
+                t.magasin_nom, t.demandeur_nom, t.motif, t.produit_destination_nom, t.entrepot_nom,
                 ...(t.lignes || []).map((l) => `${l.produit_nom} ${l.marque_nom || ''} ${l.numero_transfert}`),
             ].filter(Boolean).join(' ')).includes(q);
         });
@@ -160,12 +174,12 @@ export default function TransfertsEntrepot({ token, entrepotId, onError, onChang
         try {
             if (t.isLot) {
                 // Panier : l'action s'applique à tout le lot (tout ou rien)
-                await TransfertStockService.actionLot(token, entrepotId, t.numero_lot, type,
+                await TransfertStockService.actionLot(token, idEnt(t), t.numero_lot, type,
                     type === 'refuser' ? { motif: motifRefus.trim() } : {});
             } else {
-                if (type === 'approuver') await TransfertStockService.approuver(token, entrepotId, t.id_transfert);
-                if (type === 'refuser') await TransfertStockService.refuser(token, entrepotId, t.id_transfert, motifRefus.trim());
-                if (type === 'annuler') await TransfertStockService.annuler(token, entrepotId, t.id_transfert);
+                if (type === 'approuver') await TransfertStockService.approuver(token, idEnt(t), t.id_transfert);
+                if (type === 'refuser') await TransfertStockService.refuser(token, idEnt(t), t.id_transfert, motifRefus.trim());
+                if (type === 'annuler') await TransfertStockService.annuler(token, idEnt(t), t.id_transfert);
             }
 
             setAction(null);
@@ -250,7 +264,7 @@ export default function TransfertsEntrepot({ token, entrepotId, onError, onChang
                 </button>
             </div>
 
-            {!estProprietaire && !loading && (
+            {!estProprietaire && !loading && !vueGlobale && (
                 <div className="trx-note">
                     Vous voyez vos propres demandes. Le propriétaire de l'entrepôt les approuve.
                 </div>
@@ -265,7 +279,9 @@ export default function TransfertsEntrepot({ token, entrepotId, onError, onChang
                     <strong>{tous.length === 0 ? 'Aucun transfert pour le moment' : 'Aucun résultat'}</strong>
                     <span>
                         {tous.length === 0
-                            ? "Utilisez l'icône d'envoi d'un produit pour demander un transfert vers votre magasin."
+                            ? (vueGlobale
+                                ? "Cliquez sur « Nouveau transfert » pour faire venir du stock d'un entrepôt vers votre magasin."
+                                : "Utilisez l'icône d'envoi d'un produit pour demander un transfert vers votre magasin.")
                             : 'Modifiez la recherche ou les filtres.'}
                     </span>
                     {tous.length > 0 && <button className="trx-btn" onClick={reinitialiser}>Réinitialiser les filtres</button>}
@@ -284,6 +300,7 @@ export default function TransfertsEntrepot({ token, entrepotId, onError, onChang
                                             Date {recentDabord ? <ArrowDown size={13} /> : <ArrowUp size={13} />}
                                         </button>
                                     </th>
+                                    {vueGlobale && <th>Entrepôt</th>}
                                     <th>Produit</th>
                                     <th className="is-right">Quantité</th>
                                     <th>Magasin demandeur</th>
@@ -297,6 +314,12 @@ export default function TransfertsEntrepot({ token, entrepotId, onError, onChang
                                         <td className="trx-idx">{i + 1}</td>
                                         <td><span className="trx-num">{t.numero_transfert}</span></td>
                                         <td className="trx-nowrap">{fmtDate(t.date_creation)}</td>
+                                        {vueGlobale && (
+                                            <td>
+                                                <div className="trx-main">{t.entrepot_nom}</div>
+                                                <div className="trx-sub">{t.est_proprietaire ? 'Mon entrepôt' : 'Membre'}</div>
+                                            </td>
+                                        )}
                                         <td>
                                             {t.isLot ? (
                                                 <>
@@ -337,7 +360,7 @@ export default function TransfertsEntrepot({ token, entrepotId, onError, onChang
                                             {t.statut === 'refuse' && t.motif_refus && (
                                                 <div className="trx-sub" title={t.motif_refus}>{t.motif_refus}</div>
                                             )}
-                                            {t.statut === 'en_attente' && estProprietaire && !t.isLot && (
+                                            {t.statut === 'en_attente' && proprio(t) && !t.isLot && (
                                                 <div className="trx-sub">Stock : {fmtNum(t.stock_entrepot)} {t.unite_nom || ''}</div>
                                             )}
                                         </td>
@@ -348,7 +371,7 @@ export default function TransfertsEntrepot({ token, entrepotId, onError, onChang
                                                         <FileText size={14} /> Bon
                                                     </button>
                                                 )}
-                                                {t.statut === 'en_attente' && estProprietaire && (
+                                                {t.statut === 'en_attente' && proprio(t) && (
                                                     <>
                                                         <button className="trx-btn trx-btn--sm trx-btn--ok"
                                                                 onClick={() => setAction({ type: 'approuver', t })}>
@@ -360,7 +383,7 @@ export default function TransfertsEntrepot({ token, entrepotId, onError, onChang
                                                         </button>
                                                     </>
                                                 )}
-                                                {t.statut === 'en_attente' && !estProprietaire && (
+                                                {t.statut === 'en_attente' && !proprio(t) && (
                                                     <button className="trx-btn trx-btn--sm"
                                                             onClick={() => setAction({ type: 'annuler', t })}>
                                                         <XCircle size={14} /> Annuler
