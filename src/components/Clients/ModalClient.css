@@ -1,0 +1,9 @@
+/* components/Clients/ModalClient.css (préfixe mc-) — dans un conteneur .vt */
+.mc-gap { margin-top: 14px; }
+.mc-types { grid-template-columns: repeat(3, 1fr); }
+.mc-types .vt-mode { height: 54px; }
+.mc-note { height: auto; min-height: 60px; padding: 8px 12px; resize: vertical; font-family: inherit; line-height: 1.45; }
+.mc .vt-input:disabled { background: var(--sunken); color: var(--ink-3); }
+@media (max-width: 640px) {
+  .mc .vt-grid-2 { grid-template-columns: 1fr; }
+}

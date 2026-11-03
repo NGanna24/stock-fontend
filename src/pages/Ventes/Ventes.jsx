@@ -12,6 +12,7 @@ import CommandeVenteService from "../../services/commandeVenteService";
 import ProduitService from "../../services/produitService";
 import UniteVenteService from "../../services/uniteVenteService";
 import MagasinService from "../../services/magasinService";
+import ClientService from "../../services/clientService";
 import { useUser } from "../../context/AuthContext";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
 import FormatChoiceModal from '../../components/Facture/FormatChoiceModal';
@@ -482,6 +483,8 @@ const Ventes = () => {
 
   // ---------- Formulaire de vente ----------
   const [formData, setFormData] = useState({ nomclient: "", telephone: "", lignes: [] });
+  // Fiche client choisie dans la recherche (dette, plafond de crédit)
+  const [clientChoisi, setClientChoisi] = useState(null);
   const [produitSearch, setProduitSearch] = useState("");
   const [produitSearchResults, setProduitSearchResults] = useState([]);
   const [showProduitDropdown, setShowProduitDropdown] = useState(false);
@@ -661,7 +664,7 @@ const Ventes = () => {
 
     clientSearchDebounce.current = setTimeout(async () => {
       try {
-        const res = await CommandeVenteService.searchClients(token, texte, 10);
+        const res = await ClientService.search(token, texte, 10);
         if (rid !== clientSearchReq.current) return;
         setClientResults(res.success ? (res.data || []) : []);
       } catch (err) {
@@ -679,6 +682,7 @@ const Ventes = () => {
       nomclient: client.nom || "",
       telephone: client.telephone || "",
     }));
+    setClientChoisi(client.id_client ? client : null);
     setClientSearch(client.nom);
     setShowClientDropdown(false);
     setClientResults([]);
@@ -726,6 +730,10 @@ const Ventes = () => {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    // Un autre numéro = un autre client : on détache la fiche choisie
+    if (name === "telephone" && clientChoisi && value.replace(/\D/g, "") !== String(clientChoisi.telephone || "").replace(/\D/g, "")) {
+      setClientChoisi(null);
+    }
   };
 
   const rechercherProduits = (texte) => {
@@ -994,6 +1002,7 @@ const Ventes = () => {
   // ============================================================
   const handleAdd = () => {
     setFormData({ nomclient: "", telephone: "", lignes: [] });
+    setClientChoisi(null);
     resetComposer();
     setClientSearch("");
     setClientResults([]);
@@ -1150,6 +1159,7 @@ const Ventes = () => {
       const data = {
         nomclient: formData.nomclient.trim(),
         telephone: formData.telephone.trim(),
+        id_client: clientChoisi?.id_client || null,
         date_commande: new Date().toISOString().split("T")[0],
         notes: null,
         mode_paiement: "especes",
@@ -1941,7 +1951,7 @@ const renderListView = () => (
                       id="vt-client-search"
                       type="text"
                       className="vt-input vt-combo-input"
-                      placeholder="Nom, prénom ou téléphone…"
+                      placeholder="Nom, téléphone ou n° client (CL-…)"
                       value={clientSearch}
                       onChange={(e) => rechercherClients(e.target.value)}
                       onFocus={() => {
@@ -1974,7 +1984,7 @@ const renderListView = () => (
                       </div>
                     ) : clientResults.length === 0 ? (
                       <div className="vt-menu-note">
-                        Aucun client trouvé — saisissez un nouveau client ci-dessous.
+                        Aucun client trouvé — saisissez-le ci-dessous : sa fiche sera créée avec son numéro.
                       </div>
                     ) : (
                       clientResults.map((c, i) => (
@@ -1989,7 +1999,8 @@ const renderListView = () => (
                           <span className="vt-option-main">
                             <span className="vt-option-name">{c.nom}</span>
                             <span className="vt-option-sub">
-                              {c.nb_commandes} commande{c.nb_commandes > 1 ? "s" : ""}
+                              {c.code_client ? `${c.code_client} · ` : ""}{c.nb_ventes ?? c.nb_commandes} vente{(c.nb_ventes ?? c.nb_commandes) > 1 ? "s" : ""}
+                              {c.du > 0.009 && <span className={`vt-client-du ${c.depasse_plafond ? "is-ko" : ""}`}> · doit {formatMontant(c.du)}</span>}
                             </span>
                           </span>
                           <span className="vt-option-stock">{c.telephone || "—"}</span>
@@ -2035,6 +2046,28 @@ const renderListView = () => (
                     />
                   </div>
                 </div>
+
+                {clientChoisi && (() => {
+                  const plafond = clientChoisi.plafond_credit;
+                  const du = clientChoisi.du || 0;
+                  const apres = du + calculerTotal();
+                  const depasse = plafond != null && du > plafond + 0.009;
+                  const depasseraSiCredit = plafond != null && !depasse && apres > plafond + 0.009;
+                  return (
+                    <p className={`vt-client-info ${depasse ? "is-ko" : depasseraSiCredit ? "is-warn" : ""}`}>
+                      {depasse || depasseraSiCredit ? <AlertTriangle size={14} /> : <User size={14} />}
+                      <span>
+                        {depasse
+                          ? `${clientChoisi.nom} doit déjà ${formatMontant(du)}, au-dessus de son plafond de crédit (${formatMontant(plafond)}). Encaissez cette vente plutôt que de la faire à crédit.`
+                          : depasseraSiCredit
+                            ? `Si cette vente n'est pas payée, ${clientChoisi.nom} devra ${formatMontant(apres)}, au-dessus de son plafond (${formatMontant(plafond)}).`
+                            : du > 0.009
+                              ? `Fiche client : doit déjà ${formatMontant(du)}${plafond != null ? ` (plafond ${formatMontant(plafond)})` : ""}.`
+                              : `Fiche client : rien à payer${plafond != null ? ` · plafond ${formatMontant(plafond)}` : ""}.`}
+                      </span>
+                    </p>
+                  );
+                })()}
               </section>
 
               <section className="vt-section">
@@ -2505,6 +2538,7 @@ const renderListView = () => (
                       setCommandeEnCours(null);
                       setFactureGeneree(null);
                       setFormData({ nomclient: "", telephone: "", lignes: [] });
+    setClientChoisi(null);
                     }}
                   >
                     Enregistrer sans payer

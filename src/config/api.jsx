@@ -220,7 +220,7 @@ export const API_URL = {
         VENTES: `${BASE_URL}/api/hors-ligne/ventes`,
         HISTORIQUE: `${BASE_URL}/api/hors-ligne/historique`,
         // Simple test de joignabilité du serveur (n'importe quelle réponse HTTP suffit)
-        PING: `${BASE_URL}/favicon.ico`,
+        PING: `${BASE_URL}/api/ping`,
     },
 
     // ==================== URLS RELANCES CLIENTS ====================
@@ -341,6 +341,11 @@ export const API_URL = {
         GET_TOP: (limit = 10) => `${BASE_URL}/api/clients/top?limit=${limit}`,
         SEARCH: (keyword) => `${BASE_URL}/api/clients/search?keyword=${encodeURIComponent(keyword)}`,
         EXPORT: `${BASE_URL}/api/clients/export`,
+        CREATE: `${BASE_URL}/api/clients`,
+        ONE: (id) => `${BASE_URL}/api/clients/${id}`,
+        ACTIF: (id) => `${BASE_URL}/api/clients/${id}/actif`,
+        FUSIONNER: (id) => `${BASE_URL}/api/clients/${id}/fusionner`,
+        RELEVE: (id) => `${BASE_URL}/api/clients/${id}/releve`,
     },
 
     // ==================== URLS RAPPORTS VENTES ====================

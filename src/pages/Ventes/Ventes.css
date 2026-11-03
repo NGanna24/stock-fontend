@@ -1430,3 +1430,16 @@
     animation-iteration-count: infinite !important;
   }
 }
+/* ================================================================
+   FICHE CLIENT DANS LA VENTE (dette, plafond de crédit)
+   ================================================================ */
+.vt-client-info {
+  display: flex; align-items: flex-start; gap: 7px;
+  margin: 10px 0 0; padding: 8px 12px; border-radius: var(--radius);
+  background: var(--sunken); color: var(--ink-2); font-size: 12.5px; line-height: 1.45;
+}
+.vt-client-info svg { flex: none; margin-top: 2px; }
+.vt-client-info.is-warn { background: #fef3c7; color: #92400e; }
+.vt-client-info.is-ko { background: var(--bad-soft); color: var(--bad); font-weight: 600; }
+.vt-client-du { color: var(--ink-2); font-weight: 600; }
+.vt-client-du.is-ko { color: var(--bad); }

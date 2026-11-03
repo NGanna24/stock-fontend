@@ -1,1026 +1,696 @@
 // pages/Recettes/Recettes.jsx
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+//
+// Recettes : l'argent reçu des clients sur une période.
+//   - encaissements (paiements de factures) et remboursements (retours clients remboursés),
+//     net = encaissé − remboursé ;
+//   - répartition par mode de paiement (cliquable pour filtrer), évolution jour par jour,
+//     meilleurs clients ;
+//   - « Encaisser une facture » : choisir une facture qui reste à payer, le montant ne peut
+//     pas dépasser le reste, la facture passe automatiquement en partielle / payée ;
+//   - suppression d'un encaissement (erreur de saisie) : admin et manager ; la facture est
+//     remise au bon statut. Les remboursements se gèrent depuis les retours clients.
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-    Plus, Search, Trash2, Download, RefreshCw, X,
-    Receipt, CreditCard, Wallet,
-    Calendar, Eye, MoreVertical, CheckCircle, AlertCircle,
-    Banknote, Building2, FileText
-} from "lucide-react";
-import {
-    ResponsiveContainer, AreaChart, Area, XAxis, YAxis,
-    Tooltip, CartesianGrid, BarChart, Bar, PieChart, Pie, Cell, Legend
-} from 'recharts';
-import RecetteService from "../../services/recetteService";
-import { useUser } from "../../context/AuthContext";
-import "./Recettes.css";
+  Plus, Download, RefreshCw, X, AlertTriangle, Loader, Trash2, Banknote, CreditCard, Building2,
+  FileText, Wallet, ChevronLeft, ChevronRight, Info, CheckCircle, Undo2, Search,
+} from 'lucide-react';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from 'recharts';
+import RecetteService from '../../services/recetteService';
+import { useUser } from '../../context/AuthContext';
+import '../Ventes/Ventes.css';
+import './Recettes.css';
 
-// ========== FORMATAGE ==========
-const formatMontant = (value) => {
-    const num = parseFloat(value) || 0;
-    return Math.round(num).toLocaleString('fr-FR') + ' FCFA';
+// ============================================================
+// HELPERS
+// ============================================================
+const NBSP = ' ';
+const grouper = (n) => Math.round(Math.abs(Number(n) || 0)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, NBSP);
+const fm = (v) => `${Number(v) < 0 ? '−' : ''}${grouper(v)}${NBSP}FCFA`;
+const court = (v) => {
+  const n = Math.abs(Number(v) || 0);
+  if (n >= 1e6) return `${(n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace('.', ',')}${NBSP}M`;
+  if (n >= 1e3) return `${Math.round(n / 1e3)}${NBSP}k`;
+  return String(Math.round(n));
+};
+const pad = (n) => String(n).padStart(2, '0');
+const iso = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const aujourdhui = () => iso(new Date());
+const dateFR = (s) => { if (!s) return '-'; const [y, m, d] = String(s).slice(0, 10).split('-'); return `${d}/${m}/${y}`; };
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const toNum = (v) => (v === '' || v == null ? NaN : parseFloat(String(v).replace(/\s/g, '').replace(',', '.')));
+const DECIMAL_RE = /^\d*[.,]?\d*$/;
+const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+
+const MODES = [
+  { value: 'especes', label: 'Espèces', Icon: Banknote, c: '#16a34a' },
+  { value: 'carte', label: 'Carte', Icon: CreditCard, c: '#2563eb' },
+  { value: 'virement', label: 'Virement', Icon: Building2, c: '#7c3aed' },
+  { value: 'cheque', label: 'Chèque', Icon: FileText, c: '#d97706' },
+  { value: 'autre', label: 'Autre / Mobile money', court: 'Autre', Icon: Wallet, c: '#64748b' },
+];
+const modeInfo = (v) => MODES.find((m) => m.value === v) || MODES[4];
+
+const PERIODES = [
+  { id: 'jour', label: "Aujourd'hui" },
+  { id: 'semaine', label: 'Cette semaine' },
+  { id: 'mois', label: 'Ce mois' },
+  { id: 'mois_dernier', label: 'Mois dernier' },
+  { id: 'annee', label: 'Cette année' },
+  { id: 'perso', label: 'Personnalisée' },
+];
+const bornes = (id, perso) => {
+  const n = new Date();
+  const y = n.getFullYear();
+  const m = n.getMonth();
+  switch (id) {
+    case 'jour': return { debut: aujourdhui(), fin: aujourdhui() };
+    case 'semaine': { const d = new Date(n); d.setDate(n.getDate() - ((n.getDay() + 6) % 7)); return { debut: iso(d), fin: aujourdhui() }; }
+    case 'mois_dernier': return { debut: iso(new Date(y, m - 1, 1)), fin: iso(new Date(y, m, 0)) };
+    case 'annee': return { debut: `${y}-01-01`, fin: aujourdhui() };
+    case 'perso': return { debut: perso.debut, fin: perso.fin };
+    case 'mois':
+    default: return { debut: iso(new Date(y, m, 1)), fin: aujourdhui() };
+  }
 };
 
-const formatMontantCourt = (value) => {
-    const num = parseFloat(value) || 0;
-    if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
-    if (num >= 1000) return (num / 1000).toFixed(0) + 'k';
-    return num.toFixed(0);
+const ModeTag = ({ mode }) => {
+  const { Icon, label, court: c } = modeInfo(mode);
+  return <span className="rc-mode" style={{ '--c': modeInfo(mode).c }}><Icon size={13} /> {c || label}</span>;
 };
 
-const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('fr-FR', {
-        day: '2-digit', month: '2-digit', year: 'numeric'
-    });
+// ============================================================
+// MODAL (même comportement que la page Ventes)
+// ============================================================
+let lockDepth = 0;
+const lockScroll = () => { if (lockDepth++ === 0) document.body.style.overflow = 'hidden'; };
+const unlockScroll = () => { lockDepth = Math.max(0, lockDepth - 1); if (lockDepth === 0) document.body.style.overflow = ''; };
+
+const Modal = ({ onClose, dismissable = true, size = 'md', busy = false, labelledBy, children }) => {
+  const ref = useRef(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    const previous = document.activeElement;
+    lockScroll();
+    if (ref.current && !ref.current.contains(document.activeElement)) ref.current.focus({ preventScroll: true });
+    return () => {
+      unlockScroll();
+      if (previous && typeof previous.focus === 'function' && document.contains(previous)) previous.focus({ preventScroll: true });
+    };
+  }, []);
+  useEffect(() => {
+    if (!dismissable) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape' && !e.defaultPrevented) onCloseRef.current?.(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [dismissable]);
+  return (
+    <div className="vt-overlay" onMouseDown={(e) => { if (dismissable && e.target === e.currentTarget) onCloseRef.current?.(); }}>
+      <div ref={ref} className={`vt-modal vt-modal--${size}`} role="dialog" aria-modal="true"
+           aria-labelledby={labelledBy} aria-busy={busy || undefined} tabIndex={-1}>
+        {busy && <div className="vt-busybar" />}
+        {children}
+      </div>
+    </div>
+  );
 };
 
-// ========== CONFIG MODES DE PAIEMENT ==========
-const MODES_PAIEMENT = {
-    'especes': { label: 'Espèces', icon: Banknote, color: '#10b981', bg: '#d1fae5' },
-    'carte': { label: 'Carte', icon: CreditCard, color: '#995F2F', bg: '#dbeafe' },
-    'virement': { label: 'Virement', icon: Building2, color: '#8b5cf6', bg: '#e9d5ff' },
-    'cheque': { label: 'Chèque', icon: FileText, color: '#f59e0b', bg: '#fef3c7' },
-    'autre': { label: 'Autre', icon: Wallet, color: '#64748b', bg: '#f1f5f9' }
-};
+const ModalHead = ({ id, title, sub, onClose, disabled }) => (
+  <div className="vt-modal-head">
+    <div className="vt-modal-titles">
+      <h2 id={id} className="vt-modal-title">{title}</h2>
+      {sub && <p className="vt-modal-sub">{sub}</p>}
+    </div>
+    <button type="button" className="vt-iconbtn" onClick={() => !disabled && onClose()} aria-label="Fermer"><X size={18} /></button>
+  </div>
+);
 
-const PIE_COLORS = ['#10b981', '#995F2F', '#8b5cf6', '#f59e0b', '#64748b'];
+// ============================================================
+// MODAL : ENCAISSER UNE FACTURE
+// ============================================================
+function ModalEncaisser({ token, onClose, onEncaisse }) {
+  const [factures, setFactures] = useState(null);
+  const [erreur, setErreur] = useState(null);
+  const [recherche, setRecherche] = useState('');
+  const [choisie, setChoisie] = useState(null);
+  const [montant, setMontant] = useState('');
+  const [mode, setMode] = useState('especes');
+  const [date, setDate] = useState(aujourdhui());
+  const [reference, setReference] = useState('');
+  const [note, setNote] = useState('');
+  const [saving, setSaving] = useState(false);
 
-// ========== ÉTAT INITIAL FORMULAIRE ==========
-const INITIAL_FORM_DATA = {
-    id_facture: '',
-    date_paiement: new Date().toISOString().split('T')[0],
-    montant: '',
-    mode_paiement: 'especes',
-    reference: '',
-    note: ''
-};
+  useEffect(() => {
+    RecetteService.getFacturesImpayees(token)
+      .then((r) => setFactures(r.data || []))
+      .catch((e) => { setFactures([]); setErreur(e.message || 'Impossible de charger les factures à encaisser'); });
+  }, [token]);
 
-const Recettes = () => {
-    const { isAuthenticated } = useUser();
-    const token = localStorage.getItem('token');
+  const liste = useMemo(() => {
+    const q = norm(recherche.trim());
+    const chiffres = recherche.replace(/\D/g, '');
+    return (factures || []).filter((f) => !q
+      || norm(`${f.numero_facture} ${f.numero_commande || ''} ${f.nomclient || ''}`).includes(q)
+      || (chiffres.length >= 3 && String(f.telephone || '').replace(/\D/g, '').includes(chiffres)));
+  }, [factures, recherche]);
 
-    // ========== DATES PAR DÉFAUT ==========
-    const today = new Date();
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  const valeur = montant === '' ? choisie?.montant_restant || 0 : toNum(montant);
+  const depasse = !!choisie && valeur > choisie.montant_restant + 0.009;
 
-    const formatDateInput = (d) => d.toISOString().split('T')[0];
+  const choisir = (f) => { setChoisie(f); setMontant(''); setErreur(null); };
 
-    const [dateDebut, setDateDebut] = useState(formatDateInput(firstDayOfMonth));
-    const [dateFin, setDateFin] = useState(formatDateInput(lastDayOfMonth));
-
-    // ========== ÉTATS PRINCIPAUX ==========
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(null);
-    const [data, setData] = useState(null);
-    const [searchTerm, setSearchTerm] = useState("");
-    const [filterMode, setFilterMode] = useState("");
-    const [viewMode, setViewMode] = useState("table"); // "table" | "grid"
-
-    // ========== MODAL AJOUT ==========
-    const [showModal, setShowModal] = useState(false);
-    const [formData, setFormData] = useState(INITIAL_FORM_DATA);
-    const [facturesImpayees, setFacturesImpayees] = useState([]);
-    const [saving, setSaving] = useState(false);
-    const [factureSelectionnee, setFactureSelectionnee] = useState(null);
-
-    // ========== MODAL SUPPRESSION ==========
-    const [showDeleteModal, setShowDeleteModal] = useState(false);
-    const [recetteToDelete, setRecetteToDelete] = useState(null);
-    const [deleting, setDeleting] = useState(false);
-
-    // ========== CHARGEMENT ==========
-    const loadRecettes = useCallback(async () => {
-        if (!token) return;
-
-        setLoading(true);
-        setError(null);
-
-        try {
-            const filters = {
-                dateDebut,
-                dateFin,
-                modePaiement: filterMode || undefined,
-                search: searchTerm || undefined
-            };
-
-            const res = await RecetteService.getAllRecettes(token, filters);
-            if (res.success) {
-                setData(res.data);
-            } else {
-                setError(res.message || 'Erreur lors du chargement');
-            }
-        } catch (e) {
-            console.error('❌ loadRecettes error:', e);
-            setError(e.message || 'Erreur lors du chargement');
-        } finally {
-            setLoading(false);
-        }
-    }, [token, dateDebut, dateFin, filterMode, searchTerm]);
-
-    useEffect(() => {
-        if (isAuthenticated && token) {
-            loadRecettes();
-        }
-    }, [isAuthenticated, token, loadRecettes]);
-
-    // ========== CHARGER FACTURES IMPAYÉES POUR LE FORMULAIRE ==========
-    const loadFacturesImpayees = useCallback(async () => {
-        if (!token) return;
-        try {
-            const res = await RecetteService.getFacturesImpayees(token);
-            if (res.success) {
-                setFacturesImpayees(res.data || []);
-            }
-        } catch (e) {
-            console.error('❌ loadFacturesImpayees error:', e);
-        }
-    }, [token]);
-
-    // ========== EXPORT ==========
-    const handleExport = async () => {
-        try {
-            const response = await RecetteService.exportRecettes(token, {
-                dateDebut,
-                dateFin
-            });
-            const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `recettes_${dateDebut}_${dateFin}.csv`;
-            link.click();
-            URL.revokeObjectURL(url);
-        } catch (e) {
-            console.error('❌ Export error:', e);
-            alert('Erreur lors de l\'exportation');
-        }
-    };
-
-    // ========== PRESETS ==========
-    const setPreset = (preset) => {
-        const now = new Date();
-        let debut, fin;
-
-        switch (preset) {
-            case 'today':
-                debut = fin = now;
-                break;
-            case 'week':
-                const dayOfWeek = now.getDay() || 7;
-                debut = new Date(now);
-                debut.setDate(now.getDate() - dayOfWeek + 1);
-                fin = now;
-                break;
-            case 'month':
-                debut = new Date(now.getFullYear(), now.getMonth(), 1);
-                fin = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-                break;
-            case 'year':
-                debut = new Date(now.getFullYear(), 0, 1);
-                fin = new Date(now.getFullYear(), 11, 31);
-                break;
-            default:
-                return;
-        }
-
-        setDateDebut(formatDateInput(debut));
-        setDateFin(formatDateInput(fin));
-    };
-
-    // ========== OUVRIR MODAL AJOUT ==========
-    const handleAdd = async () => {
-        setFormData(INITIAL_FORM_DATA);
-        setFactureSelectionnee(null);
-        setError(null);
-        await loadFacturesImpayees();
-        setShowModal(true);
-    };
-
-    // ========== SÉLECTIONNER UNE FACTURE ==========
-    const handleSelectFacture = (facture) => {
-        setFactureSelectionnee(facture);
-        setFormData(prev => ({
-            ...prev,
-            id_facture: facture.id_facture,
-            montant: facture.montant_restant.toFixed(2)
-        }));
-    };
-
-    // ========== CHANGEMENT FORMULAIRE ==========
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-    };
-
-    // ========== SAUVEGARDER ==========
-    const handleSave = async () => {
-        if (!formData.id_facture) {
-            setError("Veuillez sélectionner une facture");
-            return;
-        }
-
-        if (!formData.montant || parseFloat(formData.montant) <= 0) {
-            setError("Le montant doit être supérieur à 0");
-            return;
-        }
-
-        if (!formData.date_paiement) {
-            setError("La date de paiement est obligatoire");
-            return;
-        }
-
-        setSaving(true);
-        setError(null);
-
-        try {
-            const payload = {
-                ...formData,
-                montant: parseFloat(formData.montant)
-            };
-
-            const res = await RecetteService.createRecette(token, payload);
-
-            if (res.success) {
-                await loadRecettes();
-                setShowModal(false);
-                setFormData(INITIAL_FORM_DATA);
-                setFactureSelectionnee(null);
-            } else {
-                setError(res.message || 'Erreur lors de la sauvegarde');
-            }
-        } catch (e) {
-            console.error('❌ Save error:', e);
-            setError(e.message || 'Erreur lors de la sauvegarde');
-        } finally {
-            setSaving(false);
-        }
-    };
-
-    // ========== CONFIRMER SUPPRESSION ==========
-    const confirmDelete = (recette) => {
-        setRecetteToDelete(recette);
-        setShowDeleteModal(true);
-    };
-
-    // ========== SUPPRIMER ==========
-    const handleDelete = async () => {
-        if (!recetteToDelete) return;
-
-        setDeleting(true);
-        setError(null);
-
-        try {
-            const res = await RecetteService.deleteRecette(token, recetteToDelete.id_paiement);
-
-            if (res.success) {
-                await loadRecettes();
-                setShowDeleteModal(false);
-                setRecetteToDelete(null);
-            } else {
-                setError(res.message || 'Erreur lors de la suppression');
-            }
-        } catch (e) {
-            console.error('❌ Delete error:', e);
-            setError(e.message || 'Erreur lors de la suppression');
-        } finally {
-            setDeleting(false);
-        }
-    };
-
-    // ========== DONNÉES ==========
-    const stats = data?.stats || {
-        nombre_paiements: 0,
-        total_recettes: 0,
-        moyenne_paiement: 0,
-        nombre_factures: 0,
-        par_mode: { especes: 0, carte: 0, virement: 0, cheque: 0, autre: 0 }
-    };
-
-    const recettes = data?.recettes || [];
-    const parJour = data?.par_jour || [];
-    const parMode = data?.par_mode || [];
-    const topClients = data?.top_clients || [];
-
-    // ========== FILTRAGE LOCAL ==========
-    const recettesFiltrees = useMemo(() => {
-        let result = recettes;
-
-        if (filterMode) {
-            result = result.filter(r => r.mode_paiement === filterMode);
-        }
-
-        if (searchTerm) {
-            const term = searchTerm.toLowerCase();
-            result = result.filter(r =>
-                r.numero_facture?.toLowerCase().includes(term) ||
-                r.numero_commande?.toLowerCase().includes(term) ||
-                r.nomclient?.toLowerCase().includes(term) ||
-                r.reference?.toLowerCase().includes(term)
-            );
-        }
-
-        return result;
-    }, [recettes, filterMode, searchTerm]);
-
-    // ========== LOADER ==========
-    if (loading && !data) {
-        return (
-            <div className="recettes-loading">
-                <div className="spinner"></div>
-                <p>Chargement des recettes...</p>
-            </div>
-        );
+  const enregistrer = async () => {
+    if (!choisie || saving) return;
+    if (!(valeur > 0)) { setErreur('Saisissez un montant supérieur à 0.'); return; }
+    if (depasse) { setErreur(`Le montant dépasse le reste à payer (${fm(choisie.montant_restant)}).`); return; }
+    setSaving(true);
+    setErreur(null);
+    try {
+      await RecetteService.createRecette(token, {
+        id_facture: choisie.id_facture, montant: valeur, mode_paiement: mode,
+        date_paiement: date, reference: reference.trim() || null, note: note.trim() || null,
+      });
+      onEncaisse(`${fm(valeur)} encaissés sur ${choisie.numero_facture}`
+        + (valeur >= choisie.montant_restant - 0.009 ? ' : facture soldée' : ''));
+    } catch (e) {
+      setErreur(e.message || "L'encaissement n'a pas pu être enregistré");
+      setSaving(false);
     }
+  };
 
-    // ========== ERREUR ==========
-    if (error && !data) {
-        return (
-            <div className="recettes-error">
-                <p>{error}</p>
-                <button className="btn btn-primary" onClick={loadRecettes}>
-                    <RefreshCw size={16} /> Réessayer
-                </button>
+  return (
+    <Modal size="lg" labelledBy="rc-enc-title" onClose={onClose} dismissable={!saving} busy={saving || factures === null}>
+      <ModalHead id="rc-enc-title" title="Encaisser une facture"
+                 sub={choisie ? `${choisie.numero_facture} · ${choisie.nomclient || 'Client'}` : 'Choisissez la facture que le client règle'}
+                 onClose={onClose} disabled={saving} />
+      <div className="vt-modal-body rc-enc">
+        {erreur && <div className="vt-error" role="alert"><AlertTriangle size={16} /><span>{erreur}</span></div>}
+
+        {!choisie ? (
+          <>
+            <div className="vt-search rc-enc-search">
+              <Search size={16} className="vt-search-icon" />
+              <input type="text" className="vt-input vt-search-input" placeholder="Client, téléphone, n° de facture ou de vente"
+                     value={recherche} onChange={(e) => setRecherche(e.target.value)} autoFocus aria-label="Rechercher une facture" />
             </div>
-        );
-    }
-
-    return (
-        <div className="recettes-container">
-            {/* ==================== EN-TÊTE ==================== */}
-            <div className="recettes-header">
-                <div>
-                    <h1 className="recettes-title">
-                        <banknote />
-                        Recettes
-                    </h1>
-                    <p className="recettes-subtitle">
-                        {stats.nombre_paiements} paiement(s) enregistré(s)
-                    </p>
-                </div>
-                <div className="recettes-actions">
-                    <button className="btn btn-primary" onClick={handleAdd}>
-                        <Plus size={18} />
-                        <span>Nouvelle Recette</span>
-                    </button>
-                    <button className="btn btn-secondary" onClick={handleExport}>
-                        <Download size={18} />
-                        <span>Exporter CSV</span>
-                    </button>
-                    <button
-                        className="btn btn-secondary"
-                        onClick={loadRecettes}
-                        disabled={loading}
-                    >
-                        <RefreshCw size={18} className={loading ? 'spinning' : ''} />
-                    </button>
-                </div>
-            </div>
-
-            {/* ==================== FILTRES ==================== */}
-            <div className="recettes-filters">
-                <div className="filter-row">
-                    <div className="filter-group">
-                        <label>Du</label>
-                        <input
-                            type="date"
-                            value={dateDebut}
-                            onChange={(e) => setDateDebut(e.target.value)}
-                            max={dateFin}
-                        />
-                    </div>
-                    <div className="filter-group">
-                        <label>Au</label>
-                        <input
-                            type="date"
-                            value={dateFin}
-                            onChange={(e) => setDateFin(e.target.value)}
-                            min={dateDebut}
-                        />
-                    </div>
-
-                    <div className="filter-group">
-                        <label>Mode paiement</label>
-                        <select value={filterMode} onChange={(e) => setFilterMode(e.target.value)}>
-                            <option value="">Tous</option>
-                            <option value="especes">Espèces</option>
-                            <option value="carte">Carte</option>
-                            <option value="virement">Virement</option>
-                            <option value="cheque">Chèque</option>
-                            <option value="autre">Autre</option>
-                        </select>
-                    </div>
-
-                    <div className="preset-buttons">
-                        <button className="preset-btn" onClick={() => setPreset('today')}>Aujourd'hui</button>
-                        <button className="preset-btn" onClick={() => setPreset('week')}>Cette semaine</button>
-                        <button className="preset-btn" onClick={() => setPreset('month')}>Ce mois</button>
-                        <button className="preset-btn" onClick={() => setPreset('year')}>Cette année</button>
-                    </div>
-                </div>
-            </div>
-
-            {/* ==================== KPIs ==================== */}
-            <div className="kpi-grid">
-                <div className="kpi-card kpi-highlight">
-                    <div className="kpi-icon kpi-green">
-                        <Banknote />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">Total Recettes</span>
-                        <span className="kpi-value text-green">
-                            {formatMontant(stats.total_recettes)}
-                        </span>
-                        <span className="kpi-sub">{stats.nombre_paiements} paiements</span>
-                    </div>
-                </div>
-
-                <div className="kpi-card">
-                    <div className="kpi-icon kpi-blue">
-                        <banknote size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">Paiement moyen</span>
-                        <span className="kpi-value">{formatMontant(stats.moyenne_paiement)}</span>
-                    </div>
-                </div>
-
-                <div className="kpi-card">
-                    <div className="kpi-icon kpi-purple">
-                        <Receipt size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">Factures réglées</span>
-                        <span className="kpi-value">{stats.nombre_factures}</span>
-                    </div>
-                </div>
-
-                <div className="kpi-card">
-                    <div className="kpi-icon kpi-orange">
-                        <Banknote size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">En espèces</span>
-                        <span className="kpi-value">{formatMontant(stats.par_mode.especes)}</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* ==================== GRAPHIQUES ==================== */}
-            <div className="charts-grid">
-                {/* Évolution des recettes */}
-                <div className="chart-card">
-                    <div className="chart-header">
-                        <h3>Évolution des recettes</h3>
-                    </div>
-                    <div className="chart-body">
-                        {parJour.length > 0 ? (
-                            <ResponsiveContainer width="100%" height={280}>
-                                <AreaChart data={parJour}>
-                                    <defs>
-                                        <linearGradient id="colorRecettes" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                                    <XAxis
-                                        dataKey="date"
-                                        tickFormatter={(d) => {
-                                            const date = new Date(d);
-                                            return `${date.getDate()}/${date.getMonth() + 1}`;
-                                        }}
-                                        tick={{ fontSize: 11, fill: '#64748b' }}
-                                    />
-                                    <YAxis
-                                        tickFormatter={formatMontantCourt}
-                                        tick={{ fontSize: 11, fill: '#64748b' }}
-                                        width={50}
-                                    />
-                                    <Tooltip
-                                        formatter={(v) => [formatMontant(v), 'Recettes']}
-                                        labelFormatter={(d) => formatDate(d)}
-                                    />
-                                    <Area
-                                        type="monotone"
-                                        dataKey="total"
-                                        stroke="#10b981"
-                                        strokeWidth={2}
-                                        fill="url(#colorRecettes)"
-                                    />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="empty-chart">
-                                <Banknote size={40} />
-                                <p>Aucune recette sur la période</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Répartition par mode */}
-                <div className="chart-card">
-                    <div className="chart-header">
-                        <h3>Répartition par mode de paiement</h3>
-                    </div>
-                    <div className="chart-body">
-                        {parMode.length > 0 ? (
-                            <ResponsiveContainer width="100%" height={280}>
-                                <PieChart>
-                                    <Pie
-                                        data={parMode}
-                                        dataKey="total"
-                                        nameKey="mode_paiement"
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={100}
-                                        paddingAngle={2}
-                                    >
-                                        {parMode.map((entry, index) => (
-                                            <Cell
-                                                key={`cell-${index}`}
-                                                fill={MODES_PAIEMENT[entry.mode_paiement]?.color || PIE_COLORS[index % PIE_COLORS.length]}
-                                            />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip
-                                        formatter={(v, name, props) => [
-                                            formatMontant(v),
-                                            MODES_PAIEMENT[props.payload.mode_paiement]?.label || props.payload.mode_paiement
-                                        ]}
-                                    />
-                                    <Legend
-                                        formatter={(value, entry) => {
-                                            const label = MODES_PAIEMENT[value]?.label || value;
-                                            return label;
-                                        }}
-                                    />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        ) : (
-                            <div className="empty-chart">
-                                <CreditCard size={40} />
-                                <p>Aucun paiement enregistré</p>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            {/* ==================== BARRE DE RECHERCHE ==================== */}
-            <div className="recettes-toolbar">
-                <div className="search-box">
-                    <Search size={18}  />
-                    <input
-                        type="text"
-                        placeholder="Rechercher par facture, commande, client..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                    {searchTerm && (
-                        <button className="search-clear" onClick={() => setSearchTerm("")}>
-                            <X size={16} />
-                        </button>
-                    )}
-                </div>
-
-                <div className="view-toggle">
-                    <button
-                        className={`view-btn ${viewMode === 'table' ? 'active' : ''}`}
-                        onClick={() => setViewMode('table')}
-                        title="Vue tableau"
-                    >
-                        Tableau
-                    </button>
-                    <button
-                        className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                        onClick={() => setViewMode('grid')}
-                        title="Vue cartes"
-                    >
-                        Cartes
-                    </button>
-                </div>
-            </div>
-
-            {/* ==================== LISTE DES RECETTES ==================== */}
-            {recettesFiltrees.length > 0 ? (
-                viewMode === 'table' ? (
-                    /* ✅ VUE TABLEAU */
-                    <div className="recettes-table-container">
-                        <table className="recettes-table">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Facture</th>
-                                    <th>Commande</th>
-                                    <th>Client</th>
-                                    <th>Montant</th>
-                                    <th>Mode</th>
-                                    <th>Référence</th>
-                                    <th className="actions-header">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {recettesFiltrees.map((r) => {
-                                    const modeConfig = MODES_PAIEMENT[r.mode_paiement] || MODES_PAIEMENT.autre;
-                                    const ModeIcon = modeConfig.icon;
-
-                                    return (
-                                        <tr key={r.id_paiement}>
-                                            <td>
-                                                <span className="date-cell">
-                                                    <Calendar size={14} />
-                                                    {r.date_formatee || formatDate(r.date_paiement)}
-                                                </span>
-                                            </td>
-                                            <td className="font-semibold">{r.numero_facture || '-'}</td>
-                                            <td>{r.numero_commande || '-'}</td>
-                                            <td>
-                                                <div className="client-cell">
-                                                    <span className="client-name">{r.nomclient || '-'}</span>
-                                                    {r.telephone && (
-                                                        <span className="client-tel">{r.telephone}</span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            <td className="font-bold text-green">
-                                                {formatMontant(r.montant)}
-                                            </td>
-                                            <td>
-                                                <span
-                                                    className="mode-badge"
-                                                    style={{
-                                                        background: modeConfig.bg,
-                                                        color: modeConfig.color
-                                                    }}
-                                                >
-                                                    <ModeIcon size={12} />
-                                                    {modeConfig.label}
-                                                </span>
-                                            </td>
-                                            <td className="text-muted">{r.reference || '-'}</td>
-                                            <td className="actions-cell">
-                                                <button
-                                                    className="action-btn btn-delete"
-                                                    onClick={() => confirmDelete(r)}
-                                                    title="Supprimer"
-                                                >
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-                ) : (
-                    /* ✅ VUE CARTES */
-                    <div className="recettes-grid">
-                        {recettesFiltrees.map((r) => {
-                            const modeConfig = MODES_PAIEMENT[r.mode_paiement] || MODES_PAIEMENT.autre;
-                            const ModeIcon = modeConfig.icon;
-
-                            return (
-                                <div key={r.id_paiement} className="recette-card">
-                                    <div className="recette-card-header">
-                                        <div
-                                            className="recette-card-icon"
-                                            style={{ background: modeConfig.bg, color: modeConfig.color }}
-                                        >
-                                            <ModeIcon size={22} />
-                                        </div>
-                                        <button
-                                            className="action-btn btn-delete"
-                                            onClick={() => confirmDelete(r)}
-                                            title="Supprimer"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-
-                                    <div className="recette-card-body">
-                                        <div className="recette-montant text-green">
-                                            {formatMontant(r.montant)}
-                                        </div>
-                                        <div className="recette-meta">
-                                            <span className="recette-date">
-                                                <Calendar size={12} />
-                                                {r.date_formatee || formatDate(r.date_paiement)}
-                                            </span>
-                                        </div>
-                                        <div className="recette-info">
-                                            {r.numero_facture && (
-                                                <div className="recette-info-item">
-                                                    <Receipt size={12} />
-                                                    <span>{r.numero_facture}</span>
-                                                </div>
-                                            )}
-                                            {r.nomclient && (
-                                                <div className="recette-info-item">
-                                                    <span>{r.nomclient}</span>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <span
-                                            className="mode-badge"
-                                            style={{
-                                                background: modeConfig.bg,
-                                                color: modeConfig.color
-                                            }}
-                                        >
-                                            <ModeIcon size={12} />
-                                            {modeConfig.label}
-                                        </span>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-                )
+            {factures === null ? (
+              <p className="vt-muted rc-enc-vide"><Loader size={15} className="vt-spin" /> Chargement des factures…</p>
+            ) : liste.length === 0 ? (
+              <p className="vt-muted rc-enc-vide">
+                {factures.length === 0 ? <><CheckCircle size={15} /> Toutes les factures sont payées.</> : 'Aucune facture ne correspond.'}
+              </p>
             ) : (
-                <div className="empty-state-full">
-                    <Banknote size={64} />
-                    <h3>Aucune recette</h3>
-                    <p>
-                        {searchTerm || filterMode
-                            ? 'Aucun résultat pour vos filtres'
-                            : 'Commencez par enregistrer un paiement'}
-                    </p>
-                    {!searchTerm && !filterMode && (
-                        <button className="btn btn-primary" onClick={handleAdd}>
-                            <Plus size={18} /> Nouvelle Recette
-                        </button>
-                    )}
-                </div>
+              <ul className="rc-enc-liste" role="listbox" aria-label="Factures à encaisser">
+                {liste.slice(0, 100).map((f) => {
+                  const retard = f.date_echeance && f.date_echeance < aujourdhui();
+                  return (
+                    <li key={f.id_facture}>
+                      <button type="button" className="rc-enc-item" onClick={() => choisir(f)}>
+                        <span className="rc-enc-main">
+                          <strong>{f.nomclient || 'Client sans nom'}</strong>
+                          <span className="vt-cell-sub">
+                            {f.numero_facture}{f.numero_commande ? ` · ${f.numero_commande}` : ''}{f.telephone ? ` · ${f.telephone}` : ''}
+                          </span>
+                        </span>
+                        <span className="rc-enc-right">
+                          <strong className="vt-num">{fm(f.montant_restant)}</strong>
+                          <span className={`vt-cell-sub ${retard ? 'rc-retard' : ''}`}>
+                            {f.montant_paye > 0 ? `payé ${fm(f.montant_paye)} · ` : ''}{retard ? 'échue le ' : 'échéance '}{dateFR(f.date_echeance)}
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
             )}
+          </>
+        ) : (
+          <>
+            <dl className="vt-facts rc-facts">
+              <div><dt>Total facture</dt><dd className="vt-num">{fm(choisie.montant_total)}</dd></div>
+              <div><dt>Déjà payé</dt><dd className="vt-num">{fm(choisie.montant_paye)}</dd></div>
+              <div><dt>Reste à payer</dt><dd className="vt-num rc-reste">{fm(choisie.montant_restant)}</dd></div>
+              <div><dt>Échéance</dt><dd>{dateFR(choisie.date_echeance)}</dd></div>
+            </dl>
+            <button type="button" className="vt-link rc-changer" onClick={() => setChoisie(null)} disabled={saving}>Choisir une autre facture</button>
 
-            {/* ==================== MODAL AJOUT ==================== */}
-            {showModal && (
-                <div className="modal-overlay">
-                    <div className="modal-content modal-lg" onClick={(e) => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h2>Nouvelle Recette</h2>
-                            <button
-                                className="modal-close"
-                                onClick={() => !saving && setShowModal(false)}
-                            >
-                                <X size={24} />
-                            </button>
-                        </div>
+            <div className="vt-field rc-gap">
+              <label htmlFor="rc-montant">Montant reçu</label>
+              <input id="rc-montant" className="vt-input vt-num" inputMode="decimal" autoFocus
+                     placeholder={grouper(choisie.montant_restant)} value={montant}
+                     onChange={(e) => DECIMAL_RE.test(e.target.value) && setMontant(e.target.value)} />
+              <p className={`vt-hint ${depasse ? 'rc-warn' : ''}`}>
+                {depasse ? `Maximum : ${fm(choisie.montant_restant)}`
+                  : valeur > 0 && valeur < choisie.montant_restant - 0.009
+                    ? `Paiement partiel : il restera ${fm(choisie.montant_restant - valeur)}`
+                    : 'Laissez vide pour encaisser tout le reste.'}
+              </p>
+            </div>
 
-                        <div className="modal-body">
-                            {error && (
-                                <div className="modal-error">
-                                    <AlertCircle size={16} />
-                                    <p>{error}</p>
-                                </div>
-                            )}
+            <div className="vt-field rc-gap">
+              <span className="vt-field-label" id="rc-mode-label">Mode de paiement</span>
+              <div className="vt-modes rc-modes" role="radiogroup" aria-labelledby="rc-mode-label">
+                {MODES.map(({ value, label, court: c, Icon }) => (
+                  <button key={value} type="button" role="radio" aria-checked={mode === value}
+                          className={`vt-mode ${mode === value ? 'is-active' : ''}`} onClick={() => setMode(value)} disabled={saving}>
+                    <Icon size={18} /><span>{c || label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                            {/* Étape 1 : Sélectionner facture */}
-                            {!factureSelectionnee ? (
-                                <>
-                                    <h3 className="modal-step-title">
-                                        Sélectionnez une facture impayée
-                                    </h3>
+            <div className="vt-grid-2 rc-gap">
+              <div className="vt-field">
+                <label htmlFor="rc-date">Date du paiement</label>
+                <input id="rc-date" type="date" className="vt-input" value={date} max={aujourdhui()}
+                       onChange={(e) => e.target.value && setDate(e.target.value)} />
+              </div>
+              <div className="vt-field">
+                <label htmlFor="rc-ref">Référence <span className="vt-muted">(facultatif)</span></label>
+                <input id="rc-ref" className="vt-input" maxLength={100} value={reference} placeholder="N° de transaction, chèque…"
+                       onChange={(e) => setReference(e.target.value)} />
+              </div>
+            </div>
+            <div className="vt-field rc-gap">
+              <label htmlFor="rc-note">Note <span className="vt-muted">(facultatif)</span></label>
+              <input id="rc-note" className="vt-input" maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} />
+            </div>
+          </>
+        )}
+      </div>
+      <div className="vt-modal-foot vt-modal-foot--end">
+        <button type="button" className="vt-btn" onClick={onClose} disabled={saving}>Annuler</button>
+        {choisie && (
+          <button type="button" className="vt-btn vt-btn--cash" onClick={enregistrer} disabled={saving || depasse || !(valeur > 0)}>
+            {saving ? <Loader size={16} className="vt-spin" /> : <Wallet size={16} />} Encaisser {valeur > 0 ? fm(valeur) : ''}
+          </button>
+        )}
+      </div>
+    </Modal>
+  );
+}
 
-                                    {facturesImpayees.length > 0 ? (
-                                        <div className="factures-list">
-                                            {facturesImpayees.map((f) => (
-                                                <div
-                                                    key={f.id_facture}
-                                                    className="facture-item"
-                                                    onClick={() => handleSelectFacture(f)}
-                                                >
-                                                    <div className="facture-item-icon">
-                                                        <Receipt size={20} />
-                                                    </div>
-                                                    <div className="facture-item-info">
-                                                        <strong>{f.numero_facture}</strong>
-                                                        <span>
-                                                            {f.nomclient || 'Client inconnu'}
-                                                            {f.numero_commande && ` • ${f.numero_commande}`}
-                                                        </span>
-                                                    </div>
-                                                    <div className="facture-item-montant">
-                                                        <span className="facture-total">
-                                                            {formatMontant(f.montant_total)}
-                                                        </span>
-                                                        <span className="facture-restant">
-                                                            Reste : {formatMontant(f.montant_restant)}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    ) : (
-                                        <div className="empty-chart">
-                                            <CheckCircle size={48} />
-                                            <p>Aucune facture impayée</p>
-                                            <span>Toutes vos factures sont réglées</span>
-                                        </div>
-                                    )}
-                                </>
-                            ) : (
-                                <>
-                                    {/* Étape 2 : Saisir le paiement */}
-                                    <div className="selected-facture">
-                                        <div className="selected-facture-info">
-                                            <strong>{factureSelectionnee.numero_facture}</strong>
-                                            <span>{factureSelectionnee.nomclient}</span>
-                                        </div>
-                                        <button
-                                            className="btn-change"
-                                            onClick={() => {
-                                                setFactureSelectionnee(null);
-                                                setFormData(INITIAL_FORM_DATA);
-                                            }}
-                                        >
-                                            Changer
-                                        </button>
-                                    </div>
+// ============================================================
+// PAGE
+// ============================================================
+const PAR_PAGE = 25;
+const TYPES = [
+  { id: 'tous', label: 'Tout' },
+  { id: 'encaissement', label: 'Encaissements' },
+  { id: 'remboursement', label: 'Remboursements' },
+];
 
-                                    <div className="form-row">
-                                        <div className="form-group">
-                                            <label>Montant reçu (FCFA) *</label>
-                                            <input
-                                                type="number"
-                                                name="montant"
-                                                value={formData.montant}
-                                                onChange={handleInputChange}
-                                                placeholder="0"
-                                                min="0"
-                                                step="0.01"
-                                                disabled={saving}
-                                                autoFocus
-                                            />
-                                            <small className="form-hint">
-                                                Reste à payer : {formatMontant(factureSelectionnee.montant_restant)}
-                                            </small>
-                                        </div>
+export default function Recettes() {
+  const { user } = useUser();
+  const token = localStorage.getItem('token');
+  const peutSupprimer = user?.role === 'admin' || user?.role === 'manager';
 
-                                        <div className="form-group">
-                                            <label>Date de paiement *</label>
-                                            <input
-                                                type="date"
-                                                name="date_paiement"
-                                                value={formData.date_paiement}
-                                                onChange={handleInputChange}
-                                                disabled={saving}
-                                            />
-                                        </div>
-                                    </div>
+  const [periode, setPeriode] = useState('mois');
+  const [perso, setPerso] = useState({ debut: aujourdhui(), fin: aujourdhui() });
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [mode, setMode] = useState('');
+  const [type, setType] = useState('tous');
+  const [recherche, setRecherche] = useState('');
+  const [page, setPage] = useState(1);
+  const [encaisser, setEncaisser] = useState(false);
+  const [aSupprimer, setASupprimer] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [toast, setToast] = useState(null);
+  const toastTimer = useRef(null);
+  const reqId = useRef(0);
 
-                                    <div className="form-row">
-                                        <div className="form-group">
-                                            <label>Mode de paiement</label>
-                                            <select
-                                                name="mode_paiement"
-                                                value={formData.mode_paiement}
-                                                onChange={handleInputChange}
-                                                disabled={saving}
-                                            >
-                                                <option value="especes">Espèces</option>
-                                                <option value="carte">Carte bancaire</option>
-                                                <option value="virement">Virement</option>
-                                                <option value="cheque">Chèque</option>
-                                                <option value="autre">Autre</option>
-                                            </select>
-                                        </div>
+  const showToast = useCallback((message, t = 'success') => {
+    clearTimeout(toastTimer.current);
+    setToast({ message, type: t });
+    toastTimer.current = setTimeout(() => setToast(null), 4500);
+  }, []);
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
 
-                                        <div className="form-group">
-                                            <label>Référence</label>
-                                            <input
-                                                type="text"
-                                                name="reference"
-                                                value={formData.reference}
-                                                onChange={handleInputChange}
-                                                placeholder="N° de transaction, chèque..."
-                                                disabled={saving}
-                                                maxLength={100}
-                                            />
-                                        </div>
-                                    </div>
+  const { debut, fin } = bornes(periode, perso);
 
-                                    <div className="form-group">
-                                        <label>Note (optionnel)</label>
-                                        <textarea
-                                            name="note"
-                                            value={formData.note}
-                                            onChange={handleInputChange}
-                                            placeholder="Détails supplémentaires..."
-                                            rows="2"
-                                            disabled={saving}
-                                            maxLength={500}
-                                        />
-                                    </div>
-                                </>
-                            )}
-                        </div>
+  const charger = useCallback(async () => {
+    const id = ++reqId.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await RecetteService.getAllRecettes(token, { dateDebut: debut, dateFin: fin });
+      if (id === reqId.current) setData(res.data);
+    } catch (e) {
+      if (id === reqId.current) setError(e.message || 'Impossible de charger les recettes');
+    } finally {
+      if (id === reqId.current) setLoading(false);
+    }
+  }, [token, debut, fin]);
 
-                        <div className="modal-footer">
-                            <button
-                                className="btn btn-secondary"
-                                onClick={() => setShowModal(false)}
-                                disabled={saving}
-                            >
-                                Annuler
-                            </button>
-                            {factureSelectionnee && (
-                                <button
-                                    className="btn btn-primary"
-                                    onClick={handleSave}
-                                    disabled={saving || !formData.montant}
-                                >
-                                    {saving ? (
-                                        <>
-                                            <span className="spinner-small"></span>
-                                            <span>Enregistrement...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <CheckCircle size={18} />
-                                            <span>Enregistrer</span>
-                                        </>
-                                    )}
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            )}
+  useEffect(() => { charger(); }, [charger]);
+  useEffect(() => { setPage(1); }, [mode, type, recherche, debut, fin]);
 
-            {/* ==================== MODAL SUPPRESSION ==================== */}
-            {showDeleteModal && recetteToDelete && (
-                <div
-                    className="modal-overlay"
-                    onClick={() => !deleting && setShowDeleteModal(false)}
-                >
-                    <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h2>Confirmer la suppression</h2>
-                            <button
-                                className="modal-close"
-                                onClick={() => !deleting && setShowDeleteModal(false)}
-                            >
-                                <X size={24} />
-                            </button>
-                        </div>
-                        <div className="modal-body">
-                            <p>Voulez-vous vraiment supprimer cette recette ?</p>
-                            <div className="delete-recap">
-                                <div className="delete-recap-item">
-                                    <span>Montant</span>
-                                    <strong>{formatMontant(recetteToDelete.montant)}</strong>
-                                </div>
-                                <div className="delete-recap-item">
-                                    <span>Date</span>
-                                    <strong>{recetteToDelete.date_formatee}</strong>
-                                </div>
-                                {recetteToDelete.numero_facture && (
-                                    <div className="delete-recap-item">
-                                        <span>Facture</span>
-                                        <strong>{recetteToDelete.numero_facture}</strong>
-                                    </div>
-                                )}
-                            </div>
-                            <p className="delete-warning">
-                                ⚠️ Cette action est irréversible.
-                            </p>
-                        </div>
-                        <div className="modal-footer">
-                            <button
-                                className="btn btn-secondary"
-                                onClick={() => setShowDeleteModal(false)}
-                                disabled={deleting}
-                            >
-                                Annuler
-                            </button>
-                            <button
-                                className="btn btn-danger"
-                                onClick={handleDelete}
-                                disabled={deleting}
-                            >
-                                {deleting ? (
-                                    <>
-                                        <span className="spinner-small"></span>
-                                        <span>Suppression...</span>
-                                    </>
-                                ) : (
-                                    <>
-                                        <Trash2 size={18} />
-                                        <span>Supprimer</span>
-                                    </>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
+  const recettes = useMemo(() => data?.recettes || [], [data]);
+  const stats = data?.stats || { total_encaisse: 0, total_rembourse: 0, net: 0, nombre_encaissements: 0, nombre_remboursements: 0, nombre_factures: 0, moyenne_paiement: 0, nb_ventes_supprimees: 0, par_mode: {} };
+
+  const filtrees = useMemo(() => {
+    const q = norm(recherche.trim());
+    const chiffres = recherche.replace(/\D/g, '');
+    return recettes.filter((r) => {
+      if (mode && r.mode_paiement !== mode) return false;
+      if (type !== 'tous' && r.type !== type) return false;
+      if (!q) return true;
+      return norm(`${r.nomclient || ''} ${r.numero_facture || ''} ${r.numero_commande || ''} ${r.reference || ''} ${r.note || ''}`).includes(q)
+        || (chiffres.length >= 3 && String(r.telephone || '').replace(/\D/g, '').includes(chiffres));
+    });
+  }, [recettes, mode, type, recherche]);
+  const totalFiltre = filtrees.reduce((s, r) => s + r.montant, 0);
+  const filtreActif = !!(mode || type !== 'tous' || recherche.trim());
+
+  const nbPages = Math.max(1, Math.ceil(filtrees.length / PAR_PAGE));
+  const pageCourante = Math.min(page, nbPages);
+  const visibles = filtrees.slice((pageCourante - 1) * PAR_PAGE, pageCourante * PAR_PAGE);
+
+  // Courbe : par jour, ou par mois si la période dépasse ~2 mois
+  const courbe = useMemo(() => {
+    const jours = data?.par_jour || [];
+    if (jours.length <= 62) {
+      return jours.map((j) => ({ cle: j.date, label: `${j.date.slice(8, 10)}/${j.date.slice(5, 7)}`, net: j.net, encaisse: j.encaisse, rembourse: j.rembourse }));
+    }
+    const mois = new Map();
+    jours.forEach((j) => {
+      const k = j.date.slice(0, 7);
+      const x = mois.get(k) || { cle: k, label: `${MOIS[Number(k.slice(5, 7)) - 1]} ${k.slice(2, 4)}`, net: 0, encaisse: 0, rembourse: 0 };
+      x.net += j.net; x.encaisse += j.encaisse; x.rembourse += j.rembourse;
+      mois.set(k, x);
+    });
+    return [...mois.values()];
+  }, [data]);
+  const meilleurJour = courbe.reduce((b, x) => (x.net > (b?.net || 0) ? x : b), null);
+
+  const exporter = async () => {
+    setExporting(true);
+    try {
+      const res = await RecetteService.exportRecettes(token, { dateDebut: debut, dateFin: fin, modePaiement: mode || undefined });
+      const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `recettes_${debut}_${fin}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      showToast(e.message || "Erreur lors de l'export", 'error');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const supprimer = async () => {
+    if (!aSupprimer || deleting) return;
+    setDeleting(true);
+    try {
+      await RecetteService.deleteRecette(token, aSupprimer.id_paiement);
+      showToast(`Encaissement de ${fm(aSupprimer.montant)} supprimé, facture ${aSupprimer.numero_facture || ''} mise à jour`);
+      setASupprimer(null);
+      charger();
+    } catch (e) {
+      showToast(e.message || 'Suppression impossible', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const libellePeriode = periode === 'jour' ? "aujourd'hui" : debut === fin ? `le ${dateFR(debut)}` : `du ${dateFR(debut)} au ${dateFR(fin)}`;
+
+  return (
+    <div className="ventes-container vt rc">
+      <header className="vt-head">
+        <div>
+          <h1 className="vt-title">Recettes</h1>
+          <p className="vt-sub">L'argent reçu de vos clients, {libellePeriode}</p>
         </div>
-    );
-};
+        <div className="vt-head-actions">
+          <button type="button" className="vt-btn" onClick={exporter} disabled={exporting || recettes.length === 0}>
+            {exporting ? <Loader size={16} className="vt-spin" /> : <Download size={16} />} Exporter
+          </button>
+          <button type="button" className="vt-btn vt-btn--icon" onClick={charger} disabled={loading} aria-label="Rafraîchir" title="Rafraîchir">
+            <RefreshCw size={16} className={loading ? 'vt-spin' : ''} />
+          </button>
+          <button type="button" className="vt-btn vt-btn--primary" onClick={() => setEncaisser(true)}>
+            <Plus size={16} /> Encaisser une facture
+          </button>
+        </div>
+      </header>
 
-export default Recettes;
+      {/* ---------- Période ---------- */}
+      <div className="vt-toolbar rc-periode">
+        <div className="vt-seg" role="group" aria-label="Période">
+          {PERIODES.map((p) => (
+            <button key={p.id} type="button" aria-pressed={periode === p.id}
+                    onClick={() => { if (p.id === 'perso') setPerso({ debut, fin }); setPeriode(p.id); }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {periode === 'perso' && (
+          <div className="rc-dates">
+            <input type="date" className="vt-input" value={perso.debut} max={perso.fin || undefined} aria-label="Du"
+                   onChange={(e) => e.target.value && setPerso((x) => ({ ...x, debut: e.target.value }))} />
+            <span className="vt-muted">au</span>
+            <input type="date" className="vt-input" value={perso.fin} min={perso.debut || undefined} aria-label="Au"
+                   onChange={(e) => e.target.value && setPerso((x) => ({ ...x, fin: e.target.value }))} />
+          </div>
+        )}
+      </div>
+
+      {/* ---------- Synthèse + modes (cliquables) ---------- */}
+      <section className="vt-overview rc-overview" aria-label="Synthèse">
+        <div className="vt-ca">
+          <span className="vt-label">Net encaissé</span>
+          <strong className="vt-ca-value vt-num">{fm(stats.net)}</strong>
+          <span className="vt-ca-note">
+            {stats.nombre_encaissements} encaissement{stats.nombre_encaissements > 1 ? 's' : ''} · {stats.nombre_factures} facture{stats.nombre_factures > 1 ? 's' : ''}
+            {stats.total_rembourse > 0 && <> · <span className="rc-rembourse">remboursé {fm(stats.total_rembourse)}</span></>}
+          </span>
+        </div>
+        <div className="vt-rail" role="group" aria-label="Filtrer par mode de paiement">
+          <button type="button" className="vt-stage" data-s="all" aria-pressed={mode === ''} onClick={() => setMode('')}>
+            <span className="vt-stage-count vt-num rc-stage-val">{court(stats.total_encaisse)}</span>
+            <span className="vt-stage-label">Tous les modes</span>
+          </button>
+          {MODES.map((m) => (
+            <button key={m.value} type="button" className="vt-stage" style={{ '--c': m.c }} aria-pressed={mode === m.value}
+                    onClick={() => setMode(mode === m.value ? '' : m.value)} title={fm(stats.par_mode?.[m.value] || 0)}>
+              <span className="vt-stage-count vt-num rc-stage-val">{court(stats.par_mode?.[m.value] || 0)}</span>
+              <span className="vt-stage-label">{m.court || m.label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {stats.nb_ventes_supprimees > 0 && (
+        <p className="rc-info">
+          <Info size={15} />
+          <span>
+            {stats.nb_ventes_supprimees} encaissement{stats.nb_ventes_supprimees > 1 ? 's' : ''} de la période concerne{stats.nb_ventes_supprimees > 1 ? 'nt' : ''} une
+            vente <strong>supprimée</strong> (marqué{stats.nb_ventes_supprimees > 1 ? 's' : ''} ci-dessous). Si l'argent n'a pas réellement été reçu,
+            {peutSupprimer ? ' supprimez ces encaissements.' : ' demandez à un responsable de les supprimer.'}
+          </span>
+        </p>
+      )}
+
+      {/* ---------- Évolution + meilleurs clients ---------- */}
+      <div className="rc-panels">
+        <section className="rc-card rc-chart" aria-label="Évolution des recettes">
+          <div className="rc-card-head">
+            <h2>Évolution {courbe.length > 0 && courbe[0].cle.length === 7 ? 'par mois' : 'par jour'}</h2>
+            {meilleurJour && meilleurJour.net > 0 && (
+              <span className="vt-muted">Meilleur : {meilleurJour.label} · {fm(meilleurJour.net)}</span>
+            )}
+          </div>
+          <div className="rc-chart-zone">
+            {loading && !data ? <span className="vt-skel rc-chart-skel" /> : stats.total_encaisse === 0 && stats.total_rembourse === 0 ? (
+              <p className="vt-muted rc-vide">Aucune recette sur cette période.</p>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={courbe} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--miyo-border)" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--miyo-text-tertiary)' }} tickLine={false} axisLine={false}
+                         interval="preserveStartEnd" minTickGap={14} />
+                  <YAxis tickFormatter={court} tick={{ fontSize: 11, fill: 'var(--miyo-text-tertiary)' }} tickLine={false} axisLine={false} width={44} />
+                  <ReferenceLine y={0} stroke="var(--miyo-border-strong)" />
+                  <Tooltip cursor={{ fill: 'var(--miyo-primary-soft)' }}
+                           formatter={(v, k) => [fm(v), k === 'net' ? 'Net' : k]}
+                           labelFormatter={(l) => l}
+                           contentStyle={{ borderRadius: 8, border: '1px solid var(--miyo-border)', fontSize: 12.5 }} />
+                  <Bar dataKey="net" fill="var(--miyo-primary)" radius={[4, 4, 0, 0]} maxBarSize={34} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </section>
+
+        <section className="rc-card rc-top" aria-label="Meilleurs clients">
+          <div className="rc-card-head"><h2>Meilleurs clients</h2></div>
+          {(data?.top_clients || []).length === 0 ? (
+            <p className="vt-muted rc-vide">—</p>
+          ) : (
+            <ol className="rc-top-liste">
+              {data.top_clients.slice(0, 5).map((c, i) => (
+                <li key={`${c.telephone}-${c.nomclient}`}>
+                  <span className="rc-rang">{i + 1}</span>
+                  <span className="rc-top-nom">
+                    <strong>{c.nomclient || 'Client'}</strong>
+                    <span className="vt-cell-sub">{c.nombre_factures} facture{c.nombre_factures > 1 ? 's' : ''}{c.telephone ? ` · ${c.telephone}` : ''}</span>
+                  </span>
+                  <strong className="vt-num">{fm(c.total_recettes)}</strong>
+                </li>
+              ))}
+            </ol>
+          )}
+        </section>
+      </div>
+
+      {/* ---------- Liste ---------- */}
+      <div className="vt-toolbar rc-toolbar">
+        <div className="vt-search rc-search">
+          <input type="text" className="vt-input vt-search-input" placeholder="Client, téléphone, n° de facture, référence…"
+                 aria-label="Rechercher une recette" value={recherche} onChange={(e) => setRecherche(e.target.value)} spellCheck={false} />
+          {recherche && <button type="button" className="vt-search-clear" onClick={() => setRecherche('')} aria-label="Effacer"><X size={14} /></button>}
+        </div>
+        <div className="vt-seg rc-types" role="group" aria-label="Type">
+          {TYPES.map((t) => (
+            <button key={t.id} type="button" aria-pressed={type === t.id} onClick={() => setType(t.id)}>{t.label}</button>
+          ))}
+        </div>
+        <span className="vt-count">
+          {filtrees.length} ligne{filtrees.length > 1 ? 's' : ''}{filtreActif && filtrees.length > 0 ? ` · ${fm(totalFiltre)}` : ''}
+        </span>
+      </div>
+
+      {error && !loading && (
+        <div className="vt-error" role="alert">
+          <AlertTriangle size={16} /><span>{error}</span>
+          <button type="button" className="vt-btn vt-btn--sm" onClick={charger}>Réessayer</button>
+        </div>
+      )}
+
+      <div className="vt-table-wrap rc-wrap" aria-busy={loading || undefined}>
+        {loading && data && <div className="vt-busybar" />}
+        <table className="vt-table rc-table">
+          <thead>
+            <tr>
+              <th className="rc-col-date">Date</th>
+              <th>Client</th>
+              <th className="rc-col-hide">Facture · vente</th>
+              <th className="rc-col-hide">Mode</th>
+              <th className="vt-th-right">Montant</th>
+              <th className="vt-th-right rc-col-act"><span className="rc-sr">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && !data
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <tr key={`sk-${i}`} className="vt-skel-row" aria-hidden="true">
+                    {[50, 70, 60, 40, 50, 20].map((w, k) => <td key={k}><span className="vt-skel" style={{ width: `${w}%` }} /></td>)}
+                  </tr>
+                ))
+              : visibles.map((r) => (
+                  <tr key={r.id_paiement} className={r.type === 'remboursement' ? 'rc-row-remb' : ''}>
+                    <td className="vt-num rc-col-date">
+                      {dateFR(r.date_paiement)}
+                      {r.date_creation_formatee && <div className="vt-cell-sub">saisi à {r.date_creation_formatee.slice(11)}</div>}
+                    </td>
+                    <td>
+                      <div className="vt-cell-main">{r.nomclient || (r.vente_supprimee ? 'Vente supprimée' : 'Client')}</div>
+                      <div className="vt-cell-sub">{r.telephone || r.reference || '-'}</div>
+                    </td>
+                    <td className="rc-col-hide">
+                      <div className="vt-cell-main vt-cell-main--plain">{r.numero_facture || '-'}</div>
+                      <div className="vt-cell-sub">
+                        {r.vente_supprimee ? <span className="rc-tag rc-tag--ko">vente supprimée</span>
+                          : r.vente_annulee ? <span className="rc-tag rc-tag--warn">vente annulée</span>
+                          : r.numero_commande || '-'}
+                      </div>
+                    </td>
+                    <td className="rc-col-hide"><ModeTag mode={r.mode_paiement} /></td>
+                    <td className="vt-td-right">
+                      <div className={`vt-num rc-montant ${r.type === 'remboursement' ? 'is-remb' : ''}`}>{fm(r.montant)}</div>
+                      <div className="vt-cell-sub">
+                        {r.type === 'remboursement' ? <><Undo2 size={11} /> remboursement</> : <span className="rc-mobile-mode">{modeInfo(r.mode_paiement).court || modeInfo(r.mode_paiement).label}</span>}
+                      </div>
+                    </td>
+                    <td className="vt-td-right rc-col-act">
+                      {peutSupprimer && r.type === 'encaissement' && (
+                        <button type="button" className="vt-iconbtn vt-iconbtn--sm rc-del" onClick={() => setASupprimer(r)}
+                                aria-label={`Supprimer l'encaissement de ${fm(r.montant)}`} title="Supprimer (erreur de saisie)">
+                          <Trash2 size={15} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+          </tbody>
+        </table>
+        {!loading && visibles.length === 0 && (
+          <div className="vt-empty">
+            <Banknote size={30} />
+            <p className="vt-empty-title">{recettes.length === 0 ? 'Aucune recette sur cette période' : 'Aucune ligne ne correspond'}</p>
+            <p className="vt-empty-text">
+              {recettes.length === 0 ? 'Les paiements des ventes et des factures apparaissent ici automatiquement.' : 'Modifiez la recherche ou les filtres.'}
+            </p>
+            {filtreActif && recettes.length > 0 && (
+              <button type="button" className="vt-btn vt-btn--sm" onClick={() => { setMode(''); setType('tous'); setRecherche(''); }}>Effacer les filtres</button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {filtrees.length > PAR_PAGE && (
+        <nav className="vt-pager" aria-label="Pagination">
+          <span className="vt-pager-info">{filtrees.length} lignes</span>
+          <div className="vt-pager-ctrl">
+            <button type="button" className="vt-iconbtn vt-iconbtn--boxed" onClick={() => setPage(pageCourante - 1)} disabled={pageCourante === 1} aria-label="Page précédente"><ChevronLeft size={18} /></button>
+            <span className="vt-pager-page">Page {pageCourante} sur {nbPages}</span>
+            <button type="button" className="vt-iconbtn vt-iconbtn--boxed" onClick={() => setPage(pageCourante + 1)} disabled={pageCourante === nbPages} aria-label="Page suivante"><ChevronRight size={18} /></button>
+          </div>
+        </nav>
+      )}
+
+      {encaisser && (
+        <ModalEncaisser token={token} onClose={() => setEncaisser(false)}
+                        onEncaisse={(msg) => { setEncaisser(false); showToast(msg); charger(); }} />
+      )}
+
+      {aSupprimer && (
+        <Modal size="sm" labelledBy="rc-del-title" onClose={() => !deleting && setASupprimer(null)} dismissable={!deleting} busy={deleting}>
+          <ModalHead id="rc-del-title" title="Supprimer cet encaissement ?" onClose={() => setASupprimer(null)} disabled={deleting} />
+          <div className="vt-modal-body">
+            <p className="rc-del-txt">
+              <strong>{fm(aSupprimer.montant)}</strong> ({modeInfo(aSupprimer.mode_paiement).label}) du {dateFR(aSupprimer.date_paiement)}
+              {aSupprimer.nomclient ? <> — {aSupprimer.nomclient}</> : null}.
+            </p>
+            <p className="vt-danger-note">
+              À faire seulement en cas d'erreur de saisie. {aSupprimer.numero_facture && !aSupprimer.vente_supprimee
+                ? `La facture ${aSupprimer.numero_facture} repassera en « non payée » ou « partielle ».` : ''}
+              {' '}L'action est enregistrée dans le journal d'activité.
+            </p>
+          </div>
+          <div className="vt-modal-foot vt-modal-foot--end">
+            <button type="button" className="vt-btn" onClick={() => setASupprimer(null)} disabled={deleting}>Annuler</button>
+            <button type="button" className="vt-btn vt-btn--danger" onClick={supprimer} disabled={deleting}>
+              {deleting ? <Loader size={16} className="vt-spin" /> : <Trash2 size={16} />} Supprimer
+            </button>
+          </div>
+        </Modal>
+      )}
+
+      {toast && (
+        <div className="vt-toast" data-type={toast.type} role="status" aria-live="polite">
+          <span className="vt-toast-bar" />
+          <span className="vt-toast-msg">{toast.message}</span>
+          <button type="button" className="vt-iconbtn vt-iconbtn--sm" onClick={() => setToast(null)} aria-label="Fermer"><X size={14} /></button>
+        </div>
+      )}
+    </div>
+  );
+}

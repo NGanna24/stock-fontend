@@ -5,11 +5,11 @@ export const ROLE_PERMISSIONS = {
 
     manager: [
         // Ventes & clients
-        'ventes', 'commandes-clients', 'factures', 'recettes', 'retours-clients',
+        'clients', 'ventes', 'commandes-clients', 'caisse', 'factures', 'recettes', 'retours-clients', 'relances',
         // Catalogue & stock
         'produits', 'categories', 'marques', 'modeles', 'unites', 'mouvements', 'inventaires',
         // Approvisionnement
-        'fournisseurs', 'commandes-achat', 'receptions', 'retours-fournisseurs', 'depenses', 'transferts',
+        'fournisseurs', 'commandes-achat', 'receptions', 'retours-fournisseurs', 'depenses', 'transferts', 'dettes-fournisseurs',
         // Rapports
         'rapport-ventes', 'rapport-achats', 'rapport-stocks', 'benefices',
         // Principal
@@ -19,7 +19,7 @@ export const ROLE_PERMISSIONS = {
     caissier: [
         'dashboard', 'alertes',
         // Ventes uniquement
-        'clients', 'commandes-clients', 'factures', 'recettes', 'retours-clients',
+        'clients', 'commandes-clients', 'caisse', 'factures', 'recettes', 'retours-clients', 'relances',
         // Consultation produits
         'produits',
     ],

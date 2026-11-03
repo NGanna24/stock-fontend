@@ -55,7 +55,7 @@
 .dp-toolbar .vt-seg button { width: auto; padding: 0 12px; font-size: 13px; white-space: nowrap; }
 .dp-dates { display: flex; align-items: center; gap: 6px; }
 .dp-dates .vt-input { width: 150px; }
-.dp-select { width: auto; min-width: 170px; max-width: 220px; }
+.dp .vt-input.dp-select { width: auto; min-width: 170px; max-width: 220px; }
 .dp-search { min-width: 180px; }
 .dp-search .vt-search-input { padding-left: 12px; padding-right: 36px; }
 
@@ -131,7 +131,7 @@
   .dp-modes { grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 640px) {
-  .dp-select, .dp-search { flex: 1 1 100%; max-width: none; }
+  .dp .vt-input.dp-select, .dp .dp-search { flex: 1 1 100%; max-width: none; }
   /* Mobile : catégorie sous le libellé, mode masqué, le montant reste visible */
   .dp-table { min-width: 0; table-layout: auto; }
   .dp-table colgroup { display: none; }

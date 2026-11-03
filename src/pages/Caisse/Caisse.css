@@ -1,7 +1,7 @@
 /* pages/Caisse/Caisse.css — complète Ventes.css (préfixe cs-) */
 
 .cs .vt-head-actions { flex-wrap: wrap; justify-content: flex-end; }
-.cs-seg button { width: auto; padding: 0 12px; gap: 6px; display: inline-flex; align-items: center; font-size: 13px; white-space: nowrap; }
+.cs .vt-seg.cs-seg button { width: auto; padding: 0 12px; gap: 6px; display: inline-flex; align-items: center; font-size: 13px; white-space: nowrap; }
 .cs-loading { display: flex; align-items: center; justify-content: center; gap: 10px; padding: 80px 0; color: var(--ink-3); }
 .cs-petit { font-size: 12.5px; }
 

@@ -21,7 +21,7 @@
 .jr-toolbar .vt-seg button { width: auto; padding: 0 12px; font-size: 13px; white-space: nowrap; }
 .jr-dates { display: flex; align-items: center; gap: 6px; }
 .jr-dates .vt-input { width: 150px; }
-.jr-select { width: auto; min-width: 170px; max-width: 240px; }
+.jr .vt-input.jr-select { width: auto; min-width: 170px; max-width: 240px; }
 .jr-search { flex: 1 1 200px; min-width: 180px; }
 .jr-search .vt-search-input { padding-left: 12px; padding-right: 36px; }
 
@@ -96,7 +96,7 @@
 .jr-tech { font-family: var(--font-receipt); font-size: 12px !important; color: var(--ink-2) !important; }
 
 @media (max-width: 900px) {
-  .jr-select { flex: 1 1 45%; max-width: none; }
+  .jr .vt-input.jr-select { flex: 1 1 45%; max-width: none; }
 }
 
 @media (max-width: 640px) {
