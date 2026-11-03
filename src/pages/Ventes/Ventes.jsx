@@ -12,7 +12,6 @@ import CommandeVenteService from "../../services/commandeVenteService";
 import ProduitService from "../../services/produitService";
 import UniteVenteService from "../../services/uniteVenteService";
 import MagasinService from "../../services/magasinService";
-import FacturePDFService from "../../services/facturePDFService";
 import { useUser } from "../../context/AuthContext";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
 import FormatChoiceModal from '../../components/Facture/FormatChoiceModal';
@@ -451,6 +450,8 @@ const Ventes = () => {
   const [showFactureModal, setShowFactureModal] = useState(false);
   const [showFormatChoice, setShowFormatChoice] = useState(false);
   const [formatChoiceAction, setFormatChoiceAction] = useState(null);
+  // Facture choisie dans le tableau (sinon : la facture de la vente en cours)
+  const [factureAImprimer, setFactureAImprimer] = useState(null);
   const [selectedCommande, setSelectedCommande] = useState(null);
   const [commandeToDelete, setCommandeToDelete] = useState(null);
   const [commandeEnCours, setCommandeEnCours] = useState(null);
@@ -528,6 +529,7 @@ const Ventes = () => {
   const closeFormatChoice = () => {
     setShowFormatChoice(false);
     setFormatChoiceAction(null);
+    setFactureAImprimer(null);
   };
 
   // ============================================================
@@ -1050,9 +1052,15 @@ const Ventes = () => {
         showToast("Impossible de charger la facture", "error");
         return;
       }
-      const result = await FacturePDFService.print({ ...res.data, magasin: magasin || null });
-      if (result.fallback) showToast("Impression directe indisponible : le PDF a été ouvert ou téléchargé", "info");
-      else if (result.success) showToast("Impression lancée", "success");
+      // Comme après une vente : on demande Ticket ou Facture A4 (avec aperçu)
+      setFactureAImprimer({
+        ...res.data,
+        lignes: mapLignesFacture(res.data.lignes),
+        magasin: magasin || null,
+        utilisateur_nom: res.data.utilisateur_nom || user?.fullname || "",
+      });
+      setFormatChoiceAction("print");
+      setShowFormatChoice(true);
     } catch (err) {
       console.error("Print error:", err);
       showToast(err.message || "Erreur lors de l'impression", "error");
@@ -2745,7 +2753,7 @@ const renderListView = () => (
       {/* ---------- Choix du format ---------- */}
       <FormatChoiceModal
         isOpen={showFormatChoice}
-        factureData={factureGeneree}
+        factureData={factureAImprimer || factureGeneree}
         action={formatChoiceAction}
         onClose={closeFormatChoice}
         onDone={(format) => {
