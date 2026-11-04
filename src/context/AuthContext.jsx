@@ -1,6 +1,7 @@
 // context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import axios from 'axios';
+import { memoriserEmpreinte, deverrouiller } from '../securite/session';
 import API_URL from '../config/api';
 import { getErrorMessage } from '../utils/errorMessages';
 
@@ -44,6 +45,13 @@ export function AuthContextProvider({ children }) {
         initializeAuth();
     }, []);
 
+    // Jeton renouvelé / remplacé (prolongation de session, déverrouillage, « déconnecter partout »)
+    useEffect(() => {
+        const surJeton = (e) => setToken(e.detail);
+        window.addEventListener('miyo:token', surJeton);
+        return () => window.removeEventListener('miyo:token', surJeton);
+    }, []);
+
     // ==================== LOGIN ====================
     const login = async (credentials) => {
         setLoading(true);
@@ -51,11 +59,13 @@ export function AuthContextProvider({ children }) {
 
         try {
             const response = await axios.post(API_URL.AUTH.LOGIN, credentials);
-            console.log('Connexion réussie:', response.data);
 
             if (response.data.token) {
                 localStorage.setItem('token', response.data.token);
                 localStorage.setItem('user', JSON.stringify(response.data.user));
+                // Écran déverrouillé + empreinte du code (déverrouillage possible sans internet)
+                deverrouiller();
+                memoriserEmpreinte(credentials.password);
                 setToken(response.data.token);           // ✅ NOUVEAU
                 setUser(response.data.user);
             }
@@ -116,6 +126,8 @@ export function AuthContextProvider({ children }) {
         } finally {
             localStorage.removeItem('token');
             localStorage.removeItem('user');
+            localStorage.removeItem('miyo:verrou');
+            localStorage.removeItem('miyo:empreinte');
             setToken(null);                              // ✅ NOUVEAU
             setUser(null);
             setLoading(false);

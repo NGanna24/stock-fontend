@@ -12,6 +12,7 @@ import {
     CheckCircle,
     Loader2
 } from 'lucide-react';
+import { lireRaisonDeconnexion } from '../../securite/session';
 import './LoginPages.css';
 
 function LoginPage() {
@@ -31,6 +32,8 @@ function LoginPage() {
     const [monkeyState, setMonkeyState] = useState('idle');
     const [statusMessage, setStatusMessage] = useState('');
     const [showTransition, setShowTransition] = useState(false);
+    // Pourquoi on est revenu ici (session expirée, compte bloqué…)
+    const [raison] = useState(() => lireRaisonDeconnexion());
 
     useEffect(() => {
         if (monkeyState === 'error') {
@@ -118,6 +121,12 @@ function LoginPage() {
                         <p>Connectez-vous à votre compte</p>
                     </div>
 
+                    {raison && !error && monkeyState === 'idle' && (
+                        <div className="auth-error-split">
+                            <AlertCircle size={18} />
+                            <span>{raison}</span>
+                        </div>
+                    )}
                     {error && monkeyState !== 'error' && (
                         <div className="auth-error-split">
                             <AlertCircle size={20} />

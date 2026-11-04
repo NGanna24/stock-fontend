@@ -1,0 +1,51 @@
+/* components/Session/VerrouSession.css (préfixe vs-) */
+.vs-fond {
+  position: fixed; inset: 0; z-index: 100000;
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+  background: rgba(15, 23, 42, .86);
+  font-family: var(--miyo-font-body);
+}
+.vs-carte {
+  width: 100%; max-width: 360px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 28px 24px 20px; border-radius: 16px;
+  background: var(--miyo-surface, #fff); color: var(--miyo-text, #111827);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .35); text-align: center;
+}
+.vs-icone {
+  display: flex; align-items: center; justify-content: center;
+  width: 56px; height: 56px; border-radius: 50%;
+  background: var(--miyo-primary-soft, #ffedd5); color: var(--miyo-primary, #c2410c);
+}
+.vs-carte h2 { margin: 4px 0 0; font-size: 19px; }
+.vs-qui { display: flex; flex-direction: column; gap: 2px; margin: 0; }
+.vs-qui strong { font-size: 15px; }
+.vs-qui span { font-size: 12.5px; color: var(--miyo-text-tertiary, #6b7280); }
+.vs-aide { margin: 0 0 4px; font-size: 12.5px; color: var(--miyo-text-secondary, #4b5563); line-height: 1.45; }
+.vs-code {
+  width: 100%; height: 48px; padding: 0 14px;
+  border: 1px solid var(--miyo-border-strong, #d1d5db); border-radius: 10px;
+  font-size: 22px; letter-spacing: .4em; text-align: center; font-family: inherit;
+}
+.vs-code:focus { outline: none; border-color: var(--miyo-primary, #c2410c); box-shadow: 0 0 0 3px var(--miyo-primary-soft, #ffedd5); }
+.vs-erreur {
+  display: flex; align-items: flex-start; gap: 6px; margin: 0; width: 100%;
+  padding: 8px 10px; border-radius: 8px; text-align: left;
+  background: var(--miyo-danger-soft, #fee2e2); color: var(--miyo-danger, #dc2626); font-size: 12.5px;
+}
+.vs-erreur svg { flex: none; margin-top: 1px; }
+.vs-btn {
+  width: 100%; height: 44px; border: 0; border-radius: 10px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  background: var(--miyo-primary, #c2410c); color: #fff; font: inherit; font-weight: 700; cursor: pointer;
+}
+.vs-btn:disabled { opacity: .55; cursor: default; }
+.vs-lien {
+  display: inline-flex; align-items: center; gap: 6px; margin-top: 2px;
+  border: 0; background: transparent; color: var(--miyo-text-secondary, #4b5563);
+  font: inherit; font-size: 13px; cursor: pointer;
+}
+.vs-lien:hover { color: var(--miyo-text, #111827); text-decoration: underline; }
+.vs-spin { animation: vs-tourne 1s linear infinite; }
+@keyframes vs-tourne { to { transform: rotate(360deg); } }
+.vs-code:placeholder-shown { letter-spacing: normal; font-size: 16px; }

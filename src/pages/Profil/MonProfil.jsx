@@ -9,6 +9,7 @@ import {
 import axios from "axios";
 import API_URL from "../../config/api";
 import { useUser } from "../../context/AuthContext";
+import { remplacerJeton, DELAI_VERROU_MIN } from "../../securite/session";
 import "./MonProfil.css";
 
 // ==================== ÉTAT INITIAL ====================
@@ -50,6 +51,25 @@ const MonProfil = () => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState("");
+  const [deconnexionEnCours, setDeconnexionEnCours] = useState(false);
+  const [messageSecurite, setMessageSecurite] = useState(null);
+
+  // Ferme toutes les sessions ouvertes ailleurs (téléphone perdu, ancien ordinateur…)
+  const deconnecterAutresAppareils = async () => {
+    setDeconnexionEnCours(true);
+    setMessageSecurite(null);
+    try {
+      const r = await axios.post(API_URL.AUTH.DECONNECTER_PARTOUT, {}, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      remplacerJeton(r.data?.token);
+      setMessageSecurite({ ok: true, texte: "Tous vos autres appareils ont été déconnectés." });
+    } catch (e) {
+      setMessageSecurite({ ok: false, texte: e.response?.data?.message || "Opération impossible pour le moment." });
+    } finally {
+      setDeconnexionEnCours(false);
+    }
+  };
   const [touched, setTouched] = useState({});
   const [activeSection, setActiveSection] = useState("identity");
 
@@ -511,6 +531,32 @@ const MonProfil = () => {
                   )}
                 </div>
               </div>
+            </div>
+          </section>
+
+          {/* ==================== SÉCURITÉ ==================== */}
+          <section id="section-securite" className="mp-section">
+            <div className="mp-section-head">
+              <div className="mp-section-icon mp-section-icon--identity">
+                <Shield size={18} />
+              </div>
+              <div className="mp-section-title-group">
+                <h3 className="mp-section-title">Sécurité de la connexion</h3>
+                <p className="mp-section-desc">
+                  L'écran se verrouille après {DELAI_VERROU_MIN} minutes sans activité. Après 5 codes incorrects, le compte est bloqué 15 minutes.
+                </p>
+              </div>
+            </div>
+            <div className="mp-securite">
+              <p>Vous avez perdu un téléphone, ou laissé une session ouverte sur un autre ordinateur ? Fermez toutes vos sessions, sauf celle-ci.</p>
+              <button type="button" className="mp-btn mp-btn--danger-outline" onClick={deconnecterAutresAppareils} disabled={deconnexionEnCours}>
+                {deconnexionEnCours ? <Loader2 size={14} className="mp-spin" /> : <Lock size={14} />} Déconnecter tous mes autres appareils
+              </button>
+              {messageSecurite && (
+                <p className={messageSecurite.ok ? "mp-securite-ok" : "mp-securite-ko"} role="status">
+                  {messageSecurite.ok ? <CheckCircle size={14} /> : <AlertCircle size={14} />} {messageSecurite.texte}
+                </p>
+              )}
             </div>
           </section>
         </form>
