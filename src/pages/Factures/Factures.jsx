@@ -607,7 +607,7 @@ const Factures = () => {
       {/* ---------- Tableau ---------- */}
       <div className="vt-table-wrap" aria-busy={loading || undefined}>
         {loading && factures.length > 0 && <div className="vt-busybar" />}
-        <table className="vt-table">
+        <table className="vt-table vt-table--sans-num">
           <colgroup>
             <col style={{ width: "36px" }} />
             <col style={{ width: "15%" }} />

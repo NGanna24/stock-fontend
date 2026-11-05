@@ -220,7 +220,7 @@ export default function Clients() {
               <th className="vt-th-right cl-col-act"><span className="cl-sr">Actions</span></th>
             </tr>
           </thead>
-          <tbody>
+          <tbody style={{ counterReset: `ligne ${(pageCourante - 1) * PAR_PAGE}` }}>
             {loading && !clients
               ? Array.from({ length: 6 }).map((_, i) => (
                   <tr key={`sk-${i}`} className="vt-skel-row" aria-hidden="true">

@@ -1,34 +1,28 @@
 /* pages/Transferts/Transferts.css — page centrale (préfixe trp-), complète Transfert.css */
 
-.trp { padding: 24px; display: flex; flex-direction: column; gap: 16px; color: var(--miyo-text, #0f172a); }
-
-/* En-tête */
-.trp-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
-.trp-head h1 { margin: 0; font-size: 22px; display: flex; align-items: center; gap: 10px; }
-.trp-head p { margin: 6px 0 0; font-size: 14px; color: var(--miyo-text-tertiary, #64748b); }
-.trp-alert { color: #b45309; }
+.trp .trp-alert { color: var(--warn); }
 
 /* Onglets d'entrepôts */
-.trp-ents { display: flex; gap: 8px; flex-wrap: wrap; }
-.trp-ent {
-    display: inline-flex; align-items: center; gap: 7px; max-width: 260px;
-    padding: 7px 12px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 600;
-    border: 1px solid var(--miyo-border, #e2e8f0); background: #fff; color: #334155;
+.trp .trp-ents { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.trp .trp-ent {
+    display: inline-flex; align-items: center; gap: 7px; max-width: 260px; height: 36px;
+    padding: 0 14px; border-radius: var(--radius-full); cursor: pointer; font: inherit; font-size: 13px; font-weight: 600;
+    border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-2);
+    transition: background-color var(--ease), border-color var(--ease);
 }
-.trp-ent:hover { border-color: #cbd5e1; background: #f8fafc; }
-.trp-ent.is-active { background: var(--miyo-primary, #c2410c); border-color: var(--miyo-primary, #c2410c); color: #fff; }
-.trp-ent-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.trp-ent-owner { flex: none; opacity: .7; }
-.trp-badge {
+.trp .trp-ent:hover { border-color: var(--ink-3); background: var(--sunken); color: var(--ink); }
+.trp .trp-ent.is-active { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.trp .trp-ent-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trp .trp-ent-owner { flex: none; opacity: .7; }
+.trp .trp-badge {
     flex: none; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
     display: inline-flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 700; background: #e2e8f0; color: #334155;
+    font-size: 11px; font-weight: 700; background: var(--sunken); color: var(--ink-2);
 }
-.trp-badge--todo { background: #f59e0b; color: #fff; }
-.trp-ent.is-active .trp-badge { background: rgba(255, 255, 255, .25); color: #fff; }
+.trp .trp-badge--todo { background: var(--warn); color: #fff; }
+.trp .trp-ent.is-active .trp-badge { background: rgba(255, 255, 255, .22); color: #fff; }
 
-/* État vide (aucun entrepôt) */
-.trp-empty { border: 1px dashed #cbd5e1; border-radius: 14px; padding: 48px 24px; }
+.trp .trp-vide { padding: 20px 0; }
 
 /* Modale de choix des produits */
 .trp-hint { font-size: 12px; color: var(--miyo-text-tertiary, #64748b); }
@@ -39,29 +33,16 @@
 }
 .trp-row {
     display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
-    padding: 10px 12px; cursor: pointer; border-bottom: 1px solid #f1f5f9; font-size: 14px;
+    padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--miyo-border-soft); font-size: 14px;
 }
 .trp-row:last-child { border-bottom: 0; }
-.trp-row:hover { background: #f8fafc; }
-.trp-row.is-checked { background: #fff7ed; }
-.trp-row--head { position: sticky; top: 0; z-index: 1; background: #f8fafc; font-size: 12px; font-weight: 600; color: #475569; }
+.trp-row:hover { background: var(--miyo-bg-alt); }
+.trp-row.is-checked { background: var(--miyo-primary-soft); }
+.trp-row--head { position: sticky; top: 0; z-index: 1; background: var(--miyo-bg-alt); font-size: 12px; font-weight: 600; color: var(--miyo-text-secondary); }
 .trp-row input { width: 16px; height: 16px; accent-color: var(--miyo-primary, #c2410c); cursor: pointer; }
 .trp-name { display: flex; flex-direction: column; min-width: 0; }
 .trp-name strong { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.trp-name small { color: #64748b; font-size: 12px; }
-.trp-stock { font-variant-numeric: tabular-nums; color: #475569; white-space: nowrap; text-align: right; }
+.trp-name small { color: var(--miyo-text-tertiary); font-size: 12px; }
+.trp-stock { font-variant-numeric: tabular-nums; color: var(--miyo-text-secondary); white-space: nowrap; text-align: right; }
 
-/* Toast */
-.trp-toast {
-    position: fixed; right: 20px; bottom: 20px; z-index: 1100; max-width: 420px;
-    display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: 10px;
-    background: #0f172a; color: #fff; font-size: 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, .25);
-}
-.trp-toast--success svg:first-child { color: #4ade80; }
-.trp-toast--error svg:first-child { color: #f87171; }
-.trp-toast button { border: 0; background: transparent; color: #94a3b8; cursor: pointer; display: flex; padding: 2px; margin-left: auto; }
 
-@media (max-width: 640px) {
-    .trp { padding: 16px; }
-    .trp-head .tr-btn { width: 100%; justify-content: center; }
-}

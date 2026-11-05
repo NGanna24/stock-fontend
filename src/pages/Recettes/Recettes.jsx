@@ -587,7 +587,7 @@ export default function Recettes() {
               <th className="vt-th-right rc-col-act"><span className="rc-sr">Actions</span></th>
             </tr>
           </thead>
-          <tbody>
+          <tbody style={{ counterReset: `ligne ${(pageCourante - 1) * PAR_PAGE}` }}>
             {loading && !data
               ? Array.from({ length: 6 }).map((_, i) => (
                   <tr key={`sk-${i}`} className="vt-skel-row" aria-hidden="true">

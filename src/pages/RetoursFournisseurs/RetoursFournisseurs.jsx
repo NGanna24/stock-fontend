@@ -1,26 +1,25 @@
 // pages/RetoursFournisseurs/RetoursFournisseurs.jsx
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
-  Plus, Search, Eye, ChevronLeft, ChevronRight, Download, X, Check,
-  RefreshCw, Grid, List, Package, Banknote, Calendar, Clock,
-  AlertCircle, CheckCircle, Ban, FileText, Building, AlertTriangle,
-  Trash2, Send, CheckCheck, RotateCcw, Box, Info, MoreVertical, Warehouse, Store
+  Plus, Eye, Download, Check, RefreshCw, CheckCircle, Ban, Trash2, Send,
+  CheckCheck, RotateCcw, Info, Warehouse, Store, Loader, SearchX,
 } from "lucide-react";
 import RetourFournisseurService from "../../services/retourFournisseur/retourFournisseurService";
 import FournisseurService from "../../services/fournisseurService";
 import CommandeAchatService from "../../services/commandeAchatService";
 import MagasinService from "../../services/magasinService";
 import { useUser } from "../../context/AuthContext";
+import {
+  Page, PageHead, Overview, Stage, SearchBox, Badge, ErrorBar, Empty, SkeletonRows, Pager,
+  usePagination, useToast, Toast, Modal, ModalHead, Confirm, ActionsMenu, KV, fcfa, nombre, dateFR, sansAccents, pluriel,
+} from "../../components/UI/Vt";
 import "./RetoursFournisseurs.css";
 import RetourPDFActions from "../../components/RetourFournisseur/RetourPDFActions";
 
 // ============================================================
 // HELPERS
 // ============================================================
-const formatMontant = (v) => {
-  const n = parseFloat(v) || 0;
-  return Math.round(n).toLocaleString('fr-FR') + ' FCFA';
-};
+const formatMontant = fcfa;
 
 const MOTIFS = [
   { value: 'defectueux',   label: 'Défectueux' },
@@ -29,6 +28,19 @@ const MOTIFS = [
   { value: 'perime',       label: 'Périmé' },
   { value: 'autre',        label: 'Autre' },
 ];
+
+const STATUTS_RF = {
+  en_attente:           { label: 'En attente', tone: 'muted' },
+  envoye:               { label: 'Envoyé', tone: 'info' },
+  recu_par_fournisseur: { label: 'Reçu par le fournisseur', tone: 'teal' },
+  traite:               { label: 'Traité', tone: 'ok' },
+  annule:               { label: 'Annulé', tone: 'bad' },
+};
+const StatutRF = ({ statut }) => {
+  const c = STATUTS_RF[statut] || STATUTS_RF.en_attente;
+  return <Badge tone={c.tone}>{c.label}</Badge>;
+};
+const ETATS = { neuf: 'Neuf', usage: 'Usagé', endommage: 'Endommagé', incomplet: 'Incomplet' };
 
 // ============================================================
 // COMPOSANT
@@ -56,10 +68,9 @@ const RetoursFournisseurs = () => {
     : null;
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(8);
-  const [viewMode, setViewMode] = useState("list");
   const [error, setError] = useState(null);
+  const [formError, setFormError] = useState(null);
+  const [toast, showToast, closeToast] = useToast();
   const [filterStatut, setFilterStatut] = useState("");
   const [filterMotif, setFilterMotif] = useState("");
 
@@ -72,10 +83,7 @@ const RetoursFournisseurs = () => {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [updatingStatut, setUpdatingStatut] = useState(null);
-
-  // ============ MENU 3 POINTS ============
-  const [openMenuId, setOpenMenuId] = useState(null);
-  const menuRef = useRef(null);
+  const [aAnnuler, setAAnnuler] = useState(null);
 
   // ============ FORMULAIRE SIMPLIFIÉ ============
   const [formData, setFormData] = useState({
@@ -122,17 +130,6 @@ const RetoursFournisseurs = () => {
     loadRetours();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeKey]);
-
-  // Fermer le menu au clic extérieur
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) {
-        setOpenMenuId(null);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const loadRetours = async () => {
     setLoading(true);
@@ -293,26 +290,26 @@ const RetoursFournisseurs = () => {
     });
     setProduitsRecus([]);
     setSelection({});
-    setError(null);
+    setFormError(null);
     setShowModal(true);
   };
 
   const handleSave = async () => {
     if (!formData.id_fournisseur) {
-      setError("Veuillez sélectionner un fournisseur");
+      setFormError("Veuillez sélectionner un fournisseur");
       return;
     }
     if (!formData.motif_retour) {
-      setError("Veuillez sélectionner un motif");
+      setFormError("Veuillez sélectionner un motif");
       return;
     }
     if (lignesSelectionnees.length === 0) {
-      setError("Veuillez sélectionner au moins un produit");
+      setFormError("Veuillez sélectionner au moins un produit");
       return;
     }
 
     setSaving(true);
-    setError(null);
+    setFormError(null);
 
     try {
       const data = {
@@ -339,13 +336,13 @@ const RetoursFournisseurs = () => {
       if (response.success) {
         await loadRetours();
         setShowModal(false);
-        alert('✅ Retour créé avec succès !');
+        showToast(response.data?.numero_retour ? `Retour ${response.data.numero_retour} créé` : 'Retour créé', 'success');
       } else {
-        setError(response.message || 'Erreur lors de la sauvegarde');
+        setFormError(response.message || 'Erreur lors de la sauvegarde');
       }
     } catch (err) {
       console.error('❌ Save error:', err);
-      setError(err.message || 'Erreur lors de la sauvegarde');
+      setFormError(err.message || 'Erreur lors de la sauvegarde');
     } finally {
       setSaving(false);
     }
@@ -366,7 +363,7 @@ const RetoursFournisseurs = () => {
       }
     } catch (err) {
       console.error('❌ View error:', err);
-      alert('Erreur lors du chargement');
+      showToast(err.message || 'Erreur lors du chargement', 'error');
     } finally {
       setLoading(false);
     }
@@ -377,22 +374,32 @@ const RetoursFournisseurs = () => {
     setUpdatingStatut(id);
     try {
       const response = await RetourFournisseurService.updateStatut(token, id, statut);
-      if (response.success) await loadRetours();
+      if (response.success) {
+        await loadRetours();
+        showToast(`Statut mis à jour : ${STATUTS_RF[statut]?.label || statut}`, 'success');
+      } else showToast(response.message || 'Erreur', 'error');
     } catch (err) {
       console.error('❌ Statut error:', err);
+      showToast(err.message || 'Erreur', 'error');
     } finally {
       setUpdatingStatut(null);
     }
   };
 
-  const handleAnnuler = async (id) => {
-    if (!window.confirm("Êtes-vous sûr de vouloir annuler ce retour ?")) return;
+  const handleAnnuler = async () => {
+    const id = aAnnuler?.id_retour;
+    if (!id) return;
     setUpdatingStatut(id);
     try {
       const response = await RetourFournisseurService.annulerRetour(token, id);
-      if (response.success) await loadRetours();
+      if (response.success) {
+        await loadRetours();
+        showToast(`Retour ${aAnnuler.numero_retour} annulé`, 'success');
+        setAAnnuler(null);
+      } else showToast(response.message || 'Erreur', 'error');
     } catch (err) {
       console.error('❌ Annuler error:', err);
+      showToast(err.message || 'Erreur', 'error');
     } finally {
       setUpdatingStatut(null);
     }
@@ -411,10 +418,12 @@ const RetoursFournisseurs = () => {
       if (response.success) {
         await loadRetours();
         setShowDeleteModal(false);
+        showToast(`Retour ${retourToDelete.numero_retour} supprimé`, 'success');
         setRetourToDelete(null);
-      }
+      } else showToast(response.message || 'Erreur', 'error');
     } catch (err) {
       console.error('❌ Delete error:', err);
+      showToast(err.message || 'Erreur', 'error');
     } finally {
       setDeleting(false);
     }
@@ -429,11 +438,10 @@ const RetoursFournisseurs = () => {
           r.id, r.numero, r.date, r.fournisseur, r.motif,
           formatMontant(r.montant), r.statut
         ]);
-        let csv = headers.join(",") + "\n";
-        rows.forEach(row => {
-          csv += row.map(c => `"${c}"`).join(",") + "\n";
-        });
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const cell = (c) => `"${String(c ?? '').replace(/\u00A0/g, ' ').replace(/"/g, '""')}"`;
+        let csv = headers.map(cell).join(";") + "\n";
+        rows.forEach(row => { csv += row.map(cell).join(";") + "\n"; });
+        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -443,6 +451,7 @@ const RetoursFournisseurs = () => {
       }
     } catch (err) {
       console.error('❌ Export error:', err);
+      showToast("Erreur lors de l'export", 'error');
     }
   };
 
@@ -450,581 +459,262 @@ const RetoursFournisseurs = () => {
   // STATS + FILTRES + PAGINATION
   // ============================================================
   const stats = useMemo(() => {
-    const total = retours.length;
-    const enAttente = retours.filter(r => r.statut === 'en_attente').length;
-    const envoye = retours.filter(r => r.statut === 'envoye').length;
-    const recuParFournisseur = retours.filter(r => r.statut === 'recu_par_fournisseur').length;
-    const traite = retours.filter(r => r.statut === 'traite').length;
-    const annule = retours.filter(r => r.statut === 'annule').length;
-    const totalMontant = retours.reduce((s, r) => s + (parseFloat(r.montant_total) || 0), 0);
-    return { total, enAttente, envoye, recuParFournisseur, traite, annule, totalMontant };
+    const compte = (st) => retours.filter(r => r.statut === st).length;
+    return {
+      total: retours.length,
+      en_attente: compte('en_attente'),
+      envoye: compte('envoye'),
+      recu_par_fournisseur: compte('recu_par_fournisseur'),
+      traite: compte('traite'),
+      annule: compte('annule'),
+      // Les retours annulés ne partent pas chez le fournisseur
+      totalMontant: retours.filter(r => r.statut !== 'annule')
+        .reduce((s, r) => s + (parseFloat(r.montant_total) || 0), 0),
+    };
   }, [retours]);
 
   const filteredRetours = useMemo(() => {
+    const q = sansAccents(searchTerm.trim());
     return retours.filter(r => {
-      const matchSearch =
-        r.numero_retour?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        r.fournisseur_nom?.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchSearch = !q || [r.numero_retour, r.fournisseur_nom].some(f => sansAccents(f).includes(q));
       const matchStatut = filterStatut ? r.statut === filterStatut : true;
       const matchMotif = filterMotif ? r.motif_retour === filterMotif : true;
       return matchSearch && matchStatut && matchMotif;
     });
   }, [retours, searchTerm, filterStatut, filterMotif]);
 
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredRetours.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredRetours.length / itemsPerPage);
+  const { page, nbPages, setPage, numeros, visibles: currentItems } =
+    usePagination(filteredRetours, 10, [searchTerm, filterStatut, filterMotif, scopeKey]);
 
-  // ============================================================
-  // HELPERS RENDU
-  // ============================================================
-  const getMotifLabel = (m) => MOTIFS.find(x => x.value === m)?.label || m;
-  const getMotifBadge = (m) => `motif-${m || 'autre'}`;
+  const getMotifLabel = (m) => MOTIFS.find(x => x.value === m)?.label || m || '-';
 
-  const renderStatut = (statut) => {
-    const configs = {
-      'en_attente': { label: 'En attente', className: 'status-en-attente', icon: Clock },
-      'envoye': { label: 'Envoyé', className: 'status-envoye', icon: Send },
-      'recu_par_fournisseur': { label: 'Reçu par fournisseur', className: 'status-recu-fournisseur', icon: CheckCircle },
-      'traite': { label: 'Traité', className: 'status-traite', icon: CheckCheck },
-      'annule': { label: 'Annulé', className: 'status-annule', icon: Ban }
-    };
-    const config = configs[statut] || configs['en_attente'];
-    const Icon = config.icon;
-    return (
-      <span className={`status-badge ${config.className}`}>
-        <Icon size={14} /> {config.label}
-      </span>
-    );
+  const FILTRES = [
+    { value: '', label: 'Tous les retours', count: stats.total, tone: 'all' },
+    { value: 'en_attente', label: 'En attente', count: stats.en_attente, tone: 'muted' },
+    { value: 'envoye', label: 'Envoyés', count: stats.envoye, tone: 'info' },
+    { value: 'recu_par_fournisseur', label: 'Reçus', count: stats.recu_par_fournisseur, tone: 'teal' },
+    { value: 'traite', label: 'Traités', count: stats.traite, tone: 'ok' },
+    { value: 'annule', label: 'Annulés', count: stats.annule, tone: 'bad', apart: true },
+  ];
+
+  const actionsDe = (r) => {
+    const occupe = updatingStatut === r.id_retour;
+    return [
+      { label: 'Voir le détail', icon: Eye, onClick: () => handleView(r) },
+      { label: 'Envoyer au fournisseur', icon: Send, disabled: occupe,
+        hidden: !canManage || r.statut !== 'en_attente', onClick: () => handleChangeStatut(r.id_retour, 'envoye') },
+      { label: 'Reçu par le fournisseur', icon: CheckCircle, disabled: occupe,
+        hidden: !canManage || r.statut !== 'envoye', onClick: () => handleChangeStatut(r.id_retour, 'recu_par_fournisseur') },
+      { label: 'Marquer traité', icon: CheckCheck, disabled: occupe,
+        hidden: !canManage || r.statut !== 'recu_par_fournisseur', onClick: () => handleChangeStatut(r.id_retour, 'traite') },
+      { label: 'Annuler le retour', icon: Ban, danger: true, disabled: occupe,
+        hidden: !canManage || !['en_attente', 'envoye'].includes(r.statut), onClick: () => setAAnnuler(r) },
+      { label: 'Supprimer', icon: Trash2, danger: true,
+        hidden: !canManage || r.statut !== 'en_attente', onClick: () => confirmDelete(r) },
+    ];
   };
 
-  const renderMotif = (motif) => (
-    <span className={`motif-badge ${getMotifBadge(motif)}`}>
-      {getMotifLabel(motif)}
-    </span>
-  );
+  const formulaireValide = formData.id_fournisseur && formData.motif_retour && lignesSelectionnees.length > 0;
 
   // ============================================================
-  // MENU 3 POINTS
-  // ============================================================
-  const renderActionsMenu = (retour) => {
-    const isOpen = openMenuId === retour.id_retour;
-    const isInactive = ['traite', 'annule'].includes(retour.statut);
-
-    return (
-      <div className="actions-menu-wrapper" ref={isOpen ? menuRef : null}>
-        <button
-          className="action-btn btn-more"
-          onClick={(e) => {
-            e.stopPropagation();
-            setOpenMenuId(isOpen ? null : retour.id_retour);
-          }}
-          title="Plus d'actions"
-        >
-          <MoreVertical size={16} />
-        </button>
-
-        {isOpen && (
-          <div className="actions-dropdown" onClick={(e) => e.stopPropagation()}>
-            {/* Voir les détails */}
-            <button
-              className="dropdown-action"
-              onClick={() => {
-                handleView(retour);
-                setOpenMenuId(null);
-              }}
-            >
-              <Eye size={15} />
-              <span>Voir les détails</span>
-            </button>
-
-            {/* Envoyer au fournisseur (si en_attente) */}
-            {canManage && retour.statut === 'en_attente' && (
-              <button
-                className="dropdown-action primary"
-                onClick={() => {
-                  handleChangeStatut(retour.id_retour, 'envoye');
-                  setOpenMenuId(null);
-                }}
-                disabled={updatingStatut === retour.id_retour}
-              >
-                <Send size={15} />
-                <span>Envoyer au fournisseur</span>
-              </button>
-            )}
-
-            {/* Marquer reçu (si envoyé) */}
-            {canManage && retour.statut === 'envoye' && (
-              <button
-                className="dropdown-action success"
-                onClick={() => {
-                  handleChangeStatut(retour.id_retour, 'recu_par_fournisseur');
-                  setOpenMenuId(null);
-                }}
-                disabled={updatingStatut === retour.id_retour}
-              >
-                <CheckCircle size={15} />
-                <span>Marquer reçu</span>
-              </button>
-            )}
-
-            {/* Marquer traité (si reçu par fournisseur) */}
-            {canManage && retour.statut === 'recu_par_fournisseur' && (
-              <button
-                className="dropdown-action success"
-                onClick={() => {
-                  handleChangeStatut(retour.id_retour, 'traite');
-                  setOpenMenuId(null);
-                }}
-                disabled={updatingStatut === retour.id_retour}
-              >
-                <CheckCheck size={15} />
-                <span>Marquer traité</span>
-              </button>
-            )}
-
-            {/* Actions destructives */}
-            {canManage && !isInactive && (
-              <>
-                <div className="dropdown-separator" />
-
-                {['en_attente', 'envoye'].includes(retour.statut) && (
-                  <button
-                    className="dropdown-action warning"
-                    onClick={() => {
-                      handleAnnuler(retour.id_retour);
-                      setOpenMenuId(null);
-                    }}
-                    disabled={updatingStatut === retour.id_retour}
-                  >
-                    <Ban size={15} />
-                    <span>Annuler le retour</span>
-                  </button>
-                )}
-
-                {retour.statut === 'en_attente' && (
-                  <button
-                    className="dropdown-action danger"
-                    onClick={() => {
-                      confirmDelete(retour);
-                      setOpenMenuId(null);
-                    }}
-                  >
-                    <Trash2 size={15} />
-                    <span>Supprimer</span>
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  // ============================================================
-  // VUES LISTE / GRILLE
-  // ============================================================
-  const renderListView = () => (
-    <div className="retours-table-container">
-      <table className="retours-table">
-        <thead>
-          <tr>
-            <th>Numéro</th>
-            <th>Date</th>
-            <th>Fournisseur</th>
-            <th>Motif</th>
-            <th>Montant</th>
-            <th>Statut</th>
-            <th style={{ width: '80px', textAlign: 'right' }}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {currentItems.length === 0 ? (
-            <tr>
-              <td colSpan="7" className="empty-state">
-                <Package size={32} />
-                <p>Aucun retour trouvé</p>
-              </td>
-            </tr>
-          ) : (
-            currentItems.map((r) => (
-              <tr key={r.id_retour}>
-                <td className="numero-cell">
-                  <span className="retour-numero">{r.numero_retour}</span>
-                </td>
-                <td>{new Date(r.date_retour).toLocaleDateString('fr-FR')}</td>
-                <td className="fournisseur-cell">
-                  <Building size={14} />
-                  <span>{r.fournisseur_nom || '-'}</span>
-                </td>
-                <td>{renderMotif(r.motif_retour)}</td>
-                <td className="montant-cell">
-                  <strong>{formatMontant(r.montant_total)}</strong>
-                </td>
-                <td>{renderStatut(r.statut)}</td>
-                <td className="actions-cell">
-                  {renderActionsMenu(r)}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
-
-  const renderGridView = () => (
-    <div className="retours-grid">
-      {currentItems.length === 0 ? (
-        <div className="empty-state">
-          <RotateCcw size={48} className="empty-icon" />
-          <p>Aucun retour trouvé</p>
-        </div>
-      ) : (
-        currentItems.map((r) => (
-          <div key={r.id_retour} className="retour-card">
-            <div className="retour-card-header">
-              <div className="retour-info">
-                <span className="retour-numero">{r.numero_retour}</span>
-                <span className="retour-date">
-                  <Calendar size={14} />
-                  {new Date(r.date_retour).toLocaleDateString('fr-FR')}
-                </span>
-              </div>
-              <div className="retour-card-actions">
-                {renderActionsMenu(r)}
-              </div>
-            </div>
-            <div className="retour-card-body">
-              <div className="fournisseur-info">
-                <Building size={16} />
-                <span>{r.fournisseur_nom || '-'}</span>
-              </div>
-              <div className="retour-motif">{renderMotif(r.motif_retour)}</div>
-              <div className="retour-montant">
-                <Banknote size={16} />
-                <span>{formatMontant(r.montant_total)}</span>
-              </div>
-            </div>
-            <div className="retour-card-footer">{renderStatut(r.statut)}</div>
-          </div>
-        ))
-      )}
-    </div>
-  );
-
-  // ============================================================
-  // RENDER PRINCIPAL
+  // RENDU
   // ============================================================
   return (
-    <div className="retours-container">
-      {/* HEADER */}
-      <div className="retours-header">
-        <div>
-          <h1 className="retours-title">🔄 Retours Fournisseurs</h1>
-          <p className="retours-subtitle">
-            {isEntrepot ? `Entrepôt ${currentEntrepot?.nom || ''} · ` : ''}{stats.total} retours au total
-          </p>
-        </div>
-        <div className="retours-actions">
-          {canManage && (
-            <button className="btn btn-primary" onClick={handleAdd}>
-              <Plus size={18} />
-              <span>Nouveau Retour</span>
-            </button>
-          )}
-          <button className="btn btn-secondary" onClick={handleExport}>
-            <Download size={18} />
-            <span>Exporter</span>
+    <Page className="rfo">
+      <PageHead title="Retours fournisseurs"
+                sub={`${isEntrepot ? `Entrepôt ${currentEntrepot?.nom || ''} · ` : ''}La marchandise que vous renvoyez à vos fournisseurs`}>
+        <button type="button" className="vt-btn vt-btn--icon" onClick={loadRetours} disabled={loading}
+                aria-label="Rafraîchir" title="Rafraîchir">
+          <RefreshCw size={16} className={loading ? 'vt-spin' : ''} />
+        </button>
+        <button type="button" className="vt-btn" onClick={handleExport}>
+          <Download size={16} /> Exporter
+        </button>
+        {canManage && (
+          <button type="button" className="vt-btn vt-btn--primary" onClick={handleAdd}>
+            <Plus size={16} /> Nouveau retour
           </button>
-          <button className="btn btn-secondary" onClick={loadRetours} disabled={loading}>
-            <RefreshCw size={18} className={loading ? 'spinning' : ''} />
-          </button>
-        </div>
-      </div>
+        )}
+      </PageHead>
 
-      {/* ORIGINE : magasin / entrepôts dont vous êtes propriétaire */}
       {destinations.length > 0 && (
-        <nav className="rt-scope" aria-label="Origine des retours">
-          <button type="button" className={`rt-scope-tab ${!isEntrepot ? 'is-active' : ''}`} onClick={() => setScopeKey('magasin')}>
-            <Store size={16} /> Magasin
+        <div className="vt-seg rfo-scope" role="group" aria-label="Origine des retours">
+          <button type="button" aria-pressed={!isEntrepot} onClick={() => setScopeKey('magasin')}>
+            <Store size={15} /> Magasin
           </button>
           {destinations.map((d) => (
-            <button
-              key={d.id_entrepot}
-              type="button"
-              className={`rt-scope-tab ${scopeKey === `e:${d.id_entrepot}` ? 'is-active' : ''}`}
-              onClick={() => setScopeKey(`e:${d.id_entrepot}`)}
-            >
-              <Warehouse size={16} /> {d.nom}{d.ville ? <small>{d.ville}</small> : null}
+            <button key={d.id_entrepot} type="button" aria-pressed={scopeKey === `e:${d.id_entrepot}`}
+                    onClick={() => setScopeKey(`e:${d.id_entrepot}`)}>
+              <Warehouse size={15} /> {d.nom}{d.ville ? <small> · {d.ville}</small> : null}
             </button>
           ))}
-        </nav>
+        </div>
       )}
 
-      {/* STATS */}
-      <div className="retours-stats">
-        <div className="stat-card">
-          <div className="stat-icon total"><RotateCcw size={20} /></div>
-          <div className="stat-info"><span className="stat-label">Total</span><span className="stat-value">{stats.total}</span></div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon en-attente"><Clock size={20} /></div>
-          <div className="stat-info"><span className="stat-label">En attente</span><span className="stat-value">{stats.enAttente}</span></div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon envoye"><Send size={20} /></div>
-          <div className="stat-info"><span className="stat-label">Envoyés</span><span className="stat-value">{stats.envoye}</span></div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon recu-par-fournisseur"><CheckCircle size={20} /></div>
-          <div className="stat-info"><span className="stat-label">Reçus</span><span className="stat-value">{stats.recuParFournisseur}</span></div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon traite"><CheckCheck size={20} /></div>
-          <div className="stat-info"><span className="stat-label">Traités</span><span className="stat-value">{stats.traite}</span></div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon annule"><Ban size={20} /></div>
-          <div className="stat-info"><span className="stat-label">Annulés</span><span className="stat-value">{stats.annule}</span></div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon montant"><Banknote size={20} /></div>
-          <div className="stat-info"><span className="stat-label">Total</span><span className="stat-value">{formatMontant(stats.totalMontant)}</span></div>
-        </div>
-      </div>
+      <Overview label="Valeur renvoyée" value={formatMontant(stats.totalMontant)} note="Retours annulés exclus">
+        {FILTRES.map(f => (
+          <Stage key={f.value || 'tous'} count={f.count} label={f.label} tone={f.tone} apart={f.apart}
+                 pressed={filterStatut === f.value}
+                 onClick={() => setFilterStatut(filterStatut === f.value ? '' : f.value)} />
+        ))}
+      </Overview>
 
-      {/* FILTRES */}
-      <div className="retours-filters">
-        <div className="search-box">
-          <Search size={20}  />
-          <input
-            type="text"
-            placeholder="Rechercher un retour..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
-          {searchTerm && (
-            <button className="search-clear" onClick={() => setSearchTerm('')}>
-              <X size={16} />
-            </button>
-          )}
-        </div>
-        <select className="filter-select" value={filterStatut} onChange={(e) => setFilterStatut(e.target.value)}>
-          <option value="">Tous les statuts</option>
-          <option value="en_attente">En attente</option>
-          <option value="envoye">Envoyé</option>
-          <option value="recu_par_fournisseur">Reçu par fournisseur</option>
-          <option value="traite">Traité</option>
-          <option value="annule">Annulé</option>
-        </select>
-        <select className="filter-select" value={filterMotif} onChange={(e) => setFilterMotif(e.target.value)}>
+      <div className="vt-toolbar">
+        <SearchBox value={searchTerm} onChange={setSearchTerm} placeholder="N° de retour ou fournisseur"
+                   label="Rechercher un retour" />
+        <select className="vt-input rfo-motif" value={filterMotif} onChange={(e) => setFilterMotif(e.target.value)}
+                aria-label="Filtrer par motif">
           <option value="">Tous les motifs</option>
-          {MOTIFS.map(m => (
-            <option key={m.value} value={m.value}>{m.label}</option>
-          ))}
+          {MOTIFS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
         </select>
-        <div className="view-toggle">
-          <button className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`} onClick={() => setViewMode('grid')}>
-            <Grid size={18} />
-          </button>
-          <button className={`view-btn ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')}>
-            <List size={18} />
-          </button>
-        </div>
+        <span className="vt-count">{pluriel(filteredRetours.length, 'retour')}</span>
       </div>
 
-      {/* CONTENU */}
-      {loading && (
-        <div className="loading-container">
-          <div className="spinner"></div>
-          <p>Chargement...</p>
-        </div>
-      )}
+      {error && !loading && <ErrorBar message={error} onRetry={loadRetours} />}
 
-      {error && !loading && (
-        <div className="error-container">
-          <p className="error-message">{error}</p>
-          <button className="btn btn-secondary" onClick={loadRetours}>Réessayer</button>
-        </div>
-      )}
-
-      {!loading && !error && (
-        viewMode === 'grid' ? renderGridView() : renderListView()
-      )}
-
-      {/* PAGINATION */}
-      {!loading && !error && filteredRetours.length > itemsPerPage && (
-        <div className="retours-pagination">
-          <button className="pagination-btn"
-            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-            disabled={currentPage === 1}>
-            <ChevronLeft size={18} />
-          </button>
-          <span className="pagination-info">Page {currentPage} sur {totalPages}</span>
-          <button className="pagination-btn"
-            onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
-            disabled={currentPage === totalPages}>
-            <ChevronRight size={18} />
-          </button>
-        </div>
-      )}
-
-      {/* ============================================================
-          MODAL — NOUVEAU RETOUR (SIMPLIFIÉ)
-          ============================================================ */}
-      {showModal && (
-        <div className="modal-overlay">
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Nouveau Retour Fournisseur</h2>
-              <button className="modal-close" onClick={() => !saving && setShowModal(false)}>
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="modal-body">
-              {error && (
-                <div className="modal-error">
-                  <AlertTriangle size={18} />
-                  <p>{error}</p>
-                </div>
+      <div className="vt-table-wrap" aria-busy={loading || undefined}>
+        {loading && retours.length > 0 && <div className="vt-busybar" />}
+        <table className="vt-table rfo-table">
+          <thead>
+            <tr>
+              <th>Retour</th>
+              <th>Fournisseur</th>
+              <th className="rfo-hide">Motif</th>
+              <th className="vt-th-right">Montant</th>
+              <th>Statut</th>
+              <th className="vt-th-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody style={numeros}>
+            {loading && retours.length === 0
+              ? <SkeletonRows cols={6} widths={[60, 60, 45, 45, 45, 30]} />
+              : currentItems.map((r) => (
+                <tr key={r.id_retour}>
+                  <td>
+                    <button type="button" className="vt-link vt-cell-main" onClick={() => handleView(r)}>{r.numero_retour}</button>
+                    <div className="vt-cell-sub">{dateFR(r.date_retour)}</div>
+                  </td>
+                  <td><div className="vt-cell-main vt-cell-main--plain">{r.fournisseur_nom || '-'}</div></td>
+                  <td className="rfo-hide">{getMotifLabel(r.motif_retour)}</td>
+                  <td className="vt-td-right"><span className="vt-num vt-strong">{formatMontant(r.montant_total)}</span></td>
+                  <td>
+                    {updatingStatut === r.id_retour
+                      ? <span className="vt-muted"><Loader size={13} className="vt-spin" /> Mise à jour</span>
+                      : <StatutRF statut={r.statut} />}
+                  </td>
+                  <td className="vt-td-right">
+                    <div className="vt-actions">
+                      <button type="button" className="vt-iconbtn vt-iconbtn--sm" onClick={() => handleView(r)}
+                              aria-label={`Voir le retour ${r.numero_retour}`} title="Voir le détail"><Eye size={15} /></button>
+                      <ActionsMenu label={`Autres actions pour ${r.numero_retour}`} items={actionsDe(r)} width={220} />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+          </tbody>
+        </table>
+        {!loading && currentItems.length === 0 && (
+          retours.length === 0 ? (
+            <Empty icon={RotateCcw} title="Aucun retour fournisseur"
+                   text="Renvoyez à un fournisseur la marchandise défectueuse, périmée ou en trop : elle sort du stock.">
+              {canManage && (
+                <button type="button" className="vt-btn vt-btn--primary vt-btn--sm" onClick={handleAdd}>
+                  <Plus size={14} /> Nouveau retour
+                </button>
               )}
+            </Empty>
+          ) : (
+            <Empty icon={SearchX} title="Aucun retour ne correspond" text="Modifiez la recherche ou les filtres." />
+          )
+        )}
+      </div>
 
-              {/* ÉTAPE 1 : Fournisseur + Date */}
-              <div className="form-section">
-                <div className="section-header">
-                  <h4><Building size={18} /> 1. Fournisseur</h4>
+      <Pager page={page} nbPages={nbPages} total={filteredRetours.length} unite="retour" onChange={setPage} />
+
+      {/* ========== NOUVEAU RETOUR ========== */}
+      {showModal && (
+        <Modal size="lg" busy={saving} labelledBy="rfo-new-title" dismissable={!saving} onClose={() => setShowModal(false)}>
+          <ModalHead id="rfo-new-title" title="Nouveau retour fournisseur"
+                     sub={isEntrepot ? `Depuis l'entrepôt ${currentEntrepot?.nom || ''}` : 'Depuis le magasin'}
+                     onClose={() => setShowModal(false)} disabled={saving} />
+          <div className="vt-modal-body">
+            {formError && <ErrorBar message={formError} />}
+            <div className="vt-stack">
+              <div className="vt-grid-2">
+                <div className="vt-field">
+                  <label htmlFor="rfo-four">Fournisseur</label>
+                  <select id="rfo-four" className="vt-input" value={formData.id_fournisseur}
+                          onChange={(e) => { setFormError(null); setFormData({ ...formData, id_fournisseur: e.target.value }); }}>
+                    <option value="">Choisir un fournisseur</option>
+                    {fournisseurs.map(f => <option key={f.id_fournisseur} value={f.id_fournisseur}>{f.nom}</option>)}
+                  </select>
                 </div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Fournisseur *</label>
-                    <select
-                      value={formData.id_fournisseur}
-                      onChange={(e) => setFormData({ ...formData, id_fournisseur: e.target.value })}
-                      className="form-select"
-                      disabled={saving}
-                    >
-                      <option value="">Sélectionner un fournisseur</option>
-                      {fournisseurs.map(f => (
-                        <option key={f.id_fournisseur} value={f.id_fournisseur}>
-                          {f.nom}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label>Date de retour *</label>
-                    <input
-                      type="date"
-                      value={formData.date_retour}
-                      onChange={(e) => setFormData({ ...formData, date_retour: e.target.value })}
-                      disabled={saving}
-                    />
-                  </div>
+                <div className="vt-field">
+                  <label htmlFor="rfo-date">Date du retour</label>
+                  <input id="rfo-date" type="date" className="vt-input" value={formData.date_retour}
+                         onChange={(e) => setFormData({ ...formData, date_retour: e.target.value })} />
                 </div>
               </div>
 
-              {/* ÉTAPE 2 : Produits reçus */}
               {formData.id_fournisseur && (
-                <div className="form-section">
-                  <div className="section-header">
-                    <h4><Package size={18} /> 2. Produits reçus de ce fournisseur</h4>
+                <div>
+                  <div className="rfo-sec-head">
+                    <h3 className="vt-section-title">Produits reçus de ce fournisseur</h3>
                     {produitsRecus.length > 0 && (
-                      <div className="section-actions">
-                        <button type="button" className="btn-link" onClick={selectionnerTout}>
-                          Tout sélectionner
-                        </button>
-                        <button type="button" className="btn-link" onClick={deselectionnerTout}>
-                          Tout désélectionner
-                        </button>
+                      <div className="rfo-sec-actions">
+                        <button type="button" className="vt-link" onClick={selectionnerTout}>Tout cocher</button>
+                        <button type="button" className="vt-link" onClick={deselectionnerTout}>Tout décocher</button>
                       </div>
                     )}
                   </div>
 
                   {loadingProduits ? (
-                    <div className="produits-loading">
-                      <div className="spinner-small"></div>
-                      <span>Chargement des produits...</span>
-                    </div>
+                    <div className="rfo-loading"><Loader size={16} className="vt-spin" /> Chargement des produits…</div>
                   ) : produitsRecus.length === 0 ? (
-                    <div className="empty-produits">
-                      <Info size={20} />
-                      <div>
-                        <strong>Aucun produit reçu de ce fournisseur</strong>
-                        <p>
-                          Vous ne pouvez retourner que les produits qui vous ont été livrés.
-                        </p>
-                      </div>
+                    <div className="vt-banner"><Info size={15} />
+                      <span>Aucun produit reçu de ce fournisseur. On ne peut renvoyer que ce qu'il vous a livré.</span>
                     </div>
                   ) : (
-                    <div className="produits-table-wrapper">
-                      <table className="produits-table">
+                    <div className="rfo-produits">
+                      <table className="vt-mini-table">
                         <thead>
                           <tr>
-                            <th style={{ width: '40px' }}></th>
+                            <th aria-label="Choisir" />
                             <th>Produit</th>
-                            <th style={{ width: '90px' }}>Stock</th>
-                            <th style={{ width: '110px' }}>Reçu</th>
-                            <th style={{ width: '110px' }}>Retourné</th>
-                            <th style={{ width: '110px' }}>Max</th>
-                            <th style={{ width: '120px' }}>Qté à retourner</th>
-                            <th style={{ width: '120px' }}>Total</th>
+                            <th className="vt-right rfo-hide-sm">En stock</th>
+                            <th className="vt-right rfo-hide-sm">Reçu</th>
+                            <th className="vt-right">Max.</th>
+                            <th className="vt-right">À renvoyer</th>
+                            <th className="vt-right">Total</th>
                           </tr>
                         </thead>
                         <tbody>
                           {produitsRecus.map(p => {
-                            const s = selection[p.id_produit] || {};
-                            const isSel = s.selected;
-                            const qte = s.quantite || 0;
-                            const total = qte * p.prix_achat;
-
+                            const sel = selection[p.id_produit] || {};
+                            const qte = sel.quantite || 0;
                             return (
-                              <tr key={p.id_produit} className={isSel ? 'selected' : ''}>
+                              <tr key={p.id_produit} className={sel.selected ? 'rfo-sel' : ''}>
                                 <td>
-                                  <input
-                                    type="checkbox"
-                                    checked={!!isSel}
-                                    onChange={() => toggleProduit(p.id_produit)}
-                                  />
+                                  <input type="checkbox" className="rfo-check" checked={!!sel.selected}
+                                         onChange={() => toggleProduit(p.id_produit)} aria-label={`Renvoyer ${p.nom}`} />
                                 </td>
                                 <td>
-                                  <div className="produit-cell">
-                                    <strong>{p.nom}</strong>
-                                    {p.unite_symbole && (
-                                      <span className="unite-label"> · {p.unite_symbole}</span>
-                                    )}
-                                  </div>
+                                  <strong>{p.nom}</strong>
+                                  {p.unite_symbole && <span className="vt-muted"> · {p.unite_symbole}</span>}
+                                  {p.quantite_deja_retournee > 0 && (
+                                    <div className="vt-cell-sub">Déjà renvoyé : {p.quantite_deja_retournee}</div>
+                                  )}
                                 </td>
-                                <td className="center">{p.quantite_stock}</td>
-                                <td className="center">{p.quantite_recue}</td>
-                                <td className="center">{p.quantite_deja_retournee}</td>
-                                <td className="center">
-                                  <strong className="max-badge">
-                                    {p.quantite_max_retournable}
-                                  </strong>
+                                <td className="vt-right vt-num rfo-hide-sm">{p.quantite_stock}</td>
+                                <td className="vt-right vt-num rfo-hide-sm">{p.quantite_recue}</td>
+                                <td className="vt-right vt-num vt-strong">{p.quantite_max_retournable}</td>
+                                <td className="vt-right">
+                                  <input type="number" className="vt-input vt-num rfo-qte" value={qte} min="1"
+                                         max={p.quantite_max_retournable} readOnly={!sel.selected}
+                                         aria-label={`Quantité de ${p.nom}`}
+                                         onChange={(e) => updateQuantite(p.id_produit, e.target.value, p.quantite_max_retournable)} />
                                 </td>
-                                <td>
-                                  <input
-                                    type="number"
-                                    className="qte-input"
-                                    value={qte}
-                                    min="1"
-                                    max={p.quantite_max_retournable}
-                                    onChange={(e) => updateQuantite(
-                                      p.id_produit,
-                                      e.target.value,
-                                      p.quantite_max_retournable
-                                    )}
-                                    disabled={!isSel}
-                                  />
-                                </td>
-                                <td className="montant-cell">
-                                  {formatMontant(total)}
-                                </td>
+                                <td className="vt-right vt-num">{sel.selected ? formatMontant(qte * p.prix_achat) : '-'}</td>
                               </tr>
                             );
                           })}
@@ -1035,227 +725,116 @@ const RetoursFournisseurs = () => {
                 </div>
               )}
 
-              {/* ÉTAPE 3 : Motif + Notes */}
               {lignesSelectionnees.length > 0 && (
-                <div className="form-section">
-                  <div className="section-header">
-                    <h4><FileText size={18} /> 3. Motif et validation</h4>
-                  </div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Motif global *</label>
-                      <select
-                        value={formData.motif_retour}
-                        onChange={(e) => setFormData({ ...formData, motif_retour: e.target.value })}
-                        className="form-select"
-                        disabled={saving}
-                      >
-                        <option value="">Sélectionner un motif</option>
-                        {MOTIFS.map(m => (
-                          <option key={m.value} value={m.value}>{m.label}</option>
-                        ))}
+                <>
+                  <div className="vt-grid-2">
+                    <div className="vt-field">
+                      <label htmlFor="rfo-motif">Motif</label>
+                      <select id="rfo-motif" className="vt-input" value={formData.motif_retour}
+                              onChange={(e) => { setFormError(null); setFormData({ ...formData, motif_retour: e.target.value }); }}>
+                        <option value="">Choisir un motif</option>
+                        {MOTIFS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                       </select>
                     </div>
-                    <div className="form-group">
-                      <label>Notes</label>
-                      <input
-                        type="text"
-                        value={formData.notes}
-                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                        placeholder="Notes supplémentaires..."
-                        disabled={saving}
-                      />
+                    <div className="vt-field">
+                      <label htmlFor="rfo-notes">Note (facultatif)</label>
+                      <input id="rfo-notes" type="text" className="vt-input" placeholder="Ex. lot n°, bon de transport"
+                             value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
                     </div>
                   </div>
-
-                  <div className="recap-total">
-                    <span>
-                      <strong>{totalSelectionne.nbProduits}</strong> produit(s) sélectionné(s)
-                    </span>
-                    <span className="recap-montant">
-                      Total : <strong>{formatMontant(totalSelectionne.montant)}</strong>
-                    </span>
+                  <div className="vt-due">
+                    <span className="vt-due-label">{pluriel(totalSelectionne.nbProduits, 'produit')} à renvoyer</span>
+                    <strong className="vt-due-amount vt-num">{formatMontant(totalSelectionne.montant)}</strong>
                   </div>
-                </div>
+                </>
               )}
             </div>
-
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowModal(false)} disabled={saving}>
-                Annuler
-              </button>
-              <button
-                className="btn btn-primary"
-                onClick={handleSave}
-                disabled={
-                  saving ||
-                  !formData.id_fournisseur ||
-                  !formData.motif_retour ||
-                  lignesSelectionnees.length === 0
-                }
-              >
-                {saving ? (
-                  <>
-                    <span className="spinner-small"></span>
-                    <span>Enregistrement...</span>
-                  </>
-                ) : (
-                  <>
-                    <Check size={18} />
-                    <span>Créer le retour</span>
-                  </>
-                )}
-              </button>
-            </div>
           </div>
-        </div>
+          <div className="vt-modal-foot vt-modal-foot--end">
+            <button type="button" className="vt-btn" onClick={() => setShowModal(false)} disabled={saving}>Fermer</button>
+            <button type="button" className="vt-btn vt-btn--primary" onClick={handleSave} disabled={saving || !formulaireValide}>
+              {saving ? <Loader size={16} className="vt-spin" /> : <Check size={16} />}
+              {saving ? 'Enregistrement' : 'Créer le retour'}
+            </button>
+          </div>
+        </Modal>
       )}
 
-      {/* ============================================================
-          MODAL — DÉTAILS
-          ============================================================ */}
+      {/* ========== DÉTAIL ========== */}
       {showDetailModal && selectedRetour && (
-        <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Détails du retour</h2>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <RetourPDFActions
-                  retourData={selectedRetour}
-                  onClose={() => setShowDetailModal(false)}
-                />
-                <button className="modal-close" onClick={() => setShowDetailModal(false)}>
-                  <X size={24} />
-                </button>
+        <Modal size="lg" labelledBy="rfo-det-title" onClose={() => setShowDetailModal(false)}>
+          <ModalHead id="rfo-det-title" title={`Retour ${selectedRetour.numero_retour}`}
+                     sub={`${dateFR(selectedRetour.date_retour)} · ${getMotifLabel(selectedRetour.motif_retour)}`}
+                     onClose={() => setShowDetailModal(false)}>
+            <StatutRF statut={selectedRetour.statut} />
+          </ModalHead>
+          <div className="vt-modal-body">
+            <div className="vt-det-grid">
+              <div>
+                <h3 className="vt-section-title">Fournisseur</h3>
+                <KV items={[
+                  ['Nom', selectedRetour.fournisseur_nom || '-'],
+                  ['Téléphone', selectedRetour.fournisseur_telephone || '-'],
+                  ['E-mail', selectedRetour.fournisseur_email || '-'],
+                ]} />
+              </div>
+              <div>
+                <h3 className="vt-section-title">Retour</h3>
+                <KV items={[
+                  ['Commande', selectedRetour.numero_commande || '-'],
+                  ['Réception', selectedRetour.numero_reception || '-'],
+                  ['Montant', formatMontant(selectedRetour.montant_total), true],
+                ]} />
               </div>
             </div>
-            <div className="modal-body">
-              <div className="detail-header">
-                <div className="detail-header-left">
-                  <div className="detail-icon"><RotateCcw size={28} /></div>
-                  <div>
-                    <h3 className="detail-numero">{selectedRetour.numero_retour}</h3>
-                    <span className="detail-date">
-                      <Calendar size={14} />
-                      {new Date(selectedRetour.date_retour).toLocaleDateString('fr-FR')}
-                    </span>
-                  </div>
-                </div>
-                <div className="detail-header-right">
-                  {renderStatut(selectedRetour.statut)}
-                  {renderMotif(selectedRetour.motif_retour)}
-                </div>
+            {selectedRetour.lignes?.length > 0 && (
+              <div className="vt-det-block">
+                <h3 className="vt-section-title">Produits renvoyés</h3>
+                <table className="vt-mini-table">
+                  <thead>
+                    <tr><th>Produit</th><th className="vt-right">Quantité</th><th className="vt-right">Prix unit.</th>
+                      <th className="vt-right">Total</th><th className="rfo-hide-sm">État</th></tr>
+                  </thead>
+                  <tbody>
+                    {selectedRetour.lignes.map((l, i) => (
+                      <tr key={i}>
+                        <td>{l.produit_nom}</td>
+                        <td className="vt-right vt-num">{nombre(l.quantite)} {l.unite_symbole || ''}</td>
+                        <td className="vt-right vt-num">{formatMontant(l.prix_achat)}</td>
+                        <td className="vt-right vt-num">{formatMontant(l.montant_total || (l.quantite * l.prix_achat))}</td>
+                        <td className="rfo-hide-sm">{ETATS[l.etat_produit] || 'Neuf'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-
-              <div className="detail-grid">
-                <div className="detail-section">
-                  <h4><Building size={16} /> Fournisseur</h4>
-                  <div className="detail-item">
-                    <label>Nom</label>
-                    <span>{selectedRetour.fournisseur_nom || '-'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Téléphone</label>
-                    <span>{selectedRetour.fournisseur_telephone || '-'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Email</label>
-                    <span>{selectedRetour.fournisseur_email || '-'}</span>
-                  </div>
-                </div>
-                <div className="detail-section">
-                  <h4><FileText size={16} /> Informations</h4>
-                  <div className="detail-item">
-                    <label>Commande</label>
-                    <span>{selectedRetour.numero_commande || '—'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Réception</label>
-                    <span>{selectedRetour.numero_reception || '—'}</span>
-                  </div>
-                  <div className="detail-item">
-                    <label>Montant total</label>
-                    <span className="montant-total">{formatMontant(selectedRetour.montant_total)}</span>
-                  </div>
-                </div>
-              </div>
-
-              {selectedRetour.lignes?.length > 0 && (
-                <div className="detail-lignes">
-                  <h4>Produits retournés</h4>
-                  <div className="detail-lignes-wrapper">
-                    <table className="detail-lignes-table">
-                      <thead>
-                        <tr>
-                          <th>Produit</th>
-                          <th>Quantité</th>
-                          <th>Prix unit.</th>
-                          <th>Total</th>
-                          <th>Motif</th>
-                          <th>État</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {selectedRetour.lignes.map((l, i) => (
-                          <tr key={i}>
-                            <td><span className="produit-nom">{l.produit_nom}</span></td>
-                            <td>{l.quantite} {l.unite_symbole || ''}</td>
-                            <td>{formatMontant(l.prix_achat)}</td>
-                            <td className="montant-cell">
-                              {formatMontant(l.montant_total || (l.quantite * l.prix_achat))}
-                            </td>
-                            <td>{renderMotif(l.motif_retour)}</td>
-                            <td>
-                              <span className={`etat-badge etat-${l.etat_produit || 'neuf'}`}>
-                                {l.etat_produit || 'neuf'}
-                              </span>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-            </div>
+            )}
           </div>
-        </div>
+          <div className="vt-modal-foot">
+            <div className="rfo-pdf"><RetourPDFActions retourData={selectedRetour} onClose={() => setShowDetailModal(false)} /></div>
+            <button type="button" className="vt-btn" onClick={() => setShowDetailModal(false)}>Fermer</button>
+          </div>
+        </Modal>
       )}
 
-      {/* ============================================================
-          MODAL — SUPPRESSION
-          ============================================================ */}
-      {showDeleteModal && (
-        <div className="modal-overlay" onClick={() => !deleting && setShowDeleteModal(false)}>
-          <div className="modal-content delete-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Confirmer la suppression</h2>
-              <button className="modal-close" onClick={() => !deleting && setShowDeleteModal(false)}>
-                <X size={24} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="delete-icon-wrapper">
-                <AlertTriangle size={48} color="#ef4444" />
-              </div>
-              <p>Êtes-vous sûr de vouloir supprimer ce retour ?</p>
-              <p className="delete-item-name">
-                <strong>"{retourToDelete?.numero_retour}"</strong>
-              </p>
-              <p className="delete-warning">⚠️ Cette action est irréversible</p>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowDeleteModal(false)} disabled={deleting}>
-                Annuler
-              </button>
-              <button className="btn btn-danger" onClick={handleDelete} disabled={deleting}>
-                {deleting ? 'Suppression...' : 'Supprimer'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {aAnnuler && (
+        <Confirm title="Annuler ce retour ?" danger busy={updatingStatut === aAnnuler.id_retour}
+                 confirmLabel="Annuler le retour" cancelLabel="Garder le retour"
+                 onConfirm={handleAnnuler} onClose={() => setAAnnuler(null)}>
+          <p>Le retour <strong>{aAnnuler.numero_retour}</strong> vers <strong>{aAnnuler.fournisseur_nom || 'ce fournisseur'}</strong> sera annulé : la marchandise revient dans votre stock.</p>
+        </Confirm>
       )}
-    </div>
+
+      {showDeleteModal && retourToDelete && (
+        <Confirm title="Supprimer ce retour ?" danger busy={deleting} confirmLabel={deleting ? 'Suppression' : 'Supprimer'}
+                 cancelLabel="Garder" onConfirm={handleDelete} onClose={() => !deleting && setShowDeleteModal(false)}>
+          <p>Le retour <strong>{retourToDelete.numero_retour}</strong> sera supprimé et la marchandise reviendra dans votre stock.</p>
+          <p className="vt-danger-warn">Cette action est irréversible.</p>
+        </Confirm>
+      )}
+
+      <Toast toast={toast} onClose={closeToast} />
+    </Page>
   );
 };
 

@@ -1,504 +1,371 @@
-// pages/Inventaires/Inventaires.jsx
-import React, { useState, useEffect, useRef } from "react";
+// pages/Inventaires/Inventaires.jsx — liste des inventaires, au style Ventes
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import {
-    Search, Eye, Plus, X, RefreshCw, ClipboardList,
-    Calendar, CheckCircle, Clock, Ban, PlayCircle,
-    ChevronLeft, ChevronRight, Trash2, MoreVertical
-} from "lucide-react";
+import { Eye, Plus, RefreshCw, ClipboardList, Ban, PlayCircle, Trash2, Loader, Check, SearchX } from "lucide-react";
 import InventaireService from "../../services/inventaireService";
 import { useUser } from "../../context/AuthContext";
+import {
+    Page, PageHead, Overview, Stage, SearchBox, Badge, ErrorBar, Empty, SkeletonRows, Pager,
+    usePagination, useToast, Toast, Modal, ModalHead, Confirm, ActionsMenu, dateFR, pluriel,
+} from "../../components/UI/Vt";
 import "./Inventaires.css";
+
+export const STATUTS_INV = {
+    planifie: { label: "Planifié", tone: "muted" },
+    en_cours: { label: "En cours", tone: "warn" },
+    termine:  { label: "Terminé", tone: "ok" },
+    annule:   { label: "Annulé", tone: "bad" },
+};
+export const StatutInventaire = ({ statut }) => {
+    const c = STATUTS_INV[statut] || STATUTS_INV.planifie;
+    return <Badge tone={c.tone}>{c.label}</Badge>;
+};
+export const TYPES_INV = { complet: "Complet", partiel: "Partiel", tournant: "Tournant" };
+
+const aujourdhui = () => new Date().toISOString().split("T")[0];
+const formVide = () => ({ libelle: "", date_debut: aujourdhui(), type_inventaire: "complet", notes: "" });
 
 const Inventaires = () => {
     const { isAuthenticated, user } = useUser();
     const { slug } = useParams();
     const navigate = useNavigate();
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
 
     const [inventaires, setInventaires] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(!!token);
     const [error, setError] = useState(null);
     const [searchTerm, setSearchTerm] = useState("");
+    const [recherche, setRecherche] = useState("");
     const [filterStatut, setFilterStatut] = useState("");
     const [filterType, setFilterType] = useState("");
     const [filterDateDebut, setFilterDateDebut] = useState("");
     const [filterDateFin, setFilterDateFin] = useState("");
-    const [currentPage, setCurrentPage] = useState(1);
-    const [itemsPerPage] = useState(10);
+    const [stats, setStats] = useState(null);
+    const [toast, showToast, closeToast] = useToast();
+
     const [showCreateModal, setShowCreateModal] = useState(false);
-    const [openMenuId, setOpenMenuId] = useState(null);
-    const menuRef = useRef(null);
+    const [formData, setFormData] = useState(formVide);
+    const [formError, setFormError] = useState(null);
+    const [creating, setCreating] = useState(false);
 
-    const [stats, setStats] = useState({
-        total: 0, planifie: 0, en_cours: 0, termine: 0, annule: 0, aujourdhui: 0
-    });
+    const [confirmation, setConfirmation] = useState(null); // { type: 'demarrer'|'annuler'|'supprimer', inv }
+    const [agissant, setAgissant] = useState(false);
 
-    const [formData, setFormData] = useState({
-        libelle: "",
-        date_debut: new Date().toISOString().split('T')[0],
-        type_inventaire: "complet",
-        notes: ""
-    });
+    const canManage = !!user && ["admin", "manager", "gestionnaire"].includes(user.role);
 
-    const canManage = user && ['admin', 'manager', 'gestionnaire'].includes(user.role);
-
+    const pause = useRef(null);
     useEffect(() => {
-        if (isAuthenticated && token) {
-            loadInventaires();
-            loadStats();
-        }
-    }, [isAuthenticated, token]);
+        clearTimeout(pause.current);
+        pause.current = setTimeout(() => setRecherche(searchTerm.trim()), 350);
+        return () => clearTimeout(pause.current);
+    }, [searchTerm]);
 
-    // Fermer le menu au clic extérieur
-    useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (menuRef.current && !menuRef.current.contains(e.target)) {
-                setOpenMenuId(null);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, []);
+    const params = useMemo(() => {
+        const p = {};
+        if (recherche) p.search = recherche;
+        if (filterType) p.type_inventaire = filterType;
+        if (filterDateDebut) p.date_debut = filterDateDebut;
+        if (filterDateFin) p.date_fin = filterDateFin;
+        return p;
+    }, [recherche, filterType, filterDateDebut, filterDateFin]);
 
-    const loadInventaires = async () => {
+    const loadInventaires = useCallback(async () => {
         setLoading(true);
         setError(null);
         try {
-            const params = {};
-            if (searchTerm) params.search = searchTerm;
-            if (filterStatut) params.statut = filterStatut;
-            if (filterType) params.type_inventaire = filterType;
-            if (filterDateDebut) params.date_debut = filterDateDebut;
-            if (filterDateFin) params.date_fin = filterDateFin;
-
             const res = await InventaireService.getAll(token, params);
             if (res.success) setInventaires(res.data || []);
-            else setError(res.message || 'Erreur de chargement');
+            else setError(res.message || "Erreur de chargement");
         } catch (e) {
-            setError(e.message);
+            setError(e.message || "Erreur de chargement");
         } finally {
             setLoading(false);
         }
-    };
+    }, [token, params]);
 
-    const loadStats = async () => {
+    const loadStats = useCallback(async () => {
         try {
             const res = await InventaireService.getStats(token);
             if (res.success) setStats(res.data);
         } catch (e) {
-            console.error('Stats error:', e);
+            console.error("Stats error:", e);
         }
+    }, [token]);
+
+    useEffect(() => { if (isAuthenticated && token) loadInventaires(); }, [isAuthenticated, token, loadInventaires]);
+    useEffect(() => { if (isAuthenticated && token) loadStats(); }, [isAuthenticated, token, loadStats]);
+
+    const ouvrir = (inv) => {
+        const id = inv.id_inventaire || inv.id;
+        if (id) navigate(`/${slug}/inventaires/${id}`);
     };
 
     const handleCreate = async () => {
-        if (!formData.libelle.trim()) {
-            alert('Le libellé est obligatoire');
-            return;
-        }
+        if (!formData.libelle.trim()) { setFormError("Donnez un nom à l'inventaire"); return; }
+        setCreating(true);
+        setFormError(null);
         try {
-            const res = await InventaireService.create(token, formData);
+            const res = await InventaireService.create(token, { ...formData, libelle: formData.libelle.trim() });
             if (res.success && res.data?.id_inventaire) {
                 setShowCreateModal(false);
-                setFormData({
-                    libelle: "",
-                    date_debut: new Date().toISOString().split('T')[0],
-                    type_inventaire: "complet",
-                    notes: ""
-                });
-                loadInventaires();
-                loadStats();
+                setFormData(formVide());
                 navigate(`/${slug}/inventaires/${res.data.id_inventaire}`);
+            } else {
+                setFormError(res.message || "Erreur lors de la création");
             }
         } catch (e) {
-            alert('Erreur : ' + e.message);
+            setFormError(e.message || "Erreur lors de la création");
+        } finally {
+            setCreating(false);
         }
     };
 
-    const handleDemarrer = async (id) => {
-        if (!window.confirm('Démarrer cet inventaire ? Les lignes seront générées à partir du stock actuel.')) return;
+    const confirmer = async () => {
+        const { type, inv } = confirmation;
+        setAgissant(true);
         try {
-            const res = await InventaireService.demarrer(token, id);
-            if (res.success) {
-                loadInventaires();
-                loadStats();
-                navigate(`/${slug}/inventaires/${id}`);
+            if (type === "demarrer") {
+                const res = await InventaireService.demarrer(token, inv.id_inventaire);
+                if (!res.success) throw new Error(res.message || "Impossible de démarrer");
+                setConfirmation(null);
+                navigate(`/${slug}/inventaires/${inv.id_inventaire}`);
+                return;
             }
-        } catch (e) {
-            alert('Erreur : ' + e.message);
-        }
-    };
-
-    const handleAnnuler = async (id) => {
-        if (!window.confirm('Annuler cet inventaire ?')) return;
-        try {
-            await InventaireService.annuler(token, id);
+            if (type === "annuler") {
+                await InventaireService.annuler(token, inv.id_inventaire);
+                showToast(`Inventaire ${inv.reference} annulé`, "success");
+            } else {
+                await InventaireService.delete(token, inv.id_inventaire);
+                showToast(`Inventaire ${inv.reference} supprimé`, "success");
+            }
+            setConfirmation(null);
             loadInventaires();
             loadStats();
         } catch (e) {
-            alert('Erreur : ' + e.message);
+            showToast(e.message || "Erreur", "error");
+        } finally {
+            setAgissant(false);
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Supprimer définitivement cet inventaire ?')) return;
-        try {
-            await InventaireService.delete(token, id);
-            loadInventaires();
-            loadStats();
-        } catch (e) {
-            alert('Erreur : ' + e.message);
-        }
+    const filtres = useMemo(
+        () => (filterStatut ? inventaires.filter((i) => i.statut === filterStatut) : inventaires),
+        [inventaires, filterStatut]
+    );
+    const { page, nbPages, setPage, numeros, visibles } = usePagination(filtres, 10, [params, filterStatut]);
+
+    const filtresActifs = !!(filterStatut || filterType || filterDateDebut || filterDateFin || searchTerm);
+    const reinitialiser = () => {
+        setFilterStatut(""); setFilterType(""); setFilterDateDebut(""); setFilterDateFin(""); setSearchTerm("");
     };
 
-    const handleView = (inv) => {
+    const s = stats || {};
+    const ETAPES = [
+        { value: "", label: "Tous", count: s.total },
+        { value: "planifie", label: "Planifiés", count: s.planifie, tone: "muted" },
+        { value: "en_cours", label: "En cours", count: s.en_cours, tone: "warn" },
+        { value: "termine", label: "Terminés", count: s.termine, tone: "ok" },
+        { value: "annule", label: "Annulés", count: s.annule, tone: "bad", apart: true },
+    ];
 
-        
- 
-        const invId = inv.id_inventaire || inv.id;
-    console.log('🎯 handleView appelé avec:', inv);
-    console.log('🎯 invId:', invId);
-    console.log('🎯 slug:', slug);
-    console.log('🎯 URL cible:', `/${slug}/inventaires/${invId}`);
-        if (!invId) {
-            alert('Erreur : identifiant d\'inventaire manquant');
-            return;
-        }
-        navigate(`/${slug}/inventaires/${invId}`);
+    const actionsDe = (inv) => {
+        const planifie = inv.statut === "planifie";
+        const enCours = inv.statut === "en_cours";
+        return [
+            { label: enCours && canManage ? "Continuer le comptage" : "Ouvrir", icon: enCours ? ClipboardList : Eye, onClick: () => ouvrir(inv) },
+            { label: "Démarrer le comptage", icon: PlayCircle, hidden: !canManage || !planifie,
+              onClick: () => setConfirmation({ type: "demarrer", inv }) },
+            { label: "Annuler l'inventaire", icon: Ban, danger: true, hidden: !canManage || !(planifie || enCours),
+              onClick: () => setConfirmation({ type: "annuler", inv }) },
+            { label: "Supprimer", icon: Trash2, danger: true, hidden: !canManage || !(planifie || inv.statut === "annule"),
+              onClick: () => setConfirmation({ type: "supprimer", inv }) },
+        ];
     };
 
-    const getStatutBadge = (statut) => {
-        const configs = {
-            'planifie': { label: 'Planifié', className: 'status-planifie', icon: Clock },
-            'en_cours': { label: 'En cours', className: 'status-en-cours', icon: PlayCircle },
-            'termine': { label: 'Terminé', className: 'status-termine', icon: CheckCircle },
-            'annule': { label: 'Annulé', className: 'status-annule', icon: Ban }
-        };
-        const c = configs[statut] || configs['planifie'];
-        const Icon = c.icon;
-        return (
-            <span className={`status-badge ${c.className}`}>
-                <Icon size={14} />
-                {c.label}
-            </span>
-        );
+    const TEXTES = {
+        demarrer: { titre: "Démarrer le comptage ?", bouton: "Démarrer", danger: false,
+            corps: (inv) => <p>La liste des produits à compter de <strong>{inv.libelle}</strong> sera créée à partir du stock actuel. Vous pourrez ensuite saisir les quantités comptées.</p> },
+        annuler: { titre: "Annuler cet inventaire ?", bouton: "Annuler l'inventaire", danger: true,
+            corps: (inv) => <p>L'inventaire <strong>{inv.reference}</strong> sera annulé. Le stock ne change pas.</p> },
+        supprimer: { titre: "Supprimer cet inventaire ?", bouton: "Supprimer", danger: true,
+            corps: (inv) => <><p>L'inventaire <strong>{inv.reference}</strong> sera supprimé.</p><p className="vt-danger-warn">Cette action est irréversible.</p></> },
     };
-
-    const getTypeLabel = (type) => {
-        const labels = { complet: 'Complet', partiel: 'Partiel', tournant: 'Tournant' };
-        return labels[type] || type;
-    };
-
-    // ============================================================
-    // MENU 3 POINTS
-    // ============================================================
-    const renderActionsMenu = (inv) => {
-        const isOpen = openMenuId === inv.id_inventaire;
-        const isPlanifie = inv.statut === 'planifie';
-        const isEnCours = inv.statut === 'en_cours';
-        const isTermine = inv.statut === 'termine';
-        const isAnnule = inv.statut === 'annule';
-
-        return (
-            <div className="actions-menu-wrapper" ref={isOpen ? menuRef : null}>
-                <button
-                    className="action-btn btn-more"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        setOpenMenuId(isOpen ? null : inv.id_inventaire);
-                    }}
-                    title="Plus d'actions"
-                >
-                    <MoreVertical size={16} />
-                </button>
-
-                {isOpen && (
-                    <div className="actions-dropdown" onClick={(e) => e.stopPropagation()}>
-                        <button
-                            className="dropdown-action"
-                            onClick={() => {
-                                handleView(inv);
-                                setOpenMenuId(null);
-                            }}
-                        >
-                            <Eye size={15} />
-                            <span>Voir les détails</span>
-                        </button>
-
-                        {canManage && isPlanifie && (
-                            <button
-                                className="dropdown-action primary"
-                                onClick={() => {
-                                    handleDemarrer(inv.id_inventaire);
-                                    setOpenMenuId(null);
-                                }}
-                            >
-                                <PlayCircle size={15} />
-                                <span>Démarrer l'inventaire</span>
-                            </button>
-                        )}
-
-                        {canManage && isEnCours && (
-                            <button
-                                className="dropdown-action primary"
-                                onClick={() => {
-                                    handleView(inv);
-                                    setOpenMenuId(null);
-                                }}
-                            >
-                                <ClipboardList size={15} />
-                                <span>Continuer la saisie</span>
-                            </button>
-                        )}
-
-                        {canManage && (isPlanifie || isEnCours) && (
-                            <>
-                                <div className="dropdown-separator" />
-                                <button
-                                    className="dropdown-action warning"
-                                    onClick={() => {
-                                        handleAnnuler(inv.id_inventaire);
-                                        setOpenMenuId(null);
-                                    }}
-                                >
-                                    <Ban size={15} />
-                                    <span>Annuler</span>
-                                </button>
-                            </>
-                        )}
-
-                        {canManage && (isPlanifie || isAnnule) && (
-                            <button
-                                className="dropdown-action danger"
-                                onClick={() => {
-                                    handleDelete(inv.id_inventaire);
-                                    setOpenMenuId(null);
-                                }}
-                            >
-                                <Trash2 size={15} />
-                                <span>Supprimer</span>
-                            </button>
-                        )}
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    const filtered = inventaires;
-    const indexOfLast = currentPage * itemsPerPage;
-    const indexOfFirst = indexOfLast - itemsPerPage;
-    const currentItems = filtered.slice(indexOfFirst, indexOfLast);
-    const totalPages = Math.ceil(filtered.length / itemsPerPage);
 
     return (
-        <div className="inventaires-container">
-            {/* En-tête */}
-            <div className="inventaires-header">
-                <div>
-                    <h1 className="inventaires-title">Inventaires</h1>
-                    <p className="inventaires-subtitle">
-                        {stats.total} inventaires • {stats.en_cours} en cours
-                    </p>
-                </div>
-                <div className="inventaires-actions">
-                    {canManage && (
-                        <button
-                            className="btn btn-primary"
-                            onClick={() => setShowCreateModal(true)}
-                        >
-                            <Plus size={18} />
-                            <span>Nouvel inventaire</span>
-                        </button>
-                    )}
-                    <button
-                        className="btn btn-secondary"
-                        onClick={() => { loadInventaires(); loadStats(); }}
-                        disabled={loading}
-                    >
-                        <RefreshCw size={18} className={loading ? 'spinning' : ''} />
+        <Page className="inv">
+            <PageHead title="Inventaires" sub="Comptez vos produits et corrigez le stock quand il ne correspond pas à la réalité">
+                <button type="button" className="vt-btn vt-btn--icon" onClick={() => { loadInventaires(); loadStats(); }}
+                        disabled={loading} aria-label="Rafraîchir" title="Rafraîchir">
+                    <RefreshCw size={16} className={loading ? "vt-spin" : ""} />
+                </button>
+                {canManage && (
+                    <button type="button" className="vt-btn vt-btn--primary"
+                            onClick={() => { setFormData(formVide()); setFormError(null); setShowCreateModal(true); }}>
+                        <Plus size={16} /> Nouvel inventaire
                     </button>
-                </div>
-            </div>
-
-            {/* Statistiques */}
-            <div className="inventaires-stats">
-                <div className="stat-card">
-                    <div className="stat-icon total"><ClipboardList size={20} /></div>
-                    <div className="stat-info"><span className="stat-label">Total</span><span className="stat-value">{stats.total}</span></div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-icon planifie"><Clock size={20} /></div>
-                    <div className="stat-info"><span className="stat-label">Planifiés</span><span className="stat-value">{stats.planifie}</span></div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-icon encours"><PlayCircle size={20} /></div>
-                    <div className="stat-info"><span className="stat-label">En cours</span><span className="stat-value">{stats.en_cours}</span></div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-icon termine"><CheckCircle size={20} /></div>
-                    <div className="stat-info"><span className="stat-label">Terminés</span><span className="stat-value">{stats.termine}</span></div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-icon annule"><Ban size={20} /></div>
-                    <div className="stat-info"><span className="stat-label">Annulés</span><span className="stat-value">{stats.annule}</span></div>
-                </div>
-                <div className="stat-card">
-                    <div className="stat-icon auj"><Calendar size={20} /></div>
-                    <div className="stat-info"><span className="stat-label">Aujourd'hui</span><span className="stat-value">{stats.aujourdhui}</span></div>
-                </div>
-            </div>
-
-            {/* Filtres */}
-            <div className="inventaires-filters">
-                <div className="search-box">
-                    <Search size={20}/>
-                    <input
-                        type="text"
-                        placeholder="Rechercher un inventaire..."
-                        value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        className="search-input"
-                    />
-                    {searchTerm && <button className="search-clear" onClick={() => setSearchTerm('')}><X size={16} /></button>}
-                </div>
-                <select className="filter-select" value={filterStatut} onChange={e => setFilterStatut(e.target.value)}>
-                    <option value="">Tous les statuts</option>
-                    <option value="planifie">Planifié</option>
-                    <option value="en_cours">En cours</option>
-                    <option value="termine">Terminé</option>
-                    <option value="annule">Annulé</option>
-                </select>
-                <select className="filter-select" value={filterType} onChange={e => setFilterType(e.target.value)}>
-                    <option value="">Tous les types</option>
-                    <option value="complet">Complet</option>
-                    <option value="partiel">Partiel</option>
-                    <option value="tournant">Tournant</option>
-                </select>
-                <input type="date" className="filter-date" value={filterDateDebut} onChange={e => setFilterDateDebut(e.target.value)} />
-                <input type="date" className="filter-date" value={filterDateFin} onChange={e => setFilterDateFin(e.target.value)} />
-                <button className="btn btn-primary btn-filter" onClick={loadInventaires}>Filtrer</button>
-                {(filterStatut || filterType || filterDateDebut || filterDateFin || searchTerm) && (
-                    <button className="btn btn-secondary btn-filter" onClick={() => {
-                        setFilterStatut(""); setFilterType(""); setFilterDateDebut(""); setFilterDateFin(""); setSearchTerm("");
-                        setTimeout(loadInventaires, 0);
-                    }}>Réinitialiser</button>
                 )}
+            </PageHead>
+
+            <Overview label="En cours" value={pluriel(s.en_cours ?? 0, "inventaire")}
+                      note={s.aujourdhui ? `${pluriel(s.aujourdhui, "inventaire")} commencé${s.aujourdhui > 1 ? "s" : ""} aujourd'hui` : "Aucun inventaire commencé aujourd'hui"}>
+                {ETAPES.map((e) => (
+                    <Stage key={e.value || "tous"} count={e.count ?? "–"} label={e.label} tone={e.tone || "all"} apart={e.apart}
+                           pressed={filterStatut === e.value}
+                           onClick={() => setFilterStatut(filterStatut === e.value ? "" : e.value)} />
+                ))}
+            </Overview>
+
+            <div className="vt-toolbar inv-toolbar">
+                <SearchBox value={searchTerm} onChange={setSearchTerm} placeholder="Référence ou nom de l'inventaire"
+                           label="Rechercher un inventaire" />
+                <select className="vt-input inv-type" value={filterType} onChange={(e) => setFilterType(e.target.value)}
+                        aria-label="Filtrer par type">
+                    <option value="">Tous les types</option>
+                    {Object.entries(TYPES_INV).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+                <div className="inv-dates">
+                    <label className="vt-muted" htmlFor="inv-du">Du</label>
+                    <input id="inv-du" type="date" className="vt-input" value={filterDateDebut}
+                           max={filterDateFin || undefined} onChange={(e) => setFilterDateDebut(e.target.value)} />
+                    <label className="vt-muted" htmlFor="inv-au">au</label>
+                    <input id="inv-au" type="date" className="vt-input" value={filterDateFin}
+                           min={filterDateDebut || undefined} onChange={(e) => setFilterDateFin(e.target.value)} />
+                </div>
+                {filtresActifs && <button type="button" className="vt-btn vt-btn--sm" onClick={reinitialiser}>Effacer les filtres</button>}
+                <span className="vt-count">{pluriel(filtres.length, "inventaire")}</span>
             </div>
 
-            {/* Tableau */}
-            {loading && <div className="loading-container"><div className="spinner"></div><p>Chargement...</p></div>}
-            {error && !loading && <div className="error-container"><p>{error}</p><button className="btn btn-secondary" onClick={loadInventaires}>Réessayer</button></div>}
+            {error && !loading && <ErrorBar message={error} onRetry={loadInventaires} />}
 
-            {!loading && !error && (
-                <div className="inventaires-table-container">
-                    <table className="inventaires-table">
-                        <thead>
-                            <tr>
-                                <th>Référence</th>
-                                <th>Libellé</th>
-                                <th>Type</th>
-                                <th>Date début</th>
-                                <th>Lignes</th>
-                                <th>Écarts</th>
-                                <th>Statut</th>
-                                <th style={{ width: '80px', textAlign: 'right' }}>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {currentItems.length === 0 ? (
-                                <tr><td colSpan="8" className="empty-state"><ClipboardList size={32} /><p>Aucun inventaire</p></td></tr>
-                            ) : currentItems.map(inv => (
+            <div className="vt-table-wrap" aria-busy={loading || undefined}>
+                {loading && inventaires.length > 0 && <div className="vt-busybar" />}
+                <table className="vt-table inv-table">
+                    <thead>
+                        <tr>
+                            <th>Inventaire</th>
+                            <th className="inv-hide">Type</th>
+                            <th className="vt-th-right">Produits</th>
+                            <th className="vt-th-right">Écarts</th>
+                            <th>Statut</th>
+                            <th className="vt-th-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody style={numeros}>
+                        {loading && inventaires.length === 0
+                            ? <SkeletonRows cols={6} widths={[70, 40, 30, 30, 45, 30]} />
+                            : visibles.map((inv) => (
                                 <tr key={inv.id_inventaire}>
-                                    <td><span className="inv-ref">{inv.reference}</span></td>
-                                    <td>{inv.libelle}</td>
-                                    <td>{getTypeLabel(inv.type_inventaire)}</td>
-                                    <td>{new Date(inv.date_debut).toLocaleDateString('fr-FR')}</td>
-                                    <td>{inv.nb_lignes || 0}</td>
                                     <td>
-                                        {inv.nb_ecarts > 0
-                                            ? <span className="ecart-badge ecart-warn">{inv.nb_ecarts}</span>
-                                            : <span className="ecart-badge ecart-ok">0</span>}
+                                        <button type="button" className="vt-link vt-cell-main" onClick={() => ouvrir(inv)}>{inv.libelle}</button>
+                                        <div className="vt-cell-sub">{inv.reference} · {dateFR(inv.date_debut)}</div>
                                     </td>
-                                    <td>{getStatutBadge(inv.statut)}</td>
-                                    <td className="actions-cell">
-                                        {renderActionsMenu(inv)}
+                                    <td className="inv-hide">{TYPES_INV[inv.type_inventaire] || inv.type_inventaire}</td>
+                                    <td className="vt-td-right vt-num">{inv.nb_lignes || 0}</td>
+                                    <td className="vt-td-right">
+                                        {inv.nb_ecarts > 0
+                                            ? <span className="vt-tag" data-s="warn">{inv.nb_ecarts}</span>
+                                            : <span className="vt-muted vt-num">0</span>}
+                                    </td>
+                                    <td><StatutInventaire statut={inv.statut} /></td>
+                                    <td className="vt-td-right">
+                                        <div className="vt-actions">
+                                            {canManage && inv.statut === "planifie" ? (
+                                                <button type="button" className="vt-btn vt-btn--sm" onClick={() => setConfirmation({ type: "demarrer", inv })}>
+                                                    <PlayCircle size={14} /> Démarrer
+                                                </button>
+                                            ) : canManage && inv.statut === "en_cours" ? (
+                                                <button type="button" className="vt-btn vt-btn--sm" onClick={() => ouvrir(inv)}>
+                                                    <ClipboardList size={14} /> Compter
+                                                </button>
+                                            ) : (
+                                                <button type="button" className="vt-iconbtn vt-iconbtn--sm" onClick={() => ouvrir(inv)}
+                                                        aria-label={`Ouvrir ${inv.libelle}`} title="Ouvrir"><Eye size={15} /></button>
+                                            )}
+                                            <ActionsMenu label={`Autres actions pour ${inv.reference}`} items={actionsDe(inv)} width={220} />
+                                        </div>
                                     </td>
                                 </tr>
                             ))}
-                        </tbody>
-                    </table>
-                </div>
-            )}
+                    </tbody>
+                </table>
+                {!loading && visibles.length === 0 && (
+                    filtresActifs
+                        ? <Empty icon={SearchX} title="Aucun inventaire ne correspond" text="Modifiez la recherche ou les filtres.">
+                              <button type="button" className="vt-btn vt-btn--sm" onClick={reinitialiser}>Effacer les filtres</button>
+                          </Empty>
+                        : <Empty icon={ClipboardList} title="Aucun inventaire"
+                                 text="Faites un inventaire de temps en temps : vous comptez les produits, Miyo corrige le stock et garde la trace des écarts.">
+                              {canManage && (
+                                  <button type="button" className="vt-btn vt-btn--primary vt-btn--sm" onClick={() => setShowCreateModal(true)}>
+                                      <Plus size={14} /> Nouvel inventaire
+                                  </button>
+                              )}
+                          </Empty>
+                )}
+            </div>
 
-            {/* Pagination */}
-            {!loading && !error && filtered.length > itemsPerPage && (
-                <div className="inventaires-pagination">
-                    <button className="pagination-btn" onClick={() => setCurrentPage(p => Math.max(p - 1, 1))} disabled={currentPage === 1}><ChevronLeft size={18} /></button>
-                    <span className="pagination-info">Page {currentPage} sur {totalPages}</span>
-                    <button className="pagination-btn" onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))} disabled={currentPage === totalPages}><ChevronRight size={18} /></button>
-                </div>
-            )}
+            <Pager page={page} nbPages={nbPages} total={filtres.length} unite="inventaire" onChange={setPage} />
 
-            {/* Modal création */}
             {showCreateModal && (
-                <div className="modal-overlay">
-                    <div className="modal-content" onClick={e => e.stopPropagation()}>
-                        <div className="modal-header">
-                            <h2>Nouvel inventaire</h2>
-                            <button className="modal-close" onClick={() => setShowCreateModal(false)}><X size={24} /></button>
-                        </div>
-                        <div className="modal-body">
-                            <div className="form-group">
-                                <label>Libellé *</label>
-                                <input
-                                    type="text"
-                                    className="form-input"
-                                    placeholder="Ex: Inventaire mensuel Mars 2026"
-                                    value={formData.libelle}
-                                    onChange={e => setFormData({ ...formData, libelle: e.target.value })}
-                                />
+                <Modal size="md" busy={creating} labelledBy="inv-new-title" dismissable={!creating} onClose={() => setShowCreateModal(false)}>
+                    <ModalHead id="inv-new-title" title="Nouvel inventaire" sub="Vous démarrerez le comptage juste après"
+                               onClose={() => setShowCreateModal(false)} disabled={creating} />
+                    <form className="vt-modal-body" onSubmit={(e) => { e.preventDefault(); handleCreate(); }}>
+                        {formError && <ErrorBar message={formError} />}
+                        <div className="vt-stack">
+                            <div className="vt-field">
+                                <label htmlFor="inv-lib">Nom de l'inventaire</label>
+                                <input id="inv-lib" type="text" className="vt-input" autoFocus maxLength={150}
+                                       placeholder="Ex. Inventaire de fin de mois"
+                                       value={formData.libelle} onChange={(e) => { setFormError(null); setFormData({ ...formData, libelle: e.target.value }); }} />
                             </div>
-                            <div className="form-group">
-                                <label>Date de début *</label>
-                                <input
-                                    type="date"
-                                    className="form-input"
-                                    value={formData.date_debut}
-                                    onChange={e => setFormData({ ...formData, date_debut: e.target.value })}
-                                />
+                            <div className="vt-grid-2">
+                                <div className="vt-field">
+                                    <label htmlFor="inv-date">Date</label>
+                                    <input id="inv-date" type="date" className="vt-input" value={formData.date_debut}
+                                           onChange={(e) => setFormData({ ...formData, date_debut: e.target.value })} />
+                                </div>
+                                <div className="vt-field">
+                                    <label htmlFor="inv-typ">Type</label>
+                                    <select id="inv-typ" className="vt-input" value={formData.type_inventaire}
+                                            onChange={(e) => setFormData({ ...formData, type_inventaire: e.target.value })}>
+                                        <option value="complet">Complet : tous les produits</option>
+                                        <option value="partiel">Partiel : une partie du stock</option>
+                                        <option value="tournant">Tournant : un échantillon</option>
+                                    </select>
+                                </div>
                             </div>
-                            <div className="form-group">
-                                <label>Type d'inventaire *</label>
-                                <select
-                                    className="form-input"
-                                    value={formData.type_inventaire}
-                                    onChange={e => setFormData({ ...formData, type_inventaire: e.target.value })}
-                                >
-                                    <option value="complet">Complet (tous les produits)</option>
-                                    <option value="partiel">Partiel (par emplacement)</option>
-                                    <option value="tournant">Tournant (par échantillon)</option>
-                                </select>
-                            </div>
-                            <div className="form-group">
-                                <label>Notes</label>
-                                <textarea
-                                    className="form-input"
-                                    rows="3"
-                                    placeholder="Commentaires optionnels..."
-                                    value={formData.notes}
-                                    onChange={e => setFormData({ ...formData, notes: e.target.value })}
-                                />
+                            <div className="vt-field">
+                                <label htmlFor="inv-notes">Note (facultatif)</label>
+                                <textarea id="inv-notes" className="vt-input" rows="2" placeholder="Ex. rayon boissons uniquement"
+                                          value={formData.notes} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
                             </div>
                         </div>
-                        <div className="modal-footer">
-                            <button className="btn btn-secondary" onClick={() => setShowCreateModal(false)}>Annuler</button>
-                            <button className="btn btn-primary" onClick={handleCreate}>Créer</button>
-                        </div>
+                        <button type="submit" hidden aria-hidden="true" tabIndex={-1} />
+                    </form>
+                    <div className="vt-modal-foot vt-modal-foot--end">
+                        <button type="button" className="vt-btn" onClick={() => setShowCreateModal(false)} disabled={creating}>Fermer</button>
+                        <button type="button" className="vt-btn vt-btn--primary" onClick={handleCreate} disabled={creating}>
+                            {creating ? <Loader size={16} className="vt-spin" /> : <Check size={16} />}
+                            {creating ? "Création" : "Créer l'inventaire"}
+                        </button>
                     </div>
-                </div>
+                </Modal>
             )}
-        </div>
+
+            {confirmation && (() => {
+                const t = TEXTES[confirmation.type];
+                return (
+                    <Confirm title={t.titre} danger={t.danger} busy={agissant} confirmLabel={agissant ? "Un instant" : t.bouton}
+                             cancelLabel="Retour" icon={confirmation.type === "demarrer" ? PlayCircle : undefined}
+                             onConfirm={confirmer} onClose={() => !agissant && setConfirmation(null)}>
+                        {t.corps(confirmation.inv)}
+                    </Confirm>
+                );
+            })()}
+
+            <Toast toast={toast} onClose={closeToast} />
+        </Page>
     );
 };
 

@@ -358,3 +358,29 @@
     white-space: normal;
   }
 }
+/* ============================================================
+   SAISIE PAR UNITÉ (StockInputWithSelector) : une case par unité
+   ============================================================ */
+.siu { display: flex; flex-direction: column; gap: 6px; width: 100%; }
+.siu-ligne {
+  display: flex; align-items: center; gap: 8px;
+  height: 40px; padding: 0 12px 0 0;
+  border: 1px solid var(--miyo-border); border-radius: var(--miyo-radius);
+  background: var(--miyo-surface);
+  cursor: text;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.siu-ligne:focus-within { border-color: var(--miyo-primary); box-shadow: 0 0 0 3px var(--miyo-primary-soft); }
+.siu-champ {
+  flex: 1; min-width: 0; height: 100%;
+  padding: 0 12px; border: 0; outline: none; background: transparent;
+  font: inherit; font-size: 14px; color: var(--miyo-text); font-variant-numeric: tabular-nums;
+}
+.siu-champ::placeholder { color: var(--miyo-text-muted); }
+.siu-champ:disabled { cursor: not-allowed; opacity: .6; }
+.siu-unite { flex: none; font-size: 12.5px; font-weight: 600; color: var(--miyo-text-secondary); white-space: nowrap; }
+.siu-unite small { font-weight: 500; color: var(--miyo-text-muted); }
+.siu-total { font-size: 12px; font-weight: 600; color: var(--miyo-text-tertiary); font-variant-numeric: tabular-nums; }
+/* le cadre est porté par la ligne : la case elle-même ne doit pas en ajouter un */
+.siu .siu-ligne .siu-champ,
+.siu .siu-ligne .siu-champ:focus { border: 0 !important; box-shadow: none !important; outline: none !important; background: transparent !important; height: 100%; }

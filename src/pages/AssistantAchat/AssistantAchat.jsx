@@ -13,6 +13,8 @@ import TransfertStockService from '../../services/transfertStockService';
 import { useUser } from '../../context/AuthContext';
 import StockSelector from '../../components/StockSelector/StockSelector';
 import ConfirmModal from '../../components/ConfirmModal/ConfirmModal';
+import '../Ventes/Ventes.css';
+import '../../components/UI/Vt.css';
 import './AssistantAchat.css';
 
 // ============ HELPERS ============
@@ -648,7 +650,7 @@ const AssistantAchat = () => {
     // ============ RENDUS ============
     if (loading && !data) {
         return (
-            <div className="assistant-loading">
+            <div className="ventes-container vt aa assistant-loading">
                 <div className="spinner"></div>
                 <p>Analyse de votre stock en cours...</p>
             </div>
@@ -657,7 +659,7 @@ const AssistantAchat = () => {
 
     if (error && !data) {
         return (
-            <div className="assistant-error">
+            <div className="ventes-container vt aa assistant-error">
                 {destinations.length > 0 && (
                     <nav className="assistant-scope" aria-label="Destination des commandes">
                         <button type="button" className={`assistant-scope-tab ${!isEntrepot ? 'is-active' : ''}`}
@@ -675,7 +677,7 @@ const AssistantAchat = () => {
                 )}
                 <AlertCircle size={40} />
                 <p>{error}</p>
-                <button className="btn btn-primary" onClick={loadProposition}>
+                <button className="vt-btn vt-btn--primary" onClick={loadProposition}>
                     <RefreshCw size={16} /> Réessayer
                 </button>
             </div>
@@ -684,18 +686,15 @@ const AssistantAchat = () => {
 
     if (!data || data.total_produits === 0) {
         return (
-            <div className="assistant-container">
-                <div className="assistant-header">
+            <div className="ventes-container vt aa assistant-container">
+                <header className="vt-head assistant-header">
                     <div>
-                        <h1 className="assistant-title">
-                            <Bot size={28} />
-                            Assistant de réapprovisionnement
-                        </h1>
-                        <p className="assistant-subtitle">
+                        <h1 className="vt-title">Assistant de réapprovisionnement</h1>
+                        <p className="vt-sub">
                             {isEntrepot ? 'Analyse automatique du stock de l\'entrepôt' : 'Analyse automatique de votre stock'}
                         </p>
                     </div>
-                </div>
+                </header>
                 {destinations.length > 0 && (
                     <nav className="assistant-scope" aria-label="Destination des commandes">
                         <button type="button" className={`assistant-scope-tab ${!isEntrepot ? 'is-active' : ''}`}
@@ -718,7 +717,7 @@ const AssistantAchat = () => {
                     <h3>Aucun produit à réapprovisionner</h3>
                     <p>Votre stock est bien géré. Aucune alerte de rupture ou de stock bas.</p>
                     <button
-                        className="btn btn-primary"
+                        className="vt-btn vt-btn--primary"
                         onClick={() => navigate(`/${slug}/commandes-achat`)}
                     >
                         Voir les commandes d'achat <ChevronRight size={16} />
@@ -730,31 +729,28 @@ const AssistantAchat = () => {
 
     return (
         <>
-            <div className="assistant-container">
+            <div className="ventes-container vt aa assistant-container">
                 {/* ==================== HEADER ==================== */}
-                <div className="assistant-header">
+                <header className="vt-head assistant-header">
                     <div>
-                        <h1 className="assistant-title">
-                            <Bot size={28} />
-                            Assistant de réapprovisionnement
-                        </h1>
-                        <p className="assistant-subtitle">
+                        <h1 className="vt-title">Assistant de réapprovisionnement</h1>
+                        <p className="vt-sub">
                             {data.total_produits} produit(s) à réapprovisionner ·{' '}
                             {(data.transferts || []).length} à transférer ·{' '}
                             {data.fournisseurs.length} fournisseur(s) à commander
                         </p>
                     </div>
-                    <div className="assistant-actions">
+                    <div className="vt-head-actions">
                         <button
-                            className="btn btn-secondary"
+                            className="vt-btn"
                             onClick={loadProposition}
                             disabled={loading}
                         >
-                            <RefreshCw size={16} className={loading ? 'spinning' : ''} />
+                            <RefreshCw size={16} className={loading ? 'vt-spin' : ''} />
                             <span>Recalculer</span>
                         </button>
                     </div>
-                </div>
+                </header>
 
                 {destinations.length > 0 && (
                     <nav className="assistant-scope" aria-label="Destination des commandes">
@@ -1162,7 +1158,7 @@ const AssistantAchat = () => {
                     </div>
                     <div className="recap-actions">
                         <button
-                            className="btn btn-secondary"
+                            className="vt-btn"
                             onClick={() => navigate(`/${slug}/commandes-achat`)}
                             disabled={saving || savingTransfert}
                         >
@@ -1170,12 +1166,12 @@ const AssistantAchat = () => {
                         </button>
                         {(data.transferts || []).length > 0 && (
                             <button
-                                className="btn btn-primary btn-lg"
+                                className="vt-btn vt-btn--primary vt-btn--lg"
                                 onClick={handleTransferer}
                                 disabled={savingTransfert || saving || nbTransfertsSelectionnes === 0}
                             >
                                 {savingTransfert ? (
-                                    <><Loader size={18} className="spinning" /><span>Transfert...</span></>
+                                    <><Loader size={18} className="vt-spin" /><span>Transfert...</span></>
                                 ) : (
                                     <><Warehouse size={18} /><span>Transférer {nbTransfertsSelectionnes} produit(s)</span></>
                                 )}
@@ -1183,13 +1179,13 @@ const AssistantAchat = () => {
                         )}
                         {data.fournisseurs.length > 0 && (
                         <button
-                            className="btn btn-primary btn-lg"
+                            className="vt-btn vt-btn--primary vt-btn--lg"
                             onClick={handleCreer}
                             disabled={saving || savingTransfert || totalSelectionne.produits === 0 || totalSelectionne.fournisseurs === 0}
                         >
                             {saving ? (
                                 <>
-                                    <Loader size={18} className="spinning" />
+                                    <Loader size={18} className="vt-spin" />
                                     <span>Création...</span>
                                 </>
                             ) : (

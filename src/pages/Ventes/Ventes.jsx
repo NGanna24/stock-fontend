@@ -6,7 +6,7 @@ import {
   Plus, Search, Eye, ChevronLeft, ChevronRight, Download, X, Check, RefreshCw,
   Grid, List, AlertTriangle, Trash2, Wallet, Loader, ChevronDown, CreditCard,
   Building, Coins, Printer, MoreVertical, Box, FileText, ShoppingBag,
-  CheckCircle, User,
+  CheckCircle, User, XCircle,
 } from "lucide-react";
 import CommandeVenteService from "../../services/commandeVenteService";
 import ProduitService from "../../services/produitService";
@@ -319,7 +319,7 @@ const PaiementTag = ({ info }) =>
     <span className="vt-muted">-</span>
   );
 
-const StatutMenu = ({ commande, onSelect, updatingStatut, canManage }) => {
+const StatutMenu = ({ commande, onSelect, updatingStatut, canManage, peutRembourser }) => {
   const [open, setOpen] = useState(false);
   const btnRef = useRef(null);
   const current = STATUTS.find((s) => s.value === commande.statut) || STATUTS[0];
@@ -364,6 +364,8 @@ const StatutMenu = ({ commande, onSelect, updatingStatut, canManage }) => {
         <div className="vt-menu-title">Changer le statut</div>
         {STATUTS.map((s) => {
           const isCurrent = s.value === commande.statut;
+          // Annuler une vente encaissée rembourse le client : patron ou manager seulement
+          const reserve = s.value === "annulee" && getMontantPaye(commande) > 0 && !peutRembourser;
           return (
             <button
               key={s.value}
@@ -371,14 +373,16 @@ const StatutMenu = ({ commande, onSelect, updatingStatut, canManage }) => {
               role="menuitem"
               className="vt-menu-item"
               data-s={s.value}
-              disabled={isCurrent}
+              disabled={isCurrent || reserve}
+              title={reserve ? "Vente déjà encaissée : seuls le patron ou un manager peuvent l'annuler" : undefined}
               onClick={() => {
-                onSelect(commande.id_commande, s.value);
+                onSelect(commande.id_commande, s.value, commande);
                 setOpen(false);
               }}
             >
               <i className="vt-dot" />
               <span>{s.label}</span>
+              {reserve && <small className="vt-menu-hint">Patron ou manager</small>}
               {isCurrent && <Check size={14} className="vt-menu-check" />}
             </button>
           );
@@ -460,6 +464,7 @@ const Ventes = () => {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [updatingStatut, setUpdatingStatut] = useState(null);
+  const [annulationAConfirmer, setAnnulationAConfirmer] = useState(null);
 
   // ---------- Mode hors ligne ----------
   const hl = useHorsLigne();
@@ -520,6 +525,7 @@ const Ventes = () => {
   const [paiementData, setPaiementData] = useState({ mode_paiement: "especes", montant: "" });
 
   const canManage = !!user && ["admin", "manager", "caissier"].includes(user.role);
+  const peutRembourser = !!user && ["admin", "manager"].includes(user.role);
 
   // ============================================================
   // HELPERS FORMAT
@@ -1031,18 +1037,24 @@ const Ventes = () => {
     }
   };
 
-  const handleChangeStatut = async (id, statut) => {
+  const handleChangeStatut = async (id, statut, commande = null) => {
     if (updatingStatut === id) return;
+    // L'annulation remet le stock et rembourse ce qui a été payé : on confirme d'abord
+    if (statut === "annulee" && commande) {
+      setAnnulationAConfirmer(commande);
+      return;
+    }
     setUpdatingStatut(id);
     try {
       const response = await CommandeVenteService.updateStatut(token, id, statut);
       if (response.success) {
         await loadCommandes();
-        const patch = (prev) => (prev && prev.id_commande === id ? { ...prev, statut } : prev);
+        const patch = (prev) =>
+          prev && prev.id_commande === id ? { ...prev, ...(response.data || {}), statut } : prev;
         setSelectedCommande(patch);
         setCommandeEnCours(patch);
         const label = STATUTS.find((s) => s.value === statut)?.label || statut;
-        showToast(`Statut modifié : ${label}`, "success");
+        showToast(statut === "annulee" ? response.message : `Statut modifié : ${label}`, "success");
       } else {
         showToast(response.message || "Erreur lors du changement", "error");
       }
@@ -1052,6 +1064,13 @@ const Ventes = () => {
     } finally {
       setUpdatingStatut(null);
     }
+  };
+
+  const confirmerAnnulation = async () => {
+    const c = annulationAConfirmer;
+    if (!c) return;
+    await handleChangeStatut(c.id_commande, "annulee");
+    setAnnulationAConfirmer(null);
   };
 
   const handleImprimerDepuisListe = async (commande) => {
@@ -1629,7 +1648,7 @@ const Ventes = () => {
 const renderListView = () => (
   <div className="vt-table-wrap" aria-busy={loading || undefined}>
     {loading && commandes.length > 0 && <div className="vt-busybar" />}
-    <table className="vt-table">
+    <table className="vt-table vt-table--sans-num">
       <colgroup>
         <col style={{ width: "36px" }} />
         <col style={{ width: "12%" }} />
@@ -1705,6 +1724,7 @@ const renderListView = () => (
                     onSelect={handleChangeStatut}
                     updatingStatut={updatingStatut}
                     canManage={canManage}
+                    peutRembourser={peutRembourser}
                   />
                 </td>
 
@@ -1753,6 +1773,7 @@ const renderListView = () => (
               onSelect={handleChangeStatut}
               updatingStatut={updatingStatut}
               canManage={canManage}
+              peutRembourser={peutRembourser}
             />
             <PaiementTag info={paiementInfo(commande)} />
           </div>
@@ -2596,6 +2617,7 @@ const renderListView = () => (
                 onSelect={handleChangeStatut}
                 updatingStatut={updatingStatut}
                 canManage={canManage}
+                peutRembourser={peutRembourser}
               />
               <PaiementTag info={paiementInfo(selectedCommande)} />
             </div>
@@ -2759,6 +2781,60 @@ const renderListView = () => (
           </div>
         </Modal>
       )}
+
+      {/* ============================================================
+          MODAL : ANNULATION D'UNE VENTE
+          ============================================================ */}
+      {annulationAConfirmer && (() => {
+        const c = annulationAConfirmer;
+        const paye = getMontantPaye(c);
+        const occupe = updatingStatut === c.id_commande;
+        return (
+          <Modal
+            size="sm"
+            busy={occupe}
+            labelledBy="vt-annul-title"
+            dismissable={!occupe}
+            onClose={() => setAnnulationAConfirmer(null)}
+          >
+            <ModalHead
+              id="vt-annul-title"
+              title="Annuler cette vente ?"
+              onClose={() => setAnnulationAConfirmer(null)}
+              disabled={occupe}
+            />
+            <div className="vt-modal-body">
+              <div className="vt-danger-note">
+                <AlertTriangle size={20} />
+                <div>
+                  <p>
+                    La vente <strong>{c.numero_commande}</strong> de{" "}
+                    <strong>{c.nomclient || "client inconnu"}</strong> sera annulée et les articles
+                    reviendront en stock.
+                  </p>
+                  {paye > 0 && (
+                    <p>
+                      Le client a déjà payé <strong className="vt-num">{formatMontant(paye)}</strong> :
+                      ce montant sera enregistré comme <strong>remboursé</strong>, avec le même moyen
+                      de paiement. Rendez-lui cet argent.
+                    </p>
+                  )}
+                  <p className="vt-danger-warn">Une vente annulée ne peut pas être rétablie.</p>
+                </div>
+              </div>
+            </div>
+            <div className="vt-modal-foot vt-modal-foot--end">
+              <button type="button" className="vt-btn" onClick={() => setAnnulationAConfirmer(null)} disabled={occupe}>
+                Garder la vente
+              </button>
+              <button type="button" className="vt-btn vt-btn--danger" onClick={confirmerAnnulation} disabled={occupe}>
+                {occupe ? <Loader size={16} className="vt-spin" /> : <XCircle size={16} />}
+                {occupe ? "Annulation" : paye > 0 ? "Annuler et rembourser" : "Annuler la vente"}
+              </button>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {/* ---------- Alerte générique ---------- */}
       <ConfirmModal

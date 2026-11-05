@@ -736,6 +736,9 @@
 .vt-menu-item--danger { color: var(--bad); }
 .vt-menu-item--danger:hover:not(:disabled) { background: var(--bad-soft); }
 .vt-menu-check { margin-left: auto; color: var(--signal); }
+/* Option interdite pour ce rôle (ex. annuler une vente encaissée) : grisée, pas « en gras » comme l'option courante */
+.vt-menu .vt-menu-item:disabled[title] { font-weight: 400; color: var(--ink-3); }
+.vt-menu-hint { margin-left: auto; font-size: 11px; color: var(--ink-3); }
 .vt-menu--list { padding: 0; }
 .vt-menu-note {
   display: flex; align-items: center; gap: 8px;

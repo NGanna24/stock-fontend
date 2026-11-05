@@ -1191,6 +1191,7 @@ const Receptions = () => {
       <table className="rc-table">
         <thead>
           <tr>
+            <th className="col-num">N°</th>
             <th>Numéro</th>
             <th>Date</th>
             <th>Fournisseur</th>
@@ -1204,7 +1205,7 @@ const Receptions = () => {
         <tbody>
           {currentItems.length === 0 ? (
             <tr>
-              <td colSpan="8">
+              <td colSpan="9">
                 <div className="rc-empty">
                   <Package size={36} />
                   <p>Aucune réception trouvée</p>
@@ -1212,8 +1213,9 @@ const Receptions = () => {
               </td>
             </tr>
           ) : (
-            currentItems.map((reception) => (
+            currentItems.map((reception, i) => (
               <tr key={reception.id_reception}>
+                <td className="col-num">{indexOfFirstItem + i + 1}</td>
                 <td><span className="rc-num">{reception.numero_reception}</span></td>
                 <td>{formatDate(reception.date_reception)}</td>
                 <td>

@@ -2,42 +2,25 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useSearchParams, useNavigate, useParams } from "react-router-dom";
 import {
-  Plus, Search, Eye, X, Check, RefreshCw,
-  AlertCircle, CheckCircle, Ban, FileText,
-  RotateCcw, ShoppingBag, User, Phone,
-  Calendar, Package, Box, Trash2, Loader,
-  ChevronRight, ChevronLeft, Info, AlertTriangle,
-  MoreVertical, Printer
+  Plus, Eye, Check, RefreshCw, Ban, RotateCcw, Package, Loader,
+  ChevronLeft, Info, AlertTriangle, SearchX,
 } from "lucide-react";
 import RetourClientService from "../../services/retourClient/retourClientService";
 import CommandeVenteService from "../../services/commandeVenteService";
 import UniteVenteService from "../../services/uniteVenteService";
 import StockSelector from "../../components/StockSelector/StockSelector";
 import { useUser } from "../../context/AuthContext";
+import {
+  Page, PageHead, Overview, Stage, SearchBox, Badge, ErrorBar, Empty, SkeletonRows, Pager,
+  usePagination, useToast, Toast, Modal, ModalHead, Confirm, ActionsMenu, KV, fcfa, dateFR, sansAccents, pluriel,
+} from "../../components/UI/Vt";
 import "./RetoursClients.css";
 
 // ============================================================
 // Helpers
 // ============================================================
-const formatMontant = (value) => {
-  if (value === undefined || value === null || isNaN(value)) return '0 FCFA';
-  const num = typeof value === 'string' ? parseFloat(value.replace(/,/g, '')) : value;
-  if (isNaN(num)) return '0 FCFA';
-  const fixed = Math.round(num).toString();
-  const formatted = fixed.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-  return `${formatted} FCFA`;
-};
-
-const formatDateFR = (date) => {
-  if (!date) return '-';
-  try {
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return '-';
-    return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-  } catch {
-    return '-';
-  }
-};
+const formatMontant = fcfa;
+const formatDateFR = dateFR;
 
 const MOTIFS = [
   { value: 'defectueux', label: 'Produit défectueux' },
@@ -101,14 +84,7 @@ const RetoursClients = () => {
   const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatut, setFilterStatut] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
-  const [toast, setToast] = useState(null);
-
-  const showToast = (message, type = 'info') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
+  const [toast, showToast, closeToast] = useToast();
 
   // ========== WIZARD ==========
   const [showWizard, setShowWizard] = useState(false);
@@ -131,7 +107,8 @@ const RetoursClients = () => {
   // ========== MODALS ==========
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedRetour, setSelectedRetour] = useState(null);
-  const [openMenuId, setOpenMenuId] = useState(null);
+  const [aAnnuler, setAAnnuler] = useState(null);
+  const [annulant, setAnnulant] = useState(false);
 
   const canManage = user && ['admin', 'manager', 'caissier'].includes(user.role);
 
@@ -450,7 +427,6 @@ const RetoursClients = () => {
 
   // ========== VOIR DÉTAIL ==========
   const handleView = async (retour) => {
-    setOpenMenuId(null);
     try {
       const res = await RetourClientService.getById(token, retour.id_retour_client);
       if (res.success) {
@@ -464,14 +440,15 @@ const RetoursClients = () => {
   };
 
   // ========== ANNULER ==========
-  const handleAnnuler = async (retour) => {
-    setOpenMenuId(null);
-    if (!window.confirm(`Annuler le retour ${retour.numero_retour} ?`)) return;
-
+  const handleAnnuler = async () => {
+    const retour = aAnnuler;
+    if (!retour) return;
+    setAnnulant(true);
     try {
       const res = await RetourClientService.annuler(token, retour.id_retour_client);
       if (res.success) {
-        showToast('Retour annulé', 'success');
+        showToast(`Retour ${retour.numero_retour} annulé`, 'success');
+        setAAnnuler(null);
         await loadRetours();
         await loadStats();
       } else {
@@ -480,713 +457,424 @@ const RetoursClients = () => {
     } catch (err) {
       console.error('❌ Annuler:', err);
       showToast(err.message || 'Erreur', 'error');
+    } finally {
+      setAnnulant(false);
     }
   };
 
-  // ========== STATUT BADGE ==========
-  const getStatutBadge = (statut) => {
-    const configs = {
-      'en_attente': { label: 'En attente', cls: 'badge-en-attente' },
-      'recu': { label: 'Reçu', cls: 'badge-recu' },
-      'controle': { label: 'Contrôlé', cls: 'badge-controle' },
-      'accepte': { label: 'Accepté', cls: 'badge-accepte' },
-      'refuse': { label: 'Refusé', cls: 'badge-refuse' },
-      'rembourse': { label: 'Remboursé', cls: 'badge-rembourse' },
-      'echange': { label: 'Échangé', cls: 'badge-echange' },
-      'annule': { label: 'Annulé', cls: 'badge-annule' },
-    };
-    const c = configs[statut] || configs['en_attente'];
-    return <span className={`retour-badge ${c.cls}`}>{c.label}</span>;
-  };
-
-  // ========== PAGINATION ==========
+  // ========== LISTE ==========
   const filteredRetours = useMemo(() => {
-    if (!searchTerm) return retours;
-    const s = searchTerm.toLowerCase();
+    const q = sansAccents(searchTerm.trim());
+    if (!q) return retours;
     return retours.filter(r =>
-      r.numero_retour?.toLowerCase().includes(s) ||
-      r.nomclient?.toLowerCase().includes(s) ||
-      r.telephone?.toLowerCase().includes(s) ||
-      r.numero_commande?.toLowerCase().includes(s)
+      [r.numero_retour, r.nomclient, r.telephone, r.numero_commande].some(f => sansAccents(f).includes(q))
     );
   }, [retours, searchTerm]);
 
-  const totalPages = Math.ceil(filteredRetours.length / itemsPerPage);
-  const currentItems = filteredRetours.slice(
-    (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
-  );
+  const { page, nbPages, setPage, numeros, visibles: currentItems } = usePagination(filteredRetours, 10, [searchTerm, filterStatut]);
+
+  const STATUTS_RETOUR = {
+    en_attente: { label: 'En attente', tone: 'muted' },
+    recu: { label: 'Reçu', tone: 'info' },
+    controle: { label: 'Contrôlé', tone: 'info' },
+    accepte: { label: 'Accepté', tone: 'ok' },
+    refuse: { label: 'Refusé', tone: 'bad' },
+    rembourse: { label: 'Remboursé', tone: 'teal' },
+    echange: { label: 'Échangé', tone: 'info' },
+    annule: { label: 'Annulé', tone: 'bad' },
+  };
+  const StatutRetour = ({ statut }) => {
+    const c = STATUTS_RETOUR[statut] || STATUTS_RETOUR.en_attente;
+    return <Badge tone={c.tone}>{c.label}</Badge>;
+  };
+
+  const FILTRES = [
+    { value: '', label: 'Tous les retours', count: stats?.total, tone: 'all' },
+    { value: 'accepte', label: 'Acceptés', count: stats?.accepte, tone: 'ok' },
+    { value: 'rembourse', label: 'Remboursés', count: stats?.rembourse, tone: 'teal' },
+    { value: 'refuse', label: 'Refusés', count: stats?.refuse, tone: 'bad' },
+    { value: 'annule', label: 'Annulés', count: stats?.annule, tone: 'bad', apart: true },
+  ];
+
+  const uniteBaseDe = (ligne) => ({ nom: ligne.unite_base_nom, symbole: ligne.unite_base_symbole });
+  const fermerWizard = () => {
+    if (saving) return;
+    setShowWizard(false);
+    if (searchParams.get('commande')) navigate(`/${slug}/retours-clients`, { replace: true });
+  };
 
   // ========== RENDU ==========
   return (
-    <div className="retours-container">
-      {/* Toast */}
-      {toast && (
-        <div className={`retours-toast retours-toast-${toast.type}`}>
-          <span>{toast.message}</span>
-          <button onClick={() => setToast(null)}>
-            <X size={16} />
+    <Page className="rcl">
+      <PageHead title="Retours clients" sub="Les articles que vos clients vous rapportent : remis en stock, remboursés ou échangés">
+        <button type="button" className="vt-btn vt-btn--icon" onClick={() => { loadRetours(); loadStats(); }}
+                disabled={loading} aria-label="Rafraîchir" title="Rafraîchir">
+          <RefreshCw size={16} className={loading ? 'vt-spin' : ''} />
+        </button>
+        {canManage && (
+          <button type="button" className="vt-btn vt-btn--primary" onClick={handleOpenWizard}>
+            <Plus size={16} /> Nouveau retour
           </button>
-        </div>
-      )}
+        )}
+      </PageHead>
 
-      {/* Header */}
-      <div className="retours-header">
-        <div>
-          <h1 className="retours-title">
-            <RotateCcw size={26} />
-            Retours Clients
-          </h1>
-          <p className="retours-subtitle">
-            Gérez les retours de produits vendus
-          </p>
-        </div>
-        <div className="retours-actions">
-          {canManage && (
-            <button className="btn btn-primary" onClick={handleOpenWizard}>
-              <Plus size={18} />
-              <span>Nouveau retour</span>
-            </button>
-          )}
-          <button
-            className="btn btn-secondary"
-            onClick={() => { loadRetours(); loadStats(); }}
-            disabled={loading}
-          >
-            <RefreshCw size={18} className={loading ? 'spinning' : ''} />
-          </button>
-        </div>
+      <Overview label="Montant des retours" value={formatMontant(stats?.montant_total || 0)}
+                note="Retours annulés exclus">
+        {FILTRES.map(f => (
+          <Stage key={f.value || 'tous'} count={f.count ?? '–'} label={f.label} tone={f.tone} apart={f.apart}
+                 pressed={filterStatut === f.value}
+                 onClick={() => setFilterStatut(filterStatut === f.value ? '' : f.value)} />
+        ))}
+      </Overview>
+
+      <div className="vt-toolbar">
+        <SearchBox value={searchTerm} onChange={setSearchTerm}
+                   placeholder="N° de retour, client, téléphone ou n° de vente" label="Rechercher un retour" />
+        <span className="vt-count">{pluriel(filteredRetours.length, 'retour')}</span>
       </div>
 
-      {/* Stats */}
-      {stats && (
-        <div className="retours-stats">
-          <div className="stat-card">
-            <div className="stat-icon total"><RotateCcw size={20} /></div>
-            <div className="stat-info">
-              <span className="stat-label">Total</span>
-              <span className="stat-value">{stats.total}</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon accepte"><CheckCircle size={20} /></div>
-            <div className="stat-info">
-              <span className="stat-label">Acceptés</span>
-              <span className="stat-value">{stats.accepte}</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon rembourse"><FileText size={20} /></div>
-            <div className="stat-info">
-              <span className="stat-label">Remboursés</span>
-              <span className="stat-value">{stats.rembourse}</span>
-            </div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-icon montant"><Package size={20} /></div>
-            <div className="stat-info">
-              <span className="stat-label">Montant total</span>
-              <span className="stat-value">{formatMontant(stats.montant_total)}</span>
-            </div>
-          </div>
-        </div>
-      )}
+      {error && !loading && <ErrorBar message={error} onRetry={loadRetours} />}
 
-      {/* Filtres */}
-      <div className="retours-filters">
-        <div className="search-box">
-          <Search size={18}/>
-          <input
-            type="text"
-            placeholder="Rechercher un retour..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="search-input"
-          />
-          {searchTerm && (
-            <button className="search-clear" onClick={() => setSearchTerm('')}>
-              <X size={14} />
-            </button>
-          )}
-        </div>
-        <select
-          className="filter-select"
-          value={filterStatut}
-          onChange={(e) => setFilterStatut(e.target.value)}
-        >
-          <option value="">Tous les statuts</option>
-          <option value="accepte">Acceptés</option>
-          <option value="refuse">Refusés</option>
-          <option value="rembourse">Remboursés</option>
-          <option value="annule">Annulés</option>
-        </select>
-      </div>
-
-      {/* Liste */}
-      {loading ? (
-        <div className="loading-container">
-          <div className="spinner"></div>
-          <p>Chargement...</p>
-        </div>
-      ) : currentItems.length === 0 ? (
-        <div className="empty-state">
-          <RotateCcw size={48} />
-          <h3>Aucun retour</h3>
-          <p>Créez votre premier retour client</p>
-          {canManage && (
-            <button className="btn btn-primary" onClick={handleOpenWizard}>
-              <Plus size={18} /> Nouveau retour
-            </button>
-          )}
-        </div>
-      ) : (
-        <div className="retours-table-wrapper">
-          <table className="retours-table">
-            <thead>
-              <tr>
-                <th>N° Retour</th>
-                <th>Date</th>
-                <th>Client</th>
-                <th>Commande</th>
-                <th>Produits</th>
-                <th>Montant</th>
-                <th>Statut</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {currentItems.map(r => (
+      <div className="vt-table-wrap" aria-busy={loading || undefined}>
+        {loading && retours.length > 0 && <div className="vt-busybar" />}
+        <table className="vt-table rcl-table">
+          <thead>
+            <tr>
+              <th>Retour</th>
+              <th>Client</th>
+              <th className="rcl-hide">Vente d'origine</th>
+              <th className="vt-th-right">Montant</th>
+              <th>Statut</th>
+              <th className="vt-th-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody style={numeros}>
+            {loading && retours.length === 0
+              ? <SkeletonRows cols={6} widths={[60, 60, 50, 45, 40, 30]} />
+              : currentItems.map(r => (
                 <tr key={r.id_retour_client}>
-                  <td><strong>{r.numero_retour}</strong></td>
-                  <td>{formatDateFR(r.date_retour)}</td>
                   <td>
-                    <div className="client-cell">
-                      <User size={14} />
-                      <span>{r.nomclient || '-'}</span>
-                    </div>
+                    <button type="button" className="vt-link vt-cell-main" onClick={() => handleView(r)}>{r.numero_retour}</button>
+                    <div className="vt-cell-sub">{formatDateFR(r.date_retour)}</div>
                   </td>
-                  <td>{r.numero_commande || '-'}</td>
                   <td>
-                    <span className="badge-lignes">{r.nb_lignes} produit(s)</span>
+                    <div className="vt-cell-main vt-cell-main--plain">{r.nomclient || 'Client sans nom'}</div>
+                    <div className="vt-cell-sub">{r.telephone || '-'}</div>
                   </td>
-                  <td className="montant-cell">
-                    <strong>{formatMontant(r.montant_total)}</strong>
+                  <td className="rcl-hide">
+                    <div>{r.numero_commande || '-'}</div>
+                    <div className="vt-cell-sub">{pluriel(parseInt(r.nb_lignes, 10) || 0, 'produit')}</div>
                   </td>
-                  <td>{getStatutBadge(r.statut)}</td>
-                  <td className="actions-cell">
-                    <div >
-                      <button
-                        className="action-btn"
-                        onClick={() => setOpenMenuId(openMenuId === r.id_retour_client ? null : r.id_retour_client)}
-                      >
-                        <MoreVertical size={16} />
+                  <td className="vt-td-right"><span className="vt-num vt-strong">{formatMontant(r.montant_total)}</span></td>
+                  <td><StatutRetour statut={r.statut} /></td>
+                  <td className="vt-td-right">
+                    <div className="vt-actions">
+                      <button type="button" className="vt-iconbtn vt-iconbtn--sm" onClick={() => handleView(r)}
+                              aria-label={`Voir le retour ${r.numero_retour}`} title="Voir le détail">
+                        <Eye size={15} />
                       </button>
-                      {openMenuId === r.id_retour_client && (
-                        <div className="dropdown-menu">
-                          <button onClick={() => handleView(r)}>
-                            <Eye size={14} /> Voir détails
-                          </button>
-                          {canManage && r.statut !== 'annule' && (
-                            <button className="danger" onClick={() => handleAnnuler(r)}>
-                              <Ban size={14} /> Annuler
-                            </button>
-                          )}
-                        </div>
-                      )}
+                      <ActionsMenu label={`Autres actions pour ${r.numero_retour}`} items={[
+                        { label: 'Voir le détail', icon: Eye, onClick: () => handleView(r) },
+                        { label: 'Annuler le retour', icon: Ban, danger: true, hidden: !canManage || r.statut === 'annule',
+                          onClick: () => setAAnnuler(r) },
+                      ]} />
                     </div>
                   </td>
                 </tr>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="retours-pagination">
-          <button
-            className="pagination-btn"
-            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
-            disabled={currentPage === 1}
-          >
-            <ChevronLeft size={18} />
-          </button>
-          <span>Page {currentPage} sur {totalPages}</span>
-          <button
-            className="pagination-btn"
-            onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
-            disabled={currentPage === totalPages}
-          >
-            <ChevronRight size={18} />
-          </button>
-        </div>
-      )}
-
-      {/* ========== WIZARD DE RETOUR ========== */}
-      {showWizard && (
-        <div className="modal-overlay">
-          <div className="wizard-modal" onClick={(e) => e.stopPropagation()}>
-            {/* Header */}
-            <div className="wizard-header">
-              <div className="wizard-title-group">
-                <div className="wizard-icon">
-                  <RotateCcw size={22} />
-                </div>
-                <div>
-                  <h2>Nouveau retour</h2>
-                  <p>
-                    {wizardStep === 1
-                      ? 'Recherchez la commande d\'origine'
-                      : 'Sélectionnez les produits à retourner'}
-                  </p>
-                </div>
-              </div>
-              <button className="modal-close" onClick={() => !saving && setShowWizard(false)}>
-                <X size={20} />
-              </button>
-            </div>
-
-            {/* Étapes */}
-            <div className="wizard-steps">
-              <div className={`wizard-step ${wizardStep === 1 ? 'active' : 'done'}`}>
-                <div className="step-num">{wizardStep > 1 ? <Check size={14} /> : '1'}</div>
-                <span>Commande</span>
-              </div>
-              <ChevronRight size={16} className="step-arrow" />
-              <div className={`wizard-step ${wizardStep === 2 ? 'active' : ''}`}>
-                <div className="step-num">2</div>
-                <span>Produits</span>
-              </div>
-            </div>
-
-            {/* Body */}
-            <div className="wizard-body">
-              {/* ==================== ÉTAPE 1 ==================== */}
-              {wizardStep === 1 && (
-                <div className="wizard-step-1">
-                  <div className="search-commande-wrapper">
-                    <Search size={18}  />
-                    <input
-                      type="text"
-                      placeholder="N° de commande, téléphone client, n° facture..."
-                      value={searchCommande}
-                      onChange={(e) => rechercherCommande(e.target.value)}
-                      autoFocus
-                    />
-                    {isSearchingCommande && <Loader size={16} className="spinning" />}
-                  </div>
-
-                  <div className="search-hint">
-                    <Info size={14} />
-                    <span>Tapez au moins 2 caractères. Les commandes des 90 derniers jours sont éligibles.</span>
-                  </div>
-
-                  {searchCommande.length >= 2 && resultatsRecherche.length === 0 && !isSearchingCommande && (
-                    <div className="no-results">
-                      <AlertCircle size={32} />
-                      <p>Aucune commande trouvée</p>
-                    </div>
-                  )}
-
-                  {resultatsRecherche.length > 0 && (
-                    <div className="commandes-list">
-                      {resultatsRecherche.map(c => (
-                        <div
-                          key={c.id_commande}
-                          className="commande-item"
-                          onClick={() => selectionnerCommande(c)}
-                        >
-                          <div className="commande-header">
-                            <strong>{c.numero_commande}</strong>
-                            <span className="commande-date">
-                              {formatDateFR(c.date_commande)}
-                            </span>
-                          </div>
-                          <div className="commande-body">
-                            <div className="commande-client">
-                              <User size={14} />
-                              <span>{c.nomclient || 'Client inconnu'}</span>
-                            </div>
-                            {c.telephone && (
-                              <div className="commande-tel">
-                                <Phone size={14} />
-                                <span>{c.telephone}</span>
-                              </div>
-                            )}
-                          </div>
-                          <div className="commande-footer">
-                            <span className="commande-montant">
-                              {formatMontant(c.montant_total)}
-                            </span>
-                            <span className="commande-produits">
-                              {c.nb_lignes} produit(s)
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+          </tbody>
+        </table>
+        {!loading && currentItems.length === 0 && (
+          retours.length === 0 && !searchTerm ? (
+            <Empty icon={RotateCcw} title={filterStatut ? 'Aucun retour dans ce statut' : 'Aucun retour client'}
+                   text="Quand un client rapporte un article, enregistrez-le ici : il revient en stock et le remboursement est noté.">
+              {canManage && !filterStatut && (
+                <button type="button" className="vt-btn vt-btn--primary vt-btn--sm" onClick={handleOpenWizard}>
+                  <Plus size={14} /> Nouveau retour
+                </button>
               )}
+            </Empty>
+          ) : (
+            <Empty icon={SearchX} title="Aucun retour ne correspond" text="Modifiez la recherche ou le filtre." />
+          )
+        )}
+      </div>
 
-              {/* ==================== ÉTAPE 2 ==================== */}
-              {wizardStep === 2 && selectedCommande && (
-                <div className="wizard-step-2">
-                  {/* Infos commande */}
-                  <div className="commande-recap-card">
-                    <div className="recap-row">
-                      <FileText size={14} />
-                      <strong>Commande {selectedCommande.numero_commande}</strong>
-                    </div>
-                    <div className="recap-row">
-                      <User size={14} />
-                      <span>{selectedCommande.nomclient || '-'}</span>
-                    </div>
-                    <div className="recap-row">
-                      <Calendar size={14} />
-                      <span>{formatDateFR(selectedCommande.date_commande)}</span>
-                    </div>
+      <Pager page={page} nbPages={nbPages} total={filteredRetours.length} unite="retour" onChange={setPage} />
+
+      {/* ========== ASSISTANT DE RETOUR ========== */}
+      {showWizard && (
+        <Modal size="lg" busy={saving} labelledBy="rcl-wiz-title" dismissable={!saving} onClose={fermerWizard}
+               className="rcl-wizard">
+          <ModalHead id="rcl-wiz-title" title="Nouveau retour"
+                     sub={wizardStep === 1 ? "Retrouvez la vente d'origine" : 'Choisissez les articles rapportés'}
+                     onClose={fermerWizard} disabled={saving} />
+          <div className="vt-steps" aria-hidden="true">
+            <span className="vt-step" data-etat={wizardStep === 1 ? 'actif' : 'fait'}>
+              <i>{wizardStep > 1 ? <Check size={12} /> : '1'}</i> Vente
+            </span>
+            <span className="rcl-step-sep" />
+            <span className="vt-step" data-etat={wizardStep === 2 ? 'actif' : ''}><i>2</i> Articles</span>
+          </div>
+
+          <div className="vt-modal-body">
+            {wizardStep === 1 && (
+              <div>
+                <div className="vt-search rcl-wiz-search">
+                  <input type="text" className="vt-input vt-search-input" autoFocus spellCheck={false}
+                         placeholder="N° de vente, n° de facture ou téléphone du client"
+                         aria-label="Rechercher la vente" value={searchCommande}
+                         onChange={(e) => rechercherCommande(e.target.value)} />
+                  {isSearchingCommande && <Loader size={16} className="vt-spin rcl-wiz-spin" />}
+                </div>
+                <span className="vt-hint"><Info size={12} /> Au moins 2 caractères. Seules les ventes des 90 derniers jours peuvent être retournées.</span>
+
+                {searchCommande.length >= 2 && resultatsRecherche.length === 0 && !isSearchingCommande && (
+                  <Empty icon={SearchX} title="Aucune vente trouvée"
+                         text="Vérifiez le numéro, ou cherchez avec le téléphone du client." />
+                )}
+
+                {resultatsRecherche.length > 0 && (
+                  <div className="vt-pick-list">
+                    {resultatsRecherche.map(c => (
+                      <button key={c.id_commande} type="button" className="vt-pick" onClick={() => selectionnerCommande(c)}>
+                        <span className="vt-pick-main">{c.numero_commande} · {c.nomclient || 'Client sans nom'}</span>
+                        <span className="vt-pick-side vt-num vt-strong">{formatMontant(c.montant_total)}</span>
+                        <span className="vt-cell-sub">{formatDateFR(c.date_commande)}{c.telephone ? ` · ${c.telephone}` : ''}</span>
+                        <span className="vt-pick-side vt-cell-sub">{pluriel(parseInt(c.nb_lignes, 10) || 0, 'produit')}</span>
+                      </button>
+                    ))}
                   </div>
+                )}
+              </div>
+            )}
 
-                  {/* Produits à retourner */}
-                  <div className="produits-section">
-                    <h3>Produits retournables</h3>
+            {wizardStep === 2 && !selectedCommande && (
+              <div className="rcl-wiz-loading"><Loader size={18} className="vt-spin" /> Chargement de la vente…</div>
+            )}
 
-                    {lignesCommande.length === 0 ? (
-                      <div className="empty-lignes">
-                        <Package size={32} />
-                        <p>Aucun produit retournable</p>
-                      </div>
-                    ) : (
-                      <div className="lignes-retour">
-                        {lignesCommande.map((ligne, index) => {
-                          if (ligne.quantite_retournable_base <= 0) {
-                            return (
-                              <div key={index} className="ligne-item disabled">
-                                <div className="ligne-info">
-                                  <strong>{ligne.produit_nom}</strong>
-                                  <span className="ligne-tag">Déjà totalement retourné</span>
-                                </div>
-                              </div>
-                            );
-                          }
+            {wizardStep === 2 && selectedCommande && (
+              <div className="vt-stack">
+                <div className="rcl-recap">
+                  <div>
+                    <span className="vt-label">Vente</span>
+                    <strong>{selectedCommande.numero_commande}</strong>
+                  </div>
+                  <div>
+                    <span className="vt-label">Client</span>
+                    <strong>{selectedCommande.nomclient || 'Client sans nom'}</strong>
+                  </div>
+                  <div>
+                    <span className="vt-label">Date</span>
+                    <strong>{formatDateFR(selectedCommande.date_commande)}</strong>
+                  </div>
+                </div>
 
-                          const qte = parseFloat(ligne.quantite_a_retourner) || 0;
-                          const unite = ligne.unite_selectionnee;
-                          const qteBase = unite ? qte * parseFloat(unite.quantite_base || 1) : 0;
-                          const invalid = qteBase > ligne.quantite_retournable_base;
-
+                <div>
+                  <h3 className="vt-section-title">Articles de la vente</h3>
+                  {lignesCommande.length === 0 ? (
+                    <Empty icon={Package} title="Aucun article à retourner" />
+                  ) : (
+                    <div className="rcl-lignes">
+                      {lignesCommande.map((ligne, index) => {
+                        if (ligne.quantite_retournable_base <= 0) {
                           return (
-                            <div key={index} className={`ligne-item ${qte > 0 ? 'selected' : ''}`}>
-                              <div className="ligne-info">
+                            <div key={index} className="rcl-ligne" data-etat="vide">
+                              <div className="rcl-ligne-nom">
                                 <strong>{ligne.produit_nom}</strong>
-                                {ligne.marque_nom && <span className="ligne-marque">{ligne.marque_nom}</span>}
-
-                                {/* ✅ Quantités en unités de vente lisibles */}
-                                <div className="ligne-details">
-                                  <div className="detail-row">
-                                    <span className="detail-label">Acheté :</span>
-                                    <div className="detail-value">
-                                      <QteAffichage
-                                        qteBase={ligne.quantite_achetee_base}
-                                        unitesVente={ligne.unites_disponibles}
-                                        uniteBase={{
-                                          nom: ligne.unite_base_nom,
-                                          symbole: ligne.unite_base_symbole
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-
-                                  {ligne.quantite_deja_retournee_base > 0 && (
-                                    <div className="detail-row">
-                                      <span className="detail-label">Déjà retourné :</span>
-                                      <div className="detail-value">
-                                        <QteAffichage
-                                          qteBase={ligne.quantite_deja_retournee_base}
-                                          unitesVente={ligne.unites_disponibles}
-                                          uniteBase={{
-                                            nom: ligne.unite_base_nom,
-                                            symbole: ligne.unite_base_symbole
-                                          }}
-                                        />
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  <div className="detail-row highlight">
-                                    <span className="detail-label">Retournable :</span>
-                                    <div className="detail-value">
-                                      <QteAffichage
-                                        qteBase={ligne.quantite_retournable_base}
-                                        unitesVente={ligne.unites_disponibles}
-                                        uniteBase={{
-                                          nom: ligne.unite_base_nom,
-                                          symbole: ligne.unite_base_symbole
-                                        }}
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
+                                <span className="vt-tag" data-s="muted">Déjà entièrement retourné</span>
                               </div>
+                            </div>
+                          );
+                        }
+                        const qte = parseFloat(ligne.quantite_a_retourner) || 0;
+                        const unite = ligne.unite_selectionnee;
+                        const qteBase = unite ? qte * parseFloat(unite.quantite_base || 1) : 0;
+                        const invalid = qteBase > ligne.quantite_retournable_base;
+                        return (
+                          <div key={index} className="rcl-ligne" data-etat={invalid ? 'erreur' : qte > 0 ? 'choisi' : ''}>
+                            <div className="rcl-ligne-nom">
+                              <strong>{ligne.produit_nom}</strong>
+                              {ligne.marque_nom && <span className="vt-cell-sub">{ligne.marque_nom}</span>}
+                            </div>
 
-                              <div className="ligne-controls">
-                                <select
-                                  value={unite?.id_unite_vente ?? 'base'}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    const selected = ligne.unites_disponibles.find(u =>
-                                      (u.id_unite_vente === null ? 'base' : u.id_unite_vente) ===
-                                      (val === 'base' ? 'base' : parseInt(val))
-                                    );
-                                    updateLigne(index, 'unite_selectionnee', selected);
-                                  }}
-                                  className="unite-select"
-                                >
+                            <div className="rcl-qtes">
+                              <div><span className="vt-label">Acheté</span>
+                                <QteAffichage qteBase={ligne.quantite_achetee_base} unitesVente={ligne.unites_disponibles} uniteBase={uniteBaseDe(ligne)} />
+                              </div>
+                              {ligne.quantite_deja_retournee_base > 0 && (
+                                <div><span className="vt-label">Déjà retourné</span>
+                                  <QteAffichage qteBase={ligne.quantite_deja_retournee_base} unitesVente={ligne.unites_disponibles} uniteBase={uniteBaseDe(ligne)} />
+                                </div>
+                              )}
+                              <div><span className="vt-label">Peut revenir</span>
+                                <QteAffichage qteBase={ligne.quantite_retournable_base} unitesVente={ligne.unites_disponibles} uniteBase={uniteBaseDe(ligne)} />
+                              </div>
+                            </div>
+
+                            <div className="rcl-saisie">
+                              <div className="vt-field">
+                                <label htmlFor={`rcl-u-${index}`}>Unité</label>
+                                <select id={`rcl-u-${index}`} className="vt-input" value={unite?.id_unite_vente ?? 'base'}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          const selected = ligne.unites_disponibles.find(u =>
+                                            (u.id_unite_vente === null ? 'base' : u.id_unite_vente) === (val === 'base' ? 'base' : parseInt(val, 10)));
+                                          updateLigne(index, 'unite_selectionnee', selected);
+                                        }}>
                                   {ligne.unites_disponibles.map((u, i) => (
                                     <option key={i} value={u.id_unite_vente ?? 'base'}>
-                                      {u.nom} {u.quantite_base > 1 && `(×${u.quantite_base})`}
+                                      {u.nom}{u.quantite_base > 1 ? ` (×${u.quantite_base})` : ''}
                                     </option>
                                   ))}
                                 </select>
-
-                                <input
-                                  type="number"
-                                  min="0"
-                                  value={ligne.quantite_a_retourner || ''}
-                                  onChange={(e) => updateLigne(index, 'quantite_a_retourner', e.target.value)}
-                                  className={`qte-input ${invalid ? 'invalid' : ''}`}
-                                  placeholder="0"
-                                />
-
-                                {/* ✅ Preview quantité en unité lisible */}
-                                {qteBase > 0 && (
-                                  <div className={`qte-preview ${invalid ? 'invalid' : ''}`}>
-                                    <span>=</span>
-                                    <QteAffichage
-                                      qteBase={qteBase}
-                                      unitesVente={ligne.unites_disponibles}
-                                      uniteBase={{
-                                        nom: ligne.unite_base_nom,
-                                        symbole: ligne.unite_base_symbole
-                                      }}
-                                      isLow={invalid}
-                                    />
-                                  </div>
-                                )}
                               </div>
-
+                              <div className="vt-field rcl-qte">
+                                <label htmlFor={`rcl-q-${index}`}>Quantité rapportée</label>
+                                <input id={`rcl-q-${index}`} type="number" min="0" inputMode="decimal" placeholder="0"
+                                       className={`vt-input vt-num ${invalid ? 'vt-input--invalid' : ''}`}
+                                       value={ligne.quantite_a_retourner || ''}
+                                       onChange={(e) => updateLigne(index, 'quantite_a_retourner', e.target.value)} />
+                              </div>
                               {qte > 0 && (
-                                <div className="ligne-etat">
-                                  <label>État :</label>
-                                  <select
-                                    value={ligne.etat_produit}
-                                    onChange={(e) => updateLigne(index, 'etat_produit', e.target.value)}
-                                  >
-                                    {ETATS_PRODUIT.map(e => (
-                                      <option key={e.value} value={e.value}>{e.label}</option>
-                                    ))}
+                                <div className="vt-field">
+                                  <label htmlFor={`rcl-e-${index}`}>État de l'article</label>
+                                  <select id={`rcl-e-${index}`} className="vt-input" value={ligne.etat_produit}
+                                          onChange={(e) => updateLigne(index, 'etat_produit', e.target.value)}>
+                                    {ETATS_PRODUIT.map(e => <option key={e.value} value={e.value}>{e.label}</option>)}
                                   </select>
                                 </div>
                               )}
-
-                              {invalid && (
-                                <div className="ligne-error">
-                                  <AlertTriangle size={14} />
-                                  <span>
-                                    Quantité dépasse le retournable (
-                                    <QteAffichage
-                                      qteBase={ligne.quantite_retournable_base}
-                                      unitesVente={ligne.unites_disponibles}
-                                      uniteBase={{
-                                        nom: ligne.unite_base_nom,
-                                        symbole: ligne.unite_base_symbole
-                                      }}
-                                    />
-                                    )
-                                  </span>
-                                </div>
-                              )}
                             </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
 
-                  {/* Motif + Résolution */}
-                  <div className="form-section">
-                    <div className="form-grid-2">
-                      <div className="form-group">
-                        <label>Motif du retour *</label>
-                        <select value={motifRetour} onChange={(e) => setMotifRetour(e.target.value)}>
-                          {MOTIFS.map(m => (
-                            <option key={m.value} value={m.value}>{m.label}</option>
-                          ))}
-                        </select>
-                      </div>
-
-                      <div className="form-group">
-                        <label>Type de résolution *</label>
-                        <select value={typeResolution} onChange={(e) => setTypeResolution(e.target.value)}>
-                          {RESOLUTIONS.map(r => (
-                            <option key={r.value} value={r.value}>
-                              {r.icon} {r.label}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                            {invalid && (
+                              <p className="rcl-erreur">
+                                <AlertTriangle size={14} /> C'est plus que ce qui peut revenir pour cet article.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
+                  )}
+                </div>
 
-                    <div className="form-group">
-                      <label>Notes (optionnel)</label>
-                      <textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        rows="2"
-                        placeholder="Commentaire interne..."
-                        maxLength={500}
-                      />
-                    </div>
+                <div className="vt-grid-2">
+                  <div className="vt-field">
+                    <label htmlFor="rcl-motif">Motif du retour</label>
+                    <select id="rcl-motif" className="vt-input" value={motifRetour} onChange={(e) => setMotifRetour(e.target.value)}>
+                      {MOTIFS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                    </select>
                   </div>
-
-                  {/* Total */}
-                  <div className="total-remboursement">
-                    <span>Montant total à rembourser</span>
-                    <strong>{formatMontant(totalRemboursement)}</strong>
+                  <div className="vt-field">
+                    <label htmlFor="rcl-resol">Ce que reçoit le client</label>
+                    <select id="rcl-resol" className="vt-input" value={typeResolution} onChange={(e) => setTypeResolution(e.target.value)}>
+                      {RESOLUTIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                    </select>
                   </div>
                 </div>
-              )}
-            </div>
+                <div className="vt-field">
+                  <label htmlFor="rcl-notes">Note (facultatif)</label>
+                  <textarea id="rcl-notes" className="vt-input" rows="2" maxLength={500} placeholder="Commentaire interne"
+                            value={notes} onChange={(e) => setNotes(e.target.value)} />
+                </div>
 
-            {/* Footer */}
-            <div className="wizard-footer">
-              {wizardStep === 1 ? (
-                <>
-                  <button className="btn btn-secondary" onClick={() => setShowWizard(false)}>
-                    Annuler
-                  </button>
-                  <div className="footer-spacer" />
-                  <span className="footer-hint">
-                    Sélectionnez une commande pour continuer
+                <div className="vt-due rcl-total">
+                  <span className="vt-due-label">
+                    {typeResolution === 'remboursement_especes' ? 'À rendre au client (espèces)' : 'Valeur des articles rapportés'}
                   </span>
-                </>
-              ) : (
-                <>
-                  <button
-                    className="btn btn-ghost"
-                    onClick={() => { setWizardStep(1); setSelectedCommande(null); setLignesCommande([]); }}
-                    disabled={saving}
-                  >
-                    <ChevronLeft size={16} />
-                    Retour
-                  </button>
-                  <div className="footer-spacer" />
-                  <button
-                    className="btn btn-primary"
-                    onClick={handleSubmitRetour}
-                    disabled={saving || !peutValider}
-                  >
-                    {saving ? (
-                      <>
-                        <Loader size={16} className="spinning" />
-                        Enregistrement...
-                      </>
-                    ) : (
-                      <>
-                        <Check size={16} />
-                        Valider le retour ({lignesValides.length})
-                      </>
-                    )}
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========== MODAL DÉTAIL ========== */}
-      {showDetailModal && selectedRetour && (
-        <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
-          <div className="modal-content detail-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Retour {selectedRetour.numero_retour}</h2>
-              <button className="modal-close" onClick={() => setShowDetailModal(false)}>
-                <X size={20} />
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="detail-info">
-                <div className="info-row">
-                  <span>Client</span>
-                  <strong>{selectedRetour.nomclient || '-'}</strong>
-                </div>
-                <div className="info-row">
-                  <span>Commande</span>
-                  <strong>{selectedRetour.numero_commande || '-'}</strong>
-                </div>
-                <div className="info-row">
-                  <span>Date</span>
-                  <strong>{formatDateFR(selectedRetour.date_retour)}</strong>
-                </div>
-                <div className="info-row">
-                  <span>Motif</span>
-                  <strong>{MOTIFS.find(m => m.value === selectedRetour.motif_retour)?.label}</strong>
-                </div>
-                <div className="info-row">
-                  <span>Résolution</span>
-                  <strong>{RESOLUTIONS.find(r => r.value === selectedRetour.type_resolution)?.label}</strong>
-                </div>
-                <div className="info-row total">
-                  <span>Montant remboursé</span>
-                  <strong>{formatMontant(selectedRetour.montant_total)}</strong>
+                  <strong className="vt-due-amount vt-num">{formatMontant(totalRemboursement)}</strong>
                 </div>
               </div>
+            )}
+          </div>
 
-              <h3>Produits retournés</h3>
-              <table className="detail-lignes">
+          <div className="vt-modal-foot">
+            {wizardStep === 1 ? (
+              <>
+                <span className="vt-foot-hint">Choisissez une vente pour continuer</span>
+                <div className="vt-foot-actions">
+                  <button type="button" className="vt-btn" onClick={fermerWizard}>Fermer</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <button type="button" className="vt-btn" disabled={saving}
+                        onClick={() => { setWizardStep(1); setSelectedCommande(null); setLignesCommande([]); }}>
+                  <ChevronLeft size={16} /> Changer de vente
+                </button>
+                <div className="vt-foot-actions">
+                  <button type="button" className="vt-btn vt-btn--primary" onClick={handleSubmitRetour} disabled={saving || !peutValider}>
+                    {saving ? <Loader size={16} className="vt-spin" /> : <Check size={16} />}
+                    {saving ? 'Enregistrement' : `Valider le retour${lignesValides.length ? ` (${pluriel(lignesValides.length, 'article')})` : ''}`}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </Modal>
+      )}
+
+      {/* ========== DÉTAIL ========== */}
+      {showDetailModal && selectedRetour && (
+        <Modal size="md" labelledBy="rcl-det-title" onClose={() => setShowDetailModal(false)}>
+          <ModalHead id="rcl-det-title" title={`Retour ${selectedRetour.numero_retour}`}
+                     sub={formatDateFR(selectedRetour.date_retour)} onClose={() => setShowDetailModal(false)}>
+            <StatutRetour statut={selectedRetour.statut} />
+          </ModalHead>
+          <div className="vt-modal-body">
+            <KV items={[
+              ['Client', selectedRetour.nomclient || '-'],
+              ["Vente d'origine", selectedRetour.numero_commande || '-'],
+              ['Motif', MOTIFS.find(m => m.value === selectedRetour.motif_retour)?.label || '-'],
+              ['Résolution', RESOLUTIONS.find(r => r.value === selectedRetour.type_resolution)?.label || '-'],
+              selectedRetour.notes ? ['Note', selectedRetour.notes] : null,
+              ['Montant', formatMontant(selectedRetour.montant_total), true],
+            ]} />
+            <div className="vt-det-block">
+              <h3 className="vt-section-title">Articles rapportés</h3>
+              <table className="vt-mini-table">
                 <thead>
-                  <tr>
-                    <th>Produit</th>
-                    <th>Unité</th>
-                    <th>Qté</th>
-                    <th>Prix</th>
-                    <th>Total</th>
-                  </tr>
+                  <tr><th>Produit</th><th>Quantité</th><th className="vt-right">Prix</th><th className="vt-right">Total</th></tr>
                 </thead>
                 <tbody>
                   {(selectedRetour.lignes || []).map((l, i) => (
                     <tr key={i}>
                       <td>{l.produit_nom}</td>
                       <td>
-                        <div className="unite-cell">
-                          <strong>{l.quantite} {l.nom_unite_vente}</strong>
-                          {l.quantite_base > 1 && (
-                            <small className="unite-detail">
-                              ({l.quantite_totale_base} unités)
-                            </small>
-                          )}
-                        </div>
+                        {l.quantite} {l.nom_unite_vente}
+                        {l.quantite_base > 1 && <div className="vt-cell-sub">{l.quantite_totale_base} unités</div>}
                       </td>
-                      <td>{l.quantite_totale_base}</td>
-                      <td>{formatMontant(l.prix_remboursement)}</td>
-                      <td>{formatMontant(l.montant_total)}</td>
+                      <td className="vt-right vt-num">{formatMontant(l.prix_remboursement)}</td>
+                      <td className="vt-right vt-num">{formatMontant(l.montant_total)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowDetailModal(false)}>
-                Fermer
-              </button>
-            </div>
           </div>
-        </div>
+          <div className="vt-modal-foot vt-modal-foot--end">
+            {canManage && selectedRetour.statut !== 'annule' && (
+              <button type="button" className="vt-btn vt-btn--danger"
+                      onClick={() => { setShowDetailModal(false); setAAnnuler(selectedRetour); }}>
+                <Ban size={16} /> Annuler le retour
+              </button>
+            )}
+            <button type="button" className="vt-btn" onClick={() => setShowDetailModal(false)}>Fermer</button>
+          </div>
+        </Modal>
       )}
-    </div>
+
+      {aAnnuler && (
+        <Confirm title="Annuler ce retour ?" danger busy={annulant} confirmLabel={annulant ? 'Annulation' : 'Annuler le retour'}
+                 cancelLabel="Garder le retour" onConfirm={handleAnnuler} onClose={() => !annulant && setAAnnuler(null)}>
+          <p>Le retour <strong>{aAnnuler.numero_retour}</strong> de <strong>{aAnnuler.nomclient || 'client sans nom'}</strong> sera annulé : les articles ressortent du stock.</p>
+          <p className="vt-danger-warn">Cette action est irréversible.</p>
+        </Confirm>
+      )}
+
+      <Toast toast={toast} onClose={closeToast} />
+    </Page>
   );
 };
 

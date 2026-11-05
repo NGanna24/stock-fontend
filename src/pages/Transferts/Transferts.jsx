@@ -9,7 +9,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
-    ArrowRightLeft, Plus, Warehouse, Loader, Search, X, Check, AlertTriangle, Store,
+    Plus, Warehouse, Loader, Search, X, Check, AlertTriangle, Store,
 } from 'lucide-react';
 import TrModal, { fmtNum } from '../../components/Transfert/TrModal';
 import TransfertsEntrepot from '../../components/Transfert/TransfertsEntrepot';
@@ -17,6 +17,7 @@ import ModalTransfertLot from '../../components/Transfert/ModalTransfertLot';
 import TransfertStockService from '../../services/transfertStockService';
 import ProduitEntrepotService from '../../services/produitEntrepotService';
 import { useUser } from '../../context/AuthContext';
+import { Page, PageHead, Empty, Toast } from '../../components/UI/Vt';
 import '../../components/Transfert/Transfert.css';
 import './Transferts.css';
 
@@ -199,7 +200,7 @@ export default function Transferts() {
     const [selection, setSelection] = useState('');        // '' = tous les entrepôts
     const [reloadKey, setReloadKey] = useState(0);
     const [compteurs, setCompteurs] = useState({});         // { [id_entrepot]: { count, est_proprietaire } }
-    const [toast, setToast] = useState(null);
+    const [toast, setToast] = useState(null); // { type, message }
     const [choixOuvert, setChoixOuvert] = useState(false);
     const [panier, setPanier] = useState(null);             // { entrepot, produits }
 
@@ -245,41 +246,33 @@ export default function Transferts() {
     /* ---- Aucun entrepôt : on explique et on renvoie vers la page Entrepôt ---- */
     if (mesEntrepots.length === 0) {
         return (
-            <div className="trp">
-                <header className="trp-head">
-                    <div>
-                        <h1><ArrowRightLeft size={22} /> Transferts</h1>
-                        <p>Faites venir du stock de vos entrepôts vers votre magasin.</p>
-                    </div>
-                </header>
-                <div className="trx-state trx-state--empty trp-empty">
-                    <Warehouse size={40} />
-                    <strong>Vous n'avez encore aucun entrepôt</strong>
-                    <span>Créez un entrepôt ou rejoignez-en un avec son code d'accès pour pouvoir transférer du stock.</span>
-                    <button className="tr-btn tr-btn--primary" onClick={() => navigate(slug ? `/${slug}/entrepot` : '/entrepot')}>
-                        <Warehouse size={15} /> Aller aux entrepôts
-                    </button>
+            <Page className="trp">
+                <PageHead title="Transferts" sub="Faites venir du stock de vos entrepôts vers votre magasin" />
+                <div className="vt-table-wrap trp-vide">
+                    <Empty icon={Warehouse} title="Vous n'avez encore aucun entrepôt"
+                           text="Créez un entrepôt ou rejoignez-en un avec son code d'accès pour pouvoir transférer du stock.">
+                        <button type="button" className="vt-btn vt-btn--primary vt-btn--sm"
+                                onClick={() => navigate(slug ? `/${slug}/entrepot` : '/entrepot')}>
+                            <Warehouse size={14} /> Aller aux entrepôts
+                        </button>
+                    </Empty>
                 </div>
-            </div>
+            </Page>
         );
     }
 
     return (
-        <div className="trp">
-            {/* ---------- En-tête ---------- */}
-            <header className="trp-head">
-                <div>
-                    <h1><ArrowRightLeft size={22} /> Transferts</h1>
-                    <p>
-                        Entrepôt <span aria-hidden="true">→</span> mon magasin
-                        {aApprouver > 0 && <> · <b className="trp-alert">{aApprouver} demande{aApprouver > 1 ? 's' : ''} à approuver</b></>}
-                        {mesEnAttente > 0 && <> · {mesEnAttente} en attente d'approbation</>}
-                    </p>
-                </div>
-                <button className="tr-btn tr-btn--primary" onClick={() => setChoixOuvert(true)}>
+        <Page className="trp">
+            <PageHead title="Transferts"
+                      sub={<>
+                          Du stock de vos entrepôts vers votre magasin
+                          {aApprouver > 0 && <> · <b className="trp-alert">{aApprouver} demande{aApprouver > 1 ? 's' : ''} à approuver</b></>}
+                          {mesEnAttente > 0 && <> · {mesEnAttente} en attente d'approbation</>}
+                      </>}>
+                <button type="button" className="vt-btn vt-btn--primary" onClick={() => setChoixOuvert(true)}>
                     <Plus size={16} /> Nouveau transfert
                 </button>
-            </header>
+            </PageHead>
 
             {/* ---------- Choix de l'entrepôt ---------- */}
             <div className="trp-ents" role="tablist" aria-label="Entrepôt">
@@ -361,14 +354,7 @@ export default function Transferts() {
                 />
             )}
 
-            {/* ---------- Toast ---------- */}
-            {toast && (
-                <div className={`trp-toast trp-toast--${toast.type}`} role="status" aria-live="polite">
-                    {toast.type === 'error' ? <AlertTriangle size={16} /> : <Check size={16} />}
-                    <span>{toast.message}</span>
-                    <button onClick={() => setToast(null)} aria-label="Fermer"><X size={14} /></button>
-                </div>
-            )}
-        </div>
+            <Toast toast={toast} onClose={() => setToast(null)} />
+        </Page>
     );
 }

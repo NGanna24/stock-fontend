@@ -1,337 +1,131 @@
-// pages/Rapports/RapportStocks/RapportStocks.jsx
-import React, { useState, useEffect, useCallback } from "react";
-import {
-    TrendingUp, TrendingDown, Download, RefreshCw,
-    Package, Boxes, Banknote, AlertTriangle,
-    Warehouse, ArrowDownCircle, ArrowUpCircle, SlidersHorizontal,
-    Repeat, ClipboardList, Receipt, BarChart3
-} from "lucide-react";
-import {
-    ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
-    Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend
-} from 'recharts';
+// pages/Rapports/RapportStocks/RapportStocks.jsx — au style Ventes
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { Download, RefreshCw, SearchX, Boxes, Package } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from "recharts";
 import RapportStockService from "../../../services/rapportStockService";
 import { useUser } from "../../../context/AuthContext";
 import StockSelector from "../../../components/StockSelector/StockSelector";
+import { Page, PageHead, ErrorBar, Empty, Badge, Periode, Onglets, Chiffres, Carte, SearchBox, useToast, Toast, bornesPeriode, fcfa, nombre, dateFR, sansAccents, pluriel } from "../../../components/UI/Vt";
+import "../RapportVentes/RapportVentes.css";
 import "./RapportStocks.css";
 
-// ========== FORMATAGE ==========
-const formatMontant = (value) => {
-    const num = parseFloat(value) || 0;
-    return Math.round(num).toLocaleString('fr-FR') + ' FCFA';
-};
-
+// ---------- Graphiques d'origine (gardés tels quels : vos clients les connaissent) ----------
+const formatMontant = fcfa;
 const formatMontantCourt = (value) => {
     const num = parseFloat(value) || 0;
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
     if (num >= 1000) return (num / 1000).toFixed(0) + 'k';
     return num.toFixed(0);
 };
-
-const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('fr-FR', {
-        day: '2-digit', month: '2-digit', year: 'numeric'
-    });
-};
-
-// ========== COULEURS PIE CHART ============
 const CATEGORIE_COLORS = [
     '#995F2F', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
     '#06b6d4', '#ec4899', '#f97316', '#84cc16', '#6366f1'
 ];
 
-const ETAT_CONFIG = {
-    'rupture': { label: 'Rupture', cls: 'etat-rupture', color: '#ef4444' },
-    'stock_bas': { label: 'Stock bas', cls: 'etat-stock-bas', color: '#f59e0b' },
-    'surstock': { label: 'Surstock', cls: 'etat-surstock', color: '#8b5cf6' },
-    'normal': { label: 'Normal', cls: 'etat-normal', color: '#10b981' }
+const ETATS = {
+    rupture: { label: "Rupture", tone: "bad" },
+    stock_bas: { label: "Stock bas", tone: "warn" },
+    surstock: { label: "Surstock", tone: "info" },
+    normal: { label: "Normal", tone: "ok" },
 };
+const TYPES_MVT = { entree: ["Entrée", "ok"], sortie: ["Sortie", "signal"], ajustement: ["Ajustement", "warn"], transfert: ["Transfert", "info"] };
+
+const Qte = ({ p, valeur, id }) => (
+    <StockSelector idProduit={id} stockBase={valeur} unitesVente={p.unites_vente || []}
+                   uniteBase={{ nom: p.unite_nom, symbole: p.unite_symbole }} isRupture={p.etat_stock === "rupture"} variant="list" />
+);
+
 
 const RapportStocks = () => {
     const { isAuthenticated } = useUser();
-    const token = localStorage.getItem('token');
-
-    // ========== DATES PAR DÉFAUT ==========
-    const today = new Date();
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-    const formatDateInput = (d) => d.toISOString().split('T')[0];
-
-    const [dateDebut, setDateDebut] = useState(formatDateInput(firstDayOfMonth));
-    const [dateFin, setDateFin] = useState(formatDateInput(lastDayOfMonth));
-
-    // ========== ÉTATS ==========
-    const [loading, setLoading] = useState(false);
+    const token = localStorage.getItem("token");
+    const [[dateDebut, dateFin], setPeriode] = useState(() => bornesPeriode("mois"));
+    const [loading, setLoading] = useState(!!token);
     const [error, setError] = useState(null);
     const [data, setData] = useState(null);
-    const [activeTab, setActiveTab] = useState("resume");
-    const [searchProduit, setSearchProduit] = useState("");
+    const [onglet, setOnglet] = useState("resume");
+    const [recherche, setRecherche] = useState("");
+    const [filtreEtat, setFiltreEtat] = useState("");
+    const [toast, showToast, closeToast] = useToast();
 
-    // ========== CHARGEMENT ==========
     const loadRapport = useCallback(async () => {
         if (!token) return;
-
         setLoading(true);
         setError(null);
-
         try {
             const res = await RapportStockService.getRapportStocks(token, dateDebut, dateFin);
-            if (res.success) {
-                setData(res.data);
-            } else {
-                setError(res.message || 'Erreur lors du chargement');
-            }
+            if (res.success) setData(res.data);
+            else setError(res.message || "Erreur lors du chargement");
         } catch (e) {
-            console.error('❌ loadRapport error:', e);
-            setError(e.message || 'Erreur lors du chargement');
+            setError(e.message || "Erreur lors du chargement");
         } finally {
             setLoading(false);
         }
     }, [token, dateDebut, dateFin]);
 
-    useEffect(() => {
-        if (isAuthenticated && token) {
-            loadRapport();
-        }
-    }, [isAuthenticated, token, loadRapport]);
+    useEffect(() => { if (isAuthenticated && token) loadRapport(); }, [isAuthenticated, token, loadRapport]);
 
-    // ========== EXPORT CSV ==========
     const handleExport = async () => {
         try {
             const response = await RapportStockService.exportRapportStocks(token, dateDebut, dateFin);
-            const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `rapport_stocks_${new Date().toISOString().split('T')[0]}.csv`;
-            link.click();
+            const url = URL.createObjectURL(new Blob([response.data], { type: "text/csv;charset=utf-8;" }));
+            const a = document.createElement("a");
+            a.href = url; a.download = `rapport_stocks_${dateFin}.csv`; a.click();
             URL.revokeObjectURL(url);
         } catch (e) {
-            console.error('❌ Export error:', e);
-            alert('Erreur lors de l\'exportation');
+            showToast("Erreur lors de l'export", "error");
         }
     };
 
-    // ========== DONNÉES ==========
-    const totaux = data?.totaux || {
-        nombre_produits: 0,
-        quantite_totale: 0,
-        valeur_achat: 0,
-        valeur_vente: 0,
-        total_rupture: 0,
-        total_stock_bas: 0,
-        total_surstock: 0
-    };
-
-    const produits = data?.produits || [];
+    const t = data?.totaux || { nombre_produits: 0, quantite_totale: 0, valeur_achat: 0, valeur_vente: 0, total_rupture: 0, total_stock_bas: 0, total_surstock: 0 };
+    const produits = useMemo(() => data?.produits || [], [data]);
     const parCategorie = data?.par_categorie || [];
     const parMarque = data?.par_marque || [];
     const alertes = data?.alertes || { rupture: [], stock_bas: [], surstock: [] };
+    const listeAlertes = [...(alertes.rupture || []), ...(alertes.stock_bas || []), ...(alertes.surstock || [])];
     const topValeur = data?.top_valeur || [];
     const mouvements = data?.mouvements || [];
 
-    // ========== FILTRAGE PRODUITS ==========
-    const produitsFiltres = searchProduit
-        ? produits.filter(p =>
-            p.produit_nom?.toLowerCase().includes(searchProduit.toLowerCase()) ||
-            p.categorie_nom?.toLowerCase().includes(searchProduit.toLowerCase()) ||
-            p.marque_nom?.toLowerCase().includes(searchProduit.toLowerCase())
-        )
-        : produits;
+    const produitsFiltres = useMemo(() => {
+        const q = sansAccents(recherche.trim());
+        return produits.filter((p) => (!filtreEtat || (p.etat_stock || "normal") === filtreEtat)
+            && (!q || sansAccents([p.produit_nom, p.categorie_nom, p.marque_nom].filter(Boolean).join(" ")).includes(q)));
+    }, [produits, recherche, filtreEtat]);
 
-    // ========== ICÔNES MOUVEMENTS ==========
-    const getMouvementIcon = (type) => {
-        const icons = {
-            'entree': <ArrowDownCircle size={16} />,
-            'sortie': <ArrowUpCircle size={16} />,
-            'ajustement': <SlidersHorizontal size={16} />,
-            'transfert': <Repeat size={16} />
-        };
-        const classes = {
-            'entree': 'mv-entree',
-            'sortie': 'mv-sortie',
-            'ajustement': 'mv-ajustement',
-            'transfert': 'mv-transfert'
-        };
-        return (
-            <span className={`mv-icon ${classes[type] || ''}`}>
-                {icons[type] || <Repeat size={16} />}
-            </span>
-        );
-    };
-
-    // ========== LOADER ==========
-    if (loading && !data) {
-        return (
-            <div className="rapport-loading">
-                <div className="spinner"></div>
-                <p>Chargement du rapport des stocks...</p>
-            </div>
-        );
-    }
-
-    // ========== ERREUR ==========
-    if (error && !data) {
-        return (
-            <div className="rapport-error">
-                <p>{error}</p>
-                <button className="btn btn-primary" onClick={loadRapport}>
-                    <RefreshCw size={16} /> Réessayer
-                </button>
-            </div>
-        );
-    }
+    const margePotentielle = (Number(t.valeur_vente) || 0) - (Number(t.valeur_achat) || 0);
 
     return (
-        <div className="rapport-stocks-container">
-            {/* ==================== EN-TÊTE ==================== */}
-            <div className="rapport-header">
-                <div>
-                    <h1 className="rapport-title">
-                        <Warehouse size={28} />
-                        Rapport des Stocks
-                    </h1>
-                    <p className="rapport-subtitle">
-                        État actuel du stock - {totaux.nombre_produits} produit(s)
-                    </p>
-                </div>
-                <div className="rapport-actions">
-                    <button className="btn btn-secondary" onClick={handleExport}>
-                        <Download size={18} />
-                        <span>Exporter CSV</span>
-                    </button>
-                    <button
-                        className="btn btn-secondary"
-                        onClick={loadRapport}
-                        disabled={loading}
-                    >
-                        <RefreshCw size={18} className={loading ? 'spinning' : ''} />
-                    </button>
-                </div>
-            </div>
-
-            {/* ==================== FILTRES PÉRIODE ==================== */}
-            <div className="rapport-filters">
-                <div className="filter-row">
-                    <div className="filter-group">
-                        <label>Du (mouvements)</label>
-                        <input
-                            type="date"
-                            value={dateDebut}
-                            onChange={(e) => setDateDebut(e.target.value)}
-                            max={dateFin}
-                        />
-                    </div>
-                    <div className="filter-group">
-                        <label>Au</label>
-                        <input
-                            type="date"
-                            value={dateFin}
-                            onChange={(e) => setDateFin(e.target.value)}
-                            min={dateDebut}
-                        />
-                    </div>
-                    <button className="btn btn-secondary" onClick={loadRapport}>
-                        <RefreshCw size={16} className={loading ? 'spinning' : ''} />
-                        Actualiser
-                    </button>
-                </div>
-            </div>
-
-            {/* ==================== KPIs ==================== */}
-            <div className="kpi-grid">
-                <div className="kpi-card">
-                    <div className="kpi-icon kpi-blue">
-                        <Package size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">Produits</span>
-                        <span className="kpi-value">{totaux.nombre_produits}</span>
-                        <span className="kpi-sub">
-                            {totaux.quantite_totale} unités en stock
-                        </span>
-                    </div>
-                </div>
-
-                <div className="kpi-card">
-                    <div className="kpi-icon kpi-purple">
-                        <Banknote size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">Valeur d'achat</span>
-                        <span className="kpi-value">{formatMontant(totaux.valeur_achat)}</span>
-                    </div>
-                </div>
-
-                <div className="kpi-card">
-                    <div className="kpi-icon kpi-green">
-                        <TrendingUp size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">Valeur de vente</span>
-                        <span className="kpi-value">{formatMontant(totaux.valeur_vente)}</span>
-                    </div>
-                </div>
-
-                <div className="kpi-card">
-                    <div className="kpi-icon kpi-red">
-                        <AlertTriangle size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">Alertes</span>
-                        <span className="kpi-value">
-                            {totaux.total_rupture + totaux.total_stock_bas}
-                        </span>
-                        <span className="kpi-sub">
-                            {totaux.total_rupture} ruptures • {totaux.total_stock_bas} stock bas
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            {/* ==================== ONGLETS ==================== */}
-            <div className="rapport-tabs">
-                <button
-                    className={`tab ${activeTab === 'resume' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('resume')}
-                >
-                    <BarChart3 size={16} /> Résumé
+        <Page className="rps">
+            <PageHead title="Rapport des stocks" sub="Ce que vous avez en stock aujourd'hui, ce que ça vaut, et les mouvements de la période">
+                <button type="button" className="vt-btn vt-btn--icon" onClick={loadRapport} disabled={loading} aria-label="Rafraîchir" title="Rafraîchir">
+                    <RefreshCw size={16} className={loading ? "vt-spin" : ""} />
                 </button>
-                <button
-                    className={`tab ${activeTab === 'produits' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('produits')}
-                >
-                    <Package size={16} /> Produits ({produits.length})
-                </button>
-                <button
-                    className={`tab ${activeTab === 'alertes' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('alertes')}
-                >
-                    <AlertTriangle size={16} /> Alertes (
-                    {alertes.rupture.length + alertes.stock_bas.length + alertes.surstock.length})
-                </button>
-                <button
-                    className={`tab ${activeTab === 'mouvements' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('mouvements')}
-                >
-                    <ClipboardList size={16} /> Mouvements ({mouvements.length})
-                </button>
-            </div>
+                <button type="button" className="vt-btn" onClick={handleExport}><Download size={16} /> Exporter</button>
+            </PageHead>
 
-            {/* ==================== CONTENU ==================== */}
-            <div className="rapport-content">
+            {error && !loading && <ErrorBar message={error} onRetry={loadRapport} />}
 
-                {/* ✅ ONGLET RÉSUMÉ */}
-                {activeTab === 'resume' && (
+            <div className={loading && data ? "rp-maj" : undefined}>
+                <Chiffres items={[
+                    { label: "Valeur du stock (prix d'achat)", value: fcfa(t.valeur_achat), note: `${pluriel(t.nombre_produits, "produit")} · ${nombre(t.quantite_totale, 0)} unités`, fort: true, tone: "signal" },
+                    { label: "Valeur à la vente", value: fcfa(t.valeur_vente), note: margePotentielle > 0 ? `Marge possible : ${fcfa(margePotentielle)}` : "Si tout le stock est vendu" },
+                    { label: "À commander", value: (Number(t.total_rupture) || 0) + (Number(t.total_stock_bas) || 0), note: `${t.total_rupture} en rupture · ${t.total_stock_bas} en stock bas`, tone: t.total_rupture ? "bad" : t.total_stock_bas ? "warn" : undefined },
+                    { label: "En surstock", value: t.total_surstock || 0, note: "Au-dessus du stock maximum", tone: t.total_surstock ? "info" : undefined },
+                ]} />
+
+                <Onglets actif={onglet} onChange={setOnglet} items={[
+                    { id: "resume", label: "Résumé" },
+                    { id: "produits", label: "Produits", count: produits.length },
+                    { id: "alertes", label: "À surveiller", count: listeAlertes.length },
+                    { id: "mouvements", label: "Mouvements", count: mouvements.length },
+                ]} />
+
+                {loading && !data && <Carte><div className="vt-graph vt-graph-vide">Chargement du rapport…</div></Carte>}
+
+                {data && onglet === "resume" && (
                     <>
-                        <div className="charts-grid">
-                            <div className="chart-card">
-                                <div className="chart-header">
-                                    <h3>Valeur du stock par catégorie</h3>
-                                </div>
-                                <div className="chart-body">
+                        <div className="vt-grille-2">
+                            <Carte titre="Valeur du stock par catégorie">
                                     {parCategorie.length > 0 ? (
                                         <ResponsiveContainer width="100%" height={280}>
                                             <PieChart>
@@ -368,14 +162,9 @@ const RapportStocks = () => {
                                             <p>Aucune donnée</p>
                                         </div>
                                     )}
-                                </div>
-                            </div>
-
-                            <div className="chart-card">
-                                <div className="chart-header">
-                                    <h3>Top 8 produits (valeur immobilisée)</h3>
-                                </div>
-                                <div className="chart-body">
+                                
+</Carte>
+                            <Carte titre="Top 8 produits (valeur immobilisée)">
                                     {topValeur.length > 0 ? (
                                         <ResponsiveContainer width="100%" height={280}>
                                             <BarChart data={topValeur.slice(0, 8)} layout="vertical">
@@ -406,16 +195,10 @@ const RapportStocks = () => {
                                             <p>Aucun produit</p>
                                         </div>
                                     )}
-                                </div>
-                            </div>
+                                
+</Carte>
                         </div>
-
-                        {parMarque.length > 0 && (
-                            <div className="chart-card">
-                                <div className="chart-header">
-                                    <h3>Valeur du stock par marque</h3>
-                                </div>
-                                <div className="chart-body">
+                        <Carte titre="Valeur du stock par marque">
                                     <ResponsiveContainer width="100%" height={300}>
                                         <BarChart data={parMarque.slice(0, 10)}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -437,328 +220,101 @@ const RapportStocks = () => {
                                             />
                                         </BarChart>
                                     </ResponsiveContainer>
-                                </div>
-                            </div>
-                        )}
+                                
+</Carte>
                     </>
                 )}
 
-                {/* ✅ ONGLET PRODUITS */}
-                {activeTab === 'produits' && (
-                    <div className="rapport-card">
-                        <div className="card-header">
-                            <h3>Liste des produits en stock</h3>
-                            <div className="search-box-small">
-                                <input
-                                    type="text"
-                                    placeholder="Rechercher..."
-                                    value={searchProduit}
-                                    onChange={(e) => setSearchProduit(e.target.value)}
-                                />
-                            </div>
-                        </div>
-                        <div className="card-body">
-                            {produitsFiltres.length > 0 ? (
-                                <div className="table-container">
-                                    <table className="rapport-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Produit</th>
-                                                <th>Catégorie</th>
-                                                <th>Marque</th>
-                                                <th>Stock</th>
-                                                <th>Min/Max</th>
-                                                <th>Prix achat</th>
-                                                <th>Valeur</th>
-                                                <th>État</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {produitsFiltres.map((p) => {
-                                                const etat = ETAT_CONFIG[p.etat_stock] || ETAT_CONFIG.normal;
-                                                return (
-                                                    <tr key={p.id_produit}>
-                                                        <td className="font-semibold">{p.produit_nom}</td>
-                                                        <td>{p.categorie_nom || '-'}</td>
-                                                        <td>{p.marque_nom || '-'}</td>
-                                                        {/* ✅ StockSelector */}
-                                                        <td className="text-center">
-                                                            <StockSelector
-                                                                idProduit={`rapport-${p.id_produit}`}
-                                                                stockBase={p.quantite_stock}
-                                                                unitesVente={p.unites_vente || []}
-                                                                uniteBase={{
-                                                                    nom: p.unite_nom,
-                                                                    symbole: p.unite_symbole,
-                                                                }}
-                                                                isRupture={p.etat_stock === 'rupture'}
-                                                                variant="list"
-                                                            />
-                                                        </td>
-                                                        <td className="text-muted">
-                                                            {p.quantite_minimale} / {p.quantite_maximale}
-                                                        </td>
-                                                        <td>{formatMontant(p.prix_achat)}</td>
-                                                        <td className="font-bold">{formatMontant(p.valeur_stock)}</td>
-                                                        <td>
-                                                            <span className={`etat-badge ${etat.cls}`}>
-                                                                {etat.label}
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <div className="empty-chart">
-                                    <Package size={40} />
-                                    <p>Aucun produit trouvé</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {/* ✅ ONGLET ALERTES */}
-                {activeTab === 'alertes' && (
+                {data && onglet === "produits" && (
                     <>
-                        {alertes.rupture.length > 0 && (
-                            <div className="rapport-card">
-                                <div className="card-header danger">
-                                    <h3>
-                                        <AlertTriangle size={18} />
-                                        Ruptures de stock ({alertes.rupture.length})
-                                    </h3>
-                                </div>
-                                <div className="card-body">
-                                    <div className="table-container">
-                                        <table className="rapport-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Produit</th>
-                                                    <th>Stock</th>
-                                                    <th>Stock min</th>
-                                                    <th>Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {alertes.rupture.map((p) => (
-                                                    <tr key={p.id_produit}>
-                                                        <td className="font-semibold">{p.produit_nom}</td>
-                                                        <td className="text-center text-danger">
-                                                            <StockSelector
-                                                                idProduit={`rapport-rupt-${p.id_produit}`}
-                                                                stockBase={p.quantite_stock}
-                                                                unitesVente={p.unites_vente || []}
-                                                                uniteBase={{
-                                                                    nom: p.unite_nom,
-                                                                    symbole: p.unite_symbole,
-                                                                }}
-                                                                isRupture={true}
-                                                                variant="list"
-                                                            />
-                                                        </td>
-                                                        <td className="text-center">{p.quantite_minimale}</td>
-                                                        <td>
-                                                            <span className="action-badge danger">
-                                                                Commander
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {alertes.stock_bas.length > 0 && (
-                            <div className="rapport-card">
-                                <div className="card-header warning">
-                                    <h3>
-                                        <AlertTriangle size={18} />
-                                        Stock bas ({alertes.stock_bas.length})
-                                    </h3>
-                                </div>
-                                <div className="card-body">
-                                    <div className="table-container">
-                                        <table className="rapport-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Produit</th>
-                                                    <th>Stock</th>
-                                                    <th>Stock min</th>
-                                                    <th>Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {alertes.stock_bas.map((p) => (
-                                                    <tr key={p.id_produit}>
-                                                        <td className="font-semibold">{p.produit_nom}</td>
-                                                        <td className="text-center text-warning">
-                                                            <StockSelector
-                                                                idProduit={`rapport-bas-${p.id_produit}`}
-                                                                stockBase={p.quantite_stock}
-                                                                unitesVente={p.unites_vente || []}
-                                                                uniteBase={{
-                                                                    nom: p.unite_nom,
-                                                                    symbole: p.unite_symbole,
-                                                                }}
-                                                                variant="list"
-                                                            />
-                                                        </td>
-                                                        <td className="text-center">{p.quantite_minimale}</td>
-                                                        <td>
-                                                            <span className="action-badge warning">
-                                                                Réapprovisionner
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {alertes.surstock.length > 0 && (
-                            <div className="rapport-card">
-                                <div className="card-header info">
-                                    <h3>
-                                        <Boxes size={18} />
-                                        Surstock ({alertes.surstock.length})
-                                    </h3>
-                                </div>
-                                <div className="card-body">
-                                    <div className="table-container">
-                                        <table className="rapport-table">
-                                            <thead>
-                                                <tr>
-                                                    <th>Produit</th>
-                                                    <th>Stock</th>
-                                                    <th>Stock max</th>
-                                                    <th>Action</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {alertes.surstock.map((p) => (
-                                                    <tr key={p.id_produit}>
-                                                        <td className="font-semibold">{p.produit_nom}</td>
-                                                        <td className="text-center">
-                                                            <StockSelector
-                                                                idProduit={`rapport-sur-${p.id_produit}`}
-                                                                stockBase={p.quantite_stock}
-                                                                unitesVente={p.unites_vente || []}
-                                                                uniteBase={{
-                                                                    nom: p.unite_nom,
-                                                                    symbole: p.unite_symbole,
-                                                                }}
-                                                                variant="list"
-                                                            />
-                                                        </td>
-                                                        <td className="text-center">{p.quantite_maximale}</td>
-                                                        <td>
-                                                            <span className="action-badge info">
-                                                                Vérifier
-                                                            </span>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {alertes.rupture.length === 0 &&
-                         alertes.stock_bas.length === 0 &&
-                         alertes.surstock.length === 0 && (
-                            <div className="rapport-card">
-                                <div className="card-body">
-                                    <div className="empty-chart">
-                                        <Package size={48} />
-                                        <p>Aucune alerte</p>
-                                        <span>Votre stock est bien géré</span>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+                        <div className="vt-toolbar">
+                            <SearchBox value={recherche} onChange={setRecherche} placeholder="Produit, catégorie ou marque" />
+                            <select className="vt-input rps-etat" value={filtreEtat} onChange={(e) => setFiltreEtat(e.target.value)} aria-label="Filtrer par état">
+                                <option value="">Tous les états</option>
+                                {Object.entries(ETATS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
+                            </select>
+                            <span className="vt-count">{pluriel(produitsFiltres.length, "produit")}</span>
+                        </div>
+                        <div className="vt-table-wrap">
+                            <table className="vt-table rps-table">
+                                <thead><tr><th>Produit</th><th>En stock</th><th className="rp-hide">Min. / max.</th><th className="vt-th-right rp-hide">Prix d'achat</th><th className="vt-th-right">Valeur</th><th>État</th></tr></thead>
+                                <tbody>
+                                    {produitsFiltres.map((p) => {
+                                        const e = ETATS[p.etat_stock] || ETATS.normal;
+                                        return (
+                                            <tr key={p.id_produit}>
+                                                <td>
+                                                    <div className="vt-cell-main vt-cell-main--plain">{p.produit_nom}</div>
+                                                    <div className="vt-cell-sub">{[p.categorie_nom, p.marque_nom].filter(Boolean).join(" · ") || " "}</div>
+                                                </td>
+                                                <td><Qte p={p} valeur={p.quantite_stock} id={`rapport-${p.id_produit}`} /></td>
+                                                <td className="rp-hide vt-muted vt-num">{nombre(p.quantite_minimale, 0)} / {nombre(p.quantite_maximale, 0)}</td>
+                                                <td className="vt-td-right vt-num rp-hide">{fcfa(p.prix_achat)}</td>
+                                                <td className="vt-td-right vt-num vt-strong">{fcfa(p.valeur_stock ?? (Number(p.quantite_stock) || 0) * (Number(p.prix_achat) || 0))}</td>
+                                                <td><Badge tone={e.tone}>{e.label}</Badge></td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                            {produitsFiltres.length === 0 && <Empty icon={SearchX} title="Aucun produit ne correspond" />}
+                        </div>
                     </>
                 )}
 
-                {/* ✅ ONGLET MOUVEMENTS */}
-                {activeTab === 'mouvements' && (
-                    <div className="rapport-card">
-                        <div className="card-header">
-                            <h3>
-                                Mouvements du {formatDate(dateDebut)} au {formatDate(dateFin)}
-                            </h3>
-                        </div>
-                        <div className="card-body">
-                            {mouvements.length > 0 ? (
-                                <div className="table-container">
-                                    <table className="rapport-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Date</th>
-                                                <th>Type</th>
-                                                <th>Produit</th>
-                                                <th>Quantité</th>
-                                                <th>Avant → Après</th>
-                                                <th>Référence</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {mouvements.map((m) => (
-                                                <tr key={m.id_mouvement}>
-                                                    <td>{m.date_formatee}</td>
-                                                    <td>
-                                                        <span className="mouvement-type">
-                                                            {getMouvementIcon(m.type_mouvement)}
-                                                            {m.type_mouvement}
-                                                        </span>
-                                                    </td>
-                                                    <td className="font-semibold">{m.produit_nom}</td>
-                                                    {/* ✅ Quantité via StockSelector */}
-                                                    <td className={`text-center ${
-                                                        m.quantite > 0 ? 'text-success' : 'text-danger'
-                                                    }`}>
-                                                        <StockSelector
-                                                            idProduit={`rapport-mvt-${m.id_mouvement}`}
-                                                            stockBase={Math.abs(m.quantite)}
-                                                            unitesVente={m.unites_vente || []}
-                                                            uniteBase={{
-                                                                nom: m.unite_nom,
-                                                                symbole: m.unite_symbole,
-                                                            }}
-                                                            variant="list"
-                                                        />
-                                                    </td>
-                                                    <td className="text-muted">
-                                                        {m.ancienne_quantite} → {m.nouvelle_quantite}
-                                                    </td>
-                                                    <td>{m.type_reference || '-'}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <div className="empty-chart">
-                                    <ClipboardList size={40} />
-                                    <p>Aucun mouvement sur la période</p>
-                                </div>
-                            )}
-                        </div>
+                {data && onglet === "alertes" && (
+                    <div className="vt-table-wrap">
+                        <table className="vt-table rps-table">
+                            <thead><tr><th>Produit</th><th>Alerte</th><th>En stock</th><th>Seuil</th></tr></thead>
+                            <tbody>
+                                {listeAlertes.map((p) => {
+                                    const type = alertes.rupture?.includes(p) ? "rupture" : alertes.stock_bas?.includes(p) ? "stock_bas" : "surstock";
+                                    return (
+                                        <tr key={`${type}-${p.id_produit}`}>
+                                            <td><div className="vt-cell-main vt-cell-main--plain">{p.produit_nom}</div></td>
+                                            <td><Badge tone={ETATS[type].tone}>{ETATS[type].label}</Badge></td>
+                                            <td><Qte p={{ ...p, etat_stock: type }} valeur={p.quantite_stock} id={`rapport-al-${type}-${p.id_produit}`} /></td>
+                                            <td className="vt-muted vt-num">{type === "surstock" ? `max. ${nombre(p.quantite_maximale, 0)}` : `min. ${nombre(p.quantite_minimale, 0)}`}</td>
+                                        </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                        {listeAlertes.length === 0 && <Empty title="Aucun produit à surveiller" text="Tous les produits sont entre leur minimum et leur maximum." />}
                     </div>
+                )}
+
+                {data && onglet === "mouvements" && (
+                    <>
+                        <Periode debut={dateDebut} fin={dateFin} onChange={(d, f) => setPeriode([d, f])} />
+                        <div className="vt-table-wrap">
+                            <table className="vt-table rps-table">
+                                <thead><tr><th>Produit</th><th>Type</th><th>Quantité</th><th className="rp-hide">Avant → après</th></tr></thead>
+                                <tbody>
+                                    {mouvements.map((m) => {
+                                        const [lib, tone] = TYPES_MVT[m.type_mouvement] || [m.type_mouvement, "muted"];
+                                        return (
+                                            <tr key={m.id_mouvement}>
+                                                <td>
+                                                    <div className="vt-cell-main vt-cell-main--plain">{m.produit_nom}</div>
+                                                    <div className="vt-cell-sub">{m.date_formatee || dateFR(m.date_mouvement)}</div>
+                                                </td>
+                                                <td><Badge tone={tone}>{lib}</Badge></td>
+                                                <td><Qte p={m} valeur={Math.abs(m.quantite)} id={`rapport-mvt-${m.id_mouvement}`} /></td>
+                                                <td className="rp-hide vt-muted vt-num">{nombre(m.ancienne_quantite, 0)} → {nombre(m.nouvelle_quantite, 0)}</td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                            {mouvements.length === 0 && <Empty title="Aucun mouvement sur la période" />}
+                        </div>
+                    </>
                 )}
             </div>
-        </div>
+
+            <Toast toast={toast} onClose={closeToast} />
+        </Page>
     );
 };
 

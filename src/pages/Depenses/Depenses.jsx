@@ -905,7 +905,7 @@ export default function Depenses() {
                             <th className="vt-th-right"><span className="sr-only">Actions</span></th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody style={{ counterReset: `ligne ${debutIdx}` }}>
                         {loading && depenses.length === 0
                             ? Array.from({ length: 6 }).map((_, i) => (
                                 <tr key={`sk-${i}`} className="vt-skel-row" aria-hidden="true">

@@ -1,0 +1,202 @@
+/* components/UI/Vt.css — compléments communs à Ventes.css (pages refaites au style Ventes) */
+
+/* ---------- Tons génériques (badges, étapes, tags) ---------- */
+.vt [data-s="ok"]     { --c: var(--miyo-success); --cs: var(--miyo-success-soft); }
+.vt [data-s="warn"]   { --c: var(--miyo-warning); --cs: var(--miyo-warning-soft); }
+.vt [data-s="bad"]    { --c: var(--miyo-danger);  --cs: var(--miyo-danger-soft); }
+.vt [data-s="info"]   { --c: var(--miyo-info);    --cs: var(--miyo-info-soft); }
+.vt [data-s="teal"]   { --c: var(--miyo-teal);    --cs: var(--miyo-info-soft); }
+.vt [data-s="muted"]  { --c: var(--miyo-text-muted); --cs: var(--miyo-bg-alt); }
+.vt [data-s="signal"] { --c: var(--miyo-primary); --cs: var(--miyo-primary-soft); }
+
+/* Badge de statut (non cliquable) : pas de décalage négatif comme dans Ventes */
+.vt .vt-status.vt-badge { margin-left: 0; padding: 0; height: 24px; }
+
+/* Étiquette pleine (petite pastille de couleur douce) */
+.vt .vt-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 22px; padding: 0 8px;
+  border-radius: var(--radius-full);
+  background: var(--cs, var(--sunken)); color: var(--c, var(--ink-2));
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+
+/* Note d'information (pendant de .vt-danger-note) */
+.vt .vt-info-note { display: flex; gap: 14px; align-items: flex-start; }
+.vt .vt-info-note > svg { color: var(--signal); flex-shrink: 0; margin-top: 2px; }
+.vt .vt-info-note p { margin: 0; line-height: 1.5; }
+.vt .vt-info-note p + p { margin-top: 8px; }
+.vt .vt-danger-note p + p { margin-top: 8px; }
+
+/* Bandeau d'information dans la page */
+.vt .vt-banner {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin: 0 0 14px; padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--cs, var(--miyo-info-soft)); color: var(--ink);
+  font-size: 13px; line-height: 1.45;
+}
+.vt .vt-banner > svg { flex: none; margin-top: 2px; color: var(--c, var(--miyo-info)); }
+
+/* Champs : select et textarea au même gabarit que .vt-input */
+.vt select.vt-input {
+  appearance: none; -webkit-appearance: none;
+  padding-right: 32px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-3) 50%), linear-gradient(135deg, var(--ink-3) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  cursor: pointer;
+}
+.vt textarea.vt-input { height: auto; min-height: 72px; padding-top: 9px; padding-bottom: 9px; resize: vertical; line-height: 1.45; }
+.vt .vt-input--invalid, .vt .vt-input--invalid:focus { border-color: var(--bad); }
+
+.vt .vt-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.vt .vt-stack { display: flex; flex-direction: column; gap: 14px; }
+.vt .vt-right { text-align: right; }
+.vt .vt-nowrap { white-space: nowrap; }
+.vt .vt-strong { font-weight: 700; color: var(--ink); }
+.vt .vt-good { color: var(--ok); }
+.vt .vt-bad { color: var(--bad); }
+
+/* Carte de contenu (panneaux, graphiques) */
+.vt .vt-card {
+  min-width: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 14px 16px;
+}
+.vt .vt-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.vt .vt-card-head h2 { margin: 0; font-size: 14px; font-weight: 700; color: var(--ink); }
+
+/* Tableau compact (dans les fenêtres) */
+.vt .vt-mini-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.vt .vt-mini-table th {
+  padding: 8px 10px; text-align: left;
+  font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+  color: var(--ink-3); border-bottom: 1px solid var(--line);
+}
+.vt .vt-mini-table td { padding: 9px 10px; border-bottom: 1px solid var(--line); color: var(--ink); vertical-align: top; }
+.vt .vt-mini-table tr:last-child td { border-bottom: 0; }
+.vt .vt-mini-table .vt-right, .vt .vt-mini-table th.vt-right { text-align: right; }
+
+/* Étapes d'un assistant (1 → 2) */
+.vt .vt-steps { display: flex; align-items: center; gap: 10px; padding: 12px 22px; border-bottom: 1px solid var(--line); flex-shrink: 0; color: var(--ink-3); font-size: 13px; }
+.vt .vt-step { display: inline-flex; align-items: center; gap: 8px; }
+.vt .vt-step i {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 1px solid var(--line-strong); font-style: normal; font-size: 12px; font-weight: 700;
+}
+.vt .vt-step[data-etat="actif"] { color: var(--ink); font-weight: 600; }
+.vt .vt-step[data-etat="actif"] i { background: var(--signal); border-color: var(--signal); color: #fff; }
+.vt .vt-step[data-etat="fait"] i { background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+
+/* Liste de choix cliquables (résultats de recherche dans une fenêtre) */
+.vt .vt-pick-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.vt .vt-pick {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center;
+  width: 100%; padding: 11px 14px; text-align: left;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--surface); color: var(--ink); cursor: pointer;
+  transition: border-color var(--ease), background-color var(--ease);
+}
+.vt .vt-pick:hover { border-color: var(--signal); background: var(--signal-soft); }
+.vt .vt-pick-main { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vt .vt-pick-side { text-align: right; }
+
+@media (max-width: 640px) {
+  .vt .vt-grid-3 { grid-template-columns: 1fr; }
+}
+
+/* Bouton discret à risque (ex. « Annuler » à côté d'actions principales) */
+.vt .vt-btn--danger-ghost { color: var(--bad); }
+.vt .vt-btn--danger-ghost:hover:not(:disabled) { background: var(--bad-soft); border-color: var(--bad); }
+
+/* ---------- Pages « liste simple » (components/UI/Referentiel) ---------- */
+.ref .vt-toolbar .vt-search { flex: 1 1 260px; max-width: 420px; }
+.ref .vt-search-input { padding-left: 12px; padding-right: 36px; }
+.ref-table { min-width: 640px; }
+.ref-table th:first-child { width: 28%; }
+.ref-table th:last-child { width: 96px; }
+.vt .ref-desc { color: var(--ink-2); max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vt .ref-inactif td { color: var(--ink-3); }
+.vt .ref-inactif .vt-link { color: var(--ink-3); }
+@media (max-width: 800px) {
+  .vt .ref-hide { display: none; }
+  .ref-table { min-width: 480px; }
+}
+.vt .ref-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+.vt .ref-form-grid .ref-plein { grid-column: 1 / -1; }
+@media (max-width: 560px) { .vt .ref-form-grid { grid-template-columns: 1fr; } }
+
+/* ---------- Rapports : période, onglets, chiffres ---------- */
+.vt .vt-periode { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px 16px; margin-bottom: 16px; }
+.vt .vt-periode .vt-seg button { width: auto; padding: 0 12px; font-size: 13px; white-space: nowrap; }
+.vt .vt-periode-dates { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.vt .vt-periode-dates .vt-input { width: 150px; }
+
+.vt .vt-onglets { display: inline-flex; flex-wrap: wrap; margin-bottom: 16px; max-width: 100%; }
+.vt .vt-onglets button { width: auto; padding: 0 14px; font-size: 13px; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.vt .vt-onglet-count { font-size: 11.5px; font-weight: 700; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.vt .vt-onglets button[aria-pressed="true"] .vt-onglet-count { color: inherit; opacity: .75; }
+
+.vt .vt-chiffres {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0;
+  margin-bottom: 18px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.vt .vt-chiffre { display: flex; flex-direction: column; gap: 4px; padding: 16px 20px; min-width: 0; }
+.vt .vt-chiffre-val { font-size: 22px; font-weight: 700; color: var(--c, var(--ink)); letter-spacing: -0.01em; line-height: 1.2; overflow-wrap: anywhere; }
+.vt .vt-chiffre--fort { background: var(--cs, var(--sunken)); }
+.vt .vt-chiffre--fort .vt-chiffre-val { font-size: 24px; }
+.vt .vt-card-sous { display: block; font-size: 12.5px; margin-top: 2px; }
+.vt .vt-grille-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 14px; }
+.vt .vt-graph { height: 260px; }
+.vt .vt-graph-vide { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--ink-3); font-size: 13px; }
+.vt .vt-rang { color: var(--ink-3); font-variant-numeric: tabular-nums; width: 36px; }
+@media (max-width: 900px) {
+  .vt .vt-grille-2 { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .vt .vt-periode .vt-seg, .vt .vt-onglets { max-width: 100%; overflow-x: auto; flex-wrap: nowrap; }
+  .vt .vt-periode-dates { width: 100%; }
+  .vt .vt-periode-dates .vt-input { flex: 1; width: auto; min-width: 0; }
+}
+
+/* ---------- Numéro de ligne dans tous les tableaux ----------
+   Ajouté automatiquement en première colonne. Avec une pagination, le tbody reçoit
+   style={{ counterReset: `ligne ${debut}` }} pour continuer la numérotation (11, 12…).
+   Un tableau qui a déjà sa propre colonne « # » prend la classe vt-table--sans-num. */
+.vt .vt-table:not(.vt-table--sans-num) tbody,
+.vt .vt-mini-table tbody { counter-reset: ligne; }
+/* largeur des colonnes selon le contenu : la colonne N° ne doit rien écraser */
+.vt .vt-table:not(.vt-table--sans-num) { table-layout: auto; }
+.vt .vt-table:not(.vt-table--sans-num) thead tr::before,
+.vt .vt-mini-table thead tr::before {
+  content: "N°";
+  display: table-cell; vertical-align: middle;
+  width: 44px; padding: 0 4px 0 16px;
+  font-size: 12px; font-weight: 700; letter-spacing: 0.05em; color: var(--ink-3);
+  border-bottom: 1px solid var(--line);
+}
+.vt .vt-table:not(.vt-table--sans-num) thead tr::before { height: 40px; background: var(--sunken); }
+.vt .vt-table:not(.vt-table--sans-num) tbody tr:not(.vt-skel-row):not(.vt-row-groupe)::before,
+.vt .vt-mini-table tbody tr::before {
+  counter-increment: ligne;
+  content: counter(ligne);
+  display: table-cell; vertical-align: middle;
+  width: 44px; padding: 0 8px 0 16px;
+  color: var(--ink-3); font-size: 12.5px; font-variant-numeric: tabular-nums;
+  border-bottom: 1px solid var(--line);
+}
+.vt .vt-table:not(.vt-table--sans-num) tbody tr.vt-skel-row::before,
+.vt .vt-table:not(.vt-table--sans-num) tbody tr.vt-row-groupe::before { content: ""; display: table-cell; border-bottom: 1px solid var(--line); background: inherit; }
+.vt .vt-mini-table thead tr::before, .vt .vt-mini-table tbody tr::before { width: 32px; padding: 8px 6px 8px 10px; }
+.vt .vt-mini-table tbody tr:last-child::before,
+.vt .vt-table:not(.vt-table--sans-num) tbody tr:last-child::before { border-bottom: 0; }
+
+/* Colonne « N° » ajoutée à la main dans les tableaux hors style Ventes (employés, paiements…) */
+th.col-num, td.col-num { width: 48px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+td.col-num { color: var(--miyo-text-tertiary); font-size: 12.5px; }

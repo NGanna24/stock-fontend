@@ -1,365 +1,114 @@
 // components/StockSelector/StockInputWithSelector.jsx
-import React, { useState, useEffect, useRef, useMemo } from "react";
-import { createPortal } from "react-dom";
-import { ChevronDown, Box, Package, Info } from "lucide-react";
+// ------------------------------------------------------------
+// Saisie d'une quantité de stock dans plusieurs unités à la fois :
+//   [ 10 ] Carton ×12
+//   [  4 ] Pièce
+//   = 124 Pièces
+// Une case par unité (de la plus grande à l'unité de base). Le parent reçoit
+// toujours le total en UNITÉ DE BASE, sous la forme d'un faux événement
+// { target: { name, value } } comme un champ classique.
+// Avant : un seul champ + une liste pour choisir l'unité, impossible de saisir
+// « 10 cartons et 4 pièces » sans faire le calcul soi-même.
+// ------------------------------------------------------------
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./StockSelector.css";
 
-// ============================================================
-// Capitaliser la 1ère lettre
-// ============================================================
-const capitalize = (str) => {
-  if (!str) return str;
-  const s = String(str).trim();
-  if (!s) return s;
-  return s.charAt(0).toUpperCase() + s.slice(1);
+const capitalize = (s) => {
+  const t = String(s || "").trim();
+  return t ? t.charAt(0).toUpperCase() + t.slice(1) : t;
 };
 
-// ============================================================
-// Construire la liste complète des unités
-// ============================================================
-function buildUnitesList(unitesVente, uniteBase) {
-  const liste = [];
-
-  if (uniteBase?.nom) {
-    liste.push({
-      id_unite_vente: null,
-      nom: uniteBase.nom,
-      symbole: uniteBase.symbole || "",
-      quantite_base: 1,
-      is_base: true,
-    });
-  }
-
-  const perso = (unitesVente || [])
-    .filter((u) => u && u.nom)
-    .map((u) => ({
-      id_unite_vente: u.id_unite_vente,
-      nom: u.nom,
-      symbole: u.symbole || "",
-      quantite_base: parseFloat(u.quantite_base) || 1,
-      is_base: false,
-      est_principal: u.est_principal,
-    }))
-    .sort((a, b) => a.quantite_base - b.quantite_base);
-
-  return [...liste, ...perso];
+/** Unités de saisie, de la plus grande à l'unité de base (sans doublon de taille). */
+function unitesDeSaisie(unitesVente, uniteBase) {
+  const vues = new Set([1]);
+  const grandes = (unitesVente || [])
+    .filter((u) => u && u.nom && Number(u.quantite_base) > 1)
+    .map((u) => ({ cle: `u${u.id_unite_vente ?? u.nom}`, nom: u.nom, qb: Number(u.quantite_base) }))
+    .filter((u) => (vues.has(u.qb) ? false : vues.add(u.qb)))
+    .sort((a, b) => b.qb - a.qb);
+  return [...grandes, { cle: "base", nom: uniteBase?.nom || "Unité", qb: 1 }];
 }
 
-// ============================================================
-// LocalStorage
-// ============================================================
-const STORAGE_PREFIX = "stock_unit_form_";
-
-function getStoredUniteId(idProduit) {
-  try {
-    const raw = localStorage.getItem(`${STORAGE_PREFIX}${idProduit}`);
-    return raw === null ? null : JSON.parse(raw);
-  } catch {
-    return null;
-  }
+function decomposer(total, unites) {
+  let reste = Math.max(0, Number(total) || 0);
+  const parts = {};
+  unites.forEach((u, i) => {
+    const derniere = i === unites.length - 1;
+    const n = derniere ? Math.round(reste * 1000) / 1000 : Math.floor(reste / u.qb + 1e-9);
+    parts[u.cle] = n ? String(n) : "";
+    reste -= n * u.qb;
+  });
+  return parts;
 }
 
-function setStoredUniteId(idProduit, idUnite) {
-  try {
-    localStorage.setItem(
-      `${STORAGE_PREFIX}${idProduit}`,
-      JSON.stringify(idUnite)
-    );
-  } catch {
-    // silencieux
-  }
-}
+const totalDe = (parts, unites) => unites.reduce((s, u) => s + (parseFloat(String(parts[u.cle] || "").replace(",", ".")) || 0) * u.qb, 0);
+const estVide = (parts, unites) => unites.every((u) => !String(parts[u.cle] ?? "").trim());
+const arrondi = (n) => Math.round(n * 1000) / 1000;
 
-// ============================================================
-// Composant principal — Option B
-// Le champ contient la valeur DANS L'UNITÉ CHOISIE.
-// onChange remonte la valeur convertie en unité de base.
-// ============================================================
 const StockInputWithSelector = ({
   value,               // valeur en UNITÉ DE BASE (venant du parent)
-  onChange,            // (e) => parent met à jour formData
+  onChange,            // (e) => parent met à jour son formulaire
   name = "quantite_stock",
-  idProduit,
   unitesVente = [],
   uniteBase = null,
   disabled = false,
   placeholder = "0",
-  min = "0",
-  step = "1",
 }) => {
-  const unitesDisponibles = useMemo(
-    () => buildUnitesList(unitesVente, uniteBase),
-    [unitesVente, uniteBase]
-  );
+  const unites = useMemo(() => unitesDeSaisie(unitesVente, uniteBase), [unitesVente, uniteBase]);
+  const [parts, setParts] = useState(() => (Number(value) ? decomposer(value, unites) : {}));
+  const dernierEnvoi = useRef(null);
 
-  const hasMultipleUnites = unitesDisponibles.length > 1;
-
-  // Unité choisie
-  const [selectedUniteId, setSelectedUniteId] = useState(() => {
-    const stored = getStoredUniteId(idProduit);
-    if (
-      stored !== null &&
-      unitesDisponibles.some((u) => u.id_unite_vente === stored)
-    ) {
-      return stored;
-    }
-    const principale = unitesDisponibles.find((u) => u.est_principal);
-    return principale ? principale.id_unite_vente : null;
-  });
-
+  // Valeur changée par le parent (ouverture d'une fiche, autre produit) ou unités modifiées :
+  // on redécompose, sauf si c'est la valeur qu'on vient nous-mêmes d'envoyer.
+  const signature = unites.map((u) => `${u.cle}:${u.qb}`).join("|");
+  const signaturePrec = useRef(signature);
   useEffect(() => {
-    if (
-      selectedUniteId !== null &&
-      !unitesDisponibles.some((u) => u.id_unite_vente === selectedUniteId)
-    ) {
-      setSelectedUniteId(null);
-      setStoredUniteId(idProduit, null);
-    }
-  }, [unitesDisponibles, selectedUniteId, idProduit]);
+    const v = value === "" || value === null || value === undefined ? "" : String(arrondi(Number(value) || 0));
+    const memesUnites = signaturePrec.current === signature;
+    signaturePrec.current = signature;
+    if (memesUnites && v === dernierEnvoi.current) return;
+    dernierEnvoi.current = null;
+    setParts(v === "" || Number(v) === 0 ? {} : decomposer(v, unites));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, signature]);
 
-  const selectedUnite = useMemo(() => {
-    return (
-      unitesDisponibles.find((u) => u.id_unite_vente === selectedUniteId) ||
-      unitesDisponibles[0] ||
-      null
-    );
-  }, [unitesDisponibles, selectedUniteId]);
-
-  const qb = parseFloat(selectedUnite?.quantite_base) || 1;
-
-  // ============================================================
-  // Valeur AFFICHÉE dans le champ = valeur base ÷ quantite_base
-  // Ex : base=36, unité=Carton(qb=12) → affiche 3
-  // ============================================================
-  const [inputValue, setInputValue] = useState(() => {
-    const base = parseFloat(value) || 0;
-    if (base === 0) return "";
-    const converted = base / qb;
-    // Arrondi propre si entier, sinon 2 décimales
-    return Number.isInteger(converted)
-      ? String(converted)
-      : converted.toFixed(2);
-  });
-
-  // Quand `value` change (ex: ouverture édition), recalculer l'affichage
-  useEffect(() => {
-    const base = parseFloat(value) || 0;
-    if (base === 0) {
-      setInputValue("");
-      return;
-    }
-    const converted = base / qb;
-    setInputValue(
-      Number.isInteger(converted) ? String(converted) : converted.toFixed(2)
-    );
-  }, [value, qb]);
-
-  // Quand l'unité change, il faut recalculer la valeur affichée
-  // mais SANS toucher au `value` du parent
-  const handleUniteChange = (unite) => {
-    setSelectedUniteId(unite.id_unite_vente);
-    setStoredUniteId(idProduit, unite.id_unite_vente);
-
-    // Recalculer l'affichage avec la nouvelle unité
-    const newQb = parseFloat(unite.quantite_base) || 1;
-    const base = parseFloat(value) || 0;
-    if (base === 0) {
-      setInputValue("");
-    } else {
-      const converted = base / newQb;
-      setInputValue(
-        Number.isInteger(converted) ? String(converted) : converted.toFixed(2)
-      );
-    }
+  const changer = (cle, brut) => {
+    const propre = String(brut).replace(/[^0-9.,]/g, "");
+    const p = { ...parts, [cle]: propre };
+    setParts(p);
+    const v = estVide(p, unites) ? "" : String(arrondi(totalDe(p, unites)));
+    dernierEnvoi.current = v;
+    onChange?.({ target: { name, value: v } });
   };
 
-  // ============================================================
-  // Changement de saisie : on remonte au parent la valeur CONVERTIE
-  // ============================================================
-  const handleInputChange = (e) => {
-    const raw = e.target.value;
-    setInputValue(raw);
-
-    // Convertir en unité de base
-    const nb = parseFloat(raw) || 0;
-    const base = nb * qb;
-
-    // On simule un event pour le parent
-    if (onChange) {
-      onChange({
-        target: {
-          name,
-          value: String(base),
-        },
-      });
-    }
-  };
-
-  // ============================================================
-  // Dropdown
-  // ============================================================
-  const [open, setOpen] = useState(false);
-  const triggerRef = useRef(null);
-  const menuRef = useRef(null);
-  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
-
-  useEffect(() => {
-    if (!open || !triggerRef.current) return;
-
-    const updatePosition = () => {
-      const rect = triggerRef.current.getBoundingClientRect();
-      const menuHeight = menuRef.current?.offsetHeight || 200;
-      const viewportHeight = window.innerHeight;
-      const viewportWidth = window.innerWidth;
-
-      const spaceBelow = viewportHeight - rect.bottom;
-      const showAbove = spaceBelow < menuHeight + 20 && rect.top > spaceBelow;
-
-      let top = showAbove ? rect.top - menuHeight - 4 : rect.bottom + 4;
-      let left = rect.right - 180;
-      const width = 180;
-
-      if (left < 8) left = 8;
-      if (left + width > viewportWidth - 8) {
-        left = viewportWidth - width - 8;
-      }
-
-      setCoords({ top, left, width });
-    };
-
-    requestAnimationFrame(updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
-
-    return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
-    };
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-
-    const handleClickOutside = (e) => {
-      if (
-        menuRef.current &&
-        !menuRef.current.contains(e.target) &&
-        triggerRef.current &&
-        !triggerRef.current.contains(e.target)
-      ) {
-        setOpen(false);
-      }
-    };
-    const handleEscape = (e) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleEscape);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleEscape);
-    };
-  }, [open]);
-
-  // ============================================================
-  // Rendu
-  // ============================================================
-  const baseValue = parseFloat(value) || 0;
+  const total = totalDe(parts, unites);
+  const plusieurs = unites.length > 1;
+  const nomBase = capitalize(uniteBase?.nom || "Unité");
 
   return (
-    <div className="stock-input-with-selector">
-      <div className="stock-input-row">
-        <input
-          type="number"
-          name={name}
-          value={inputValue}
-          onChange={handleInputChange}
-          placeholder={placeholder}
-          step={step}
-          min={min}
-          disabled={disabled}
-          className="stock-input-field"
-        />
-
-        {hasMultipleUnites && (
-          <span ref={triggerRef} className="stock-unite-trigger-wrapper">
-            <button
-              type="button"
-              className={`stock-unite-trigger ${open ? "open" : ""}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                setOpen((v) => !v);
-              }}
-              disabled={disabled}
-              title="Changer l'unité de saisie"
-            >
-              <span>{capitalize(selectedUnite?.nom || "Unité")}</span>
-              <ChevronDown size={12} />
-            </button>
+    <div className="siu">
+      {unites.map((u, i) => (
+        <label key={u.cle} className="siu-ligne">
+          <input
+            type="text"
+            inputMode="decimal"
+            name={i === 0 ? name : undefined}
+            className="siu-champ"
+            value={parts[u.cle] ?? ""}
+            onChange={(e) => changer(u.cle, e.target.value)}
+            placeholder={i === unites.length - 1 || !plusieurs ? placeholder : "0"}
+            disabled={disabled}
+            aria-label={`Nombre de ${u.nom}`}
+          />
+          <span className="siu-unite">
+            {capitalize(u.nom)}
+            {u.qb > 1 && <small> ×{u.qb}</small>}
           </span>
-        )}
-
-        {!hasMultipleUnites && uniteBase?.nom && (
-          <span className="stock-unite-static-label">
-            {capitalize(uniteBase.nom)}
-          </span>
-        )}
-      </div>
-
-      {/* Aperçu : valeur convertie en unité de base */}
-      {baseValue > 0 && (
-        <small className="stock-preview">
-          <Info size={11} />
-          <span>
-            = {baseValue} {capitalize(uniteBase?.nom || "Unité")}
-          </span>
-        </small>
+        </label>
+      ))}
+      {plusieurs && total > 0 && (
+        <small className="siu-total">= {arrondi(total)} {nomBase}</small>
       )}
-
-      {/* Dropdown portal */}
-      {open &&
-        hasMultipleUnites &&
-        createPortal(
-          <div
-            ref={menuRef}
-            className="stock-unite-menu"
-            style={{
-              position: "fixed",
-              top: `${coords.top}px`,
-              left: `${coords.left}px`,
-              minWidth: `${coords.width}px`,
-              zIndex: 10000,
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {unitesDisponibles.map((unite) => (
-              <button
-                key={unite.id_unite_vente ?? `base-${unite.nom}`}
-                type="button"
-                className={`stock-unite-menu-item ${
-                  unite.id_unite_vente === selectedUniteId ? "active" : ""
-                }`}
-                onClick={() => {
-                  handleUniteChange(unite);
-                  setOpen(false);
-                }}
-              >
-                <span className="unite-menu-name">
-                  {unite.is_base && <Package size={12} />}
-                  {!unite.is_base && <Box size={12} />}
-                  {capitalize(unite.nom)}
-                </span>
-                {unite.quantite_base > 1 && (
-                  <span className="unite-menu-base">
-                    × {unite.quantite_base}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>,
-          document.body
-        )}
     </div>
   );
 };

@@ -1,318 +1,168 @@
-// pages/Alertes/Alertes.jsx
+// pages/Alertes/Alertes.jsx — produits en rupture, en stock bas ou en surstock, au style Ventes
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import {
-    AlertTriangle, AlertCircle, TrendingDown, TrendingUp,
-    Download, RefreshCw, Package, Search, X, Truck,
-    CheckCircle, Phone, Mail, Banknote, Boxes, Bell
-} from "lucide-react";
-import {
-    ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
-    Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend
-} from 'recharts';
+import { AlertCircle, Download, RefreshCw, CheckCircle, Phone, Mail, Truck, SearchX } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from "recharts";
 import AlerteService from "../../services/alerteService";
 import { useUser } from "../../context/AuthContext";
 import StockSelector from "../../components/StockSelector/StockSelector";
+import { Page, PageHead, Overview, Stage, SearchBox, Badge, ErrorBar, Empty, SkeletonRows, Pager, usePagination, useToast, Toast, fcfa, sansAccents, pluriel, Carte } from "../../components/UI/Vt";
 import "./Alertes.css";
 
-// ========== FORMATAGE ==========
-const formatMontant = (value) => {
-    const num = parseFloat(value) || 0;
-    return Math.round(num).toLocaleString('fr-FR') + ' FCFA';
+
+const TYPES = {
+    rupture:   { label: "Rupture", tone: "bad" },
+    stock_bas: { label: "Stock bas", tone: "warn" },
+    surstock:  { label: "Surstock", tone: "info" },
 };
 
-// ========== CONFIG TYPES D'ALERTES ==========
-const TYPES_ALERTES = {
-    rupture: {
-        label: 'Rupture',
-        icon: AlertCircle,
-        color: '#ef4444',
-        bg: '#fef2f2',
-        text: '#991b1b',
-        cls: 'type-rupture'
-    },
-    stock_bas: {
-        label: 'Stock bas',
-        icon: TrendingDown,
-        color: '#f59e0b',
-        bg: '#fffbeb',
-        text: '#92400e',
-        cls: 'type-stock-bas'
-    },
-    surstock: {
-        label: 'Surstock',
-        icon: TrendingUp,
-        color: '#8b5cf6',
-        bg: '#f5f3ff',
-        text: '#5b21b6',
-        cls: 'type-surstock'
-    }
-};
+const Qte = ({ a, valeur, id }) => (
+    <StockSelector idProduit={id} stockBase={valeur} unitesVente={a.unites_vente || []}
+                   uniteBase={{ nom: a.unite_nom, symbole: a.unite_symbole }}
+                   isRupture={a.type_alerte === "rupture" && id.startsWith("al-st")} variant="list" />
+);
 
 const Alertes = () => {
     const { isAuthenticated } = useUser();
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
 
-    // ========== ÉTATS ==========
-    const [loading, setLoading] = useState(false);
+    const [loading, setLoading] = useState(!!token);
     const [error, setError] = useState(null);
     const [data, setData] = useState(null);
-    const [activeTab, setActiveTab] = useState("toutes");
+    const [onglet, setOnglet] = useState("toutes"); // toutes | rupture | stock_bas | surstock | fournisseurs
     const [searchTerm, setSearchTerm] = useState("");
-    const [filterType, setFilterType] = useState("all");
+    const [toast, showToast, closeToast] = useToast();
 
-    // ========== CHARGEMENT ==========
     const loadAlertes = useCallback(async () => {
         if (!token) return;
-
         setLoading(true);
         setError(null);
-
         try {
             const res = await AlerteService.getAllAlertes(token);
-            if (res.success) {
-                setData(res.data);
-            } else {
-                setError(res.message || 'Erreur lors du chargement');
-            }
+            if (res.success) setData(res.data);
+            else setError(res.message || "Erreur lors du chargement");
         } catch (e) {
-            console.error('❌ loadAlertes error:', e);
-            setError(e.message || 'Erreur lors du chargement');
+            setError(e.message || "Erreur lors du chargement");
         } finally {
             setLoading(false);
         }
     }, [token]);
 
-    useEffect(() => {
-        if (isAuthenticated && token) {
-            loadAlertes();
-        }
-    }, [isAuthenticated, token, loadAlertes]);
+    useEffect(() => { if (isAuthenticated && token) loadAlertes(); }, [isAuthenticated, token, loadAlertes]);
 
-    // ========== EXPORT ==========
     const handleExport = async () => {
         try {
             const response = await AlerteService.exportAlertes(token);
-            const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
+            const blob = new Blob([response.data], { type: "text/csv;charset=utf-8;" });
             const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
+            const link = document.createElement("a");
             link.href = url;
-            link.download = `alertes_stock_${new Date().toISOString().split('T')[0]}.csv`;
+            link.download = `alertes_stock_${new Date().toISOString().split("T")[0]}.csv`;
             link.click();
             URL.revokeObjectURL(url);
         } catch (e) {
-            console.error('❌ Export error:', e);
-            alert('Erreur lors de l\'exportation');
+            showToast("Erreur lors de l'export", "error");
         }
     };
 
-    // ========== DONNÉES ==========
-    const stats = data?.stats || {
-        total_alertes: 0,
-        total_rupture: 0,
-        total_stock_bas: 0,
-        total_surstock: 0,
-        valeur_reapprovisionnement: 0
-    };
-
-    const alertes = data?.alertes || [];
+    const stats = data?.stats || { total_alertes: 0, total_rupture: 0, total_stock_bas: 0, total_surstock: 0, valeur_reapprovisionnement: 0 };
+    const alertes = useMemo(() => data?.alertes || [], [data]);
     const parCategorie = data?.par_categorie || [];
     const parFournisseur = data?.par_fournisseur || [];
-    const ruptures = data?.ruptures || [];
-    const stockBas = data?.stock_bas || [];
-
-    // ========== FILTRAGE ==========
-    const alertesFiltrees = useMemo(() => {
-        let result = alertes;
-
-        if (activeTab === 'rupture') {
-            result = result.filter(a => a.type_alerte === 'rupture');
-        } else if (activeTab === 'stock_bas') {
-            result = result.filter(a => a.type_alerte === 'stock_bas');
-        } else if (activeTab === 'surstock') {
-            result = result.filter(a => a.type_alerte === 'surstock');
-        }
-
-        if (searchTerm) {
-            const term = searchTerm.toLowerCase();
-            result = result.filter(a =>
-                a.produit_nom?.toLowerCase().includes(term) ||
-                a.categorie_nom?.toLowerCase().includes(term) ||
-                a.marque_nom?.toLowerCase().includes(term) ||
-                a.fournisseur_nom?.toLowerCase().includes(term)
-            );
-        }
-
-        return result;
-    }, [alertes, activeTab, searchTerm]);
-
-    // ========== DONNÉES POUR PIE CHART ==========
     const pieData = [
         { name: 'Rupture', value: stats.total_rupture, color: '#ef4444' },
         { name: 'Stock bas', value: stats.total_stock_bas, color: '#f59e0b' },
         { name: 'Surstock', value: stats.total_surstock, color: '#8b5cf6' }
     ].filter(d => d.value > 0);
 
-    // ========== LOADER ==========
-    if (loading && !data) {
-        return (
-            <div className="alertes-loading">
-                <div className="spinner"></div>
-                <p>Chargement des alertes...</p>
-            </div>
-        );
-    }
+    const filtrees = useMemo(() => {
+        const q = sansAccents(searchTerm.trim());
+        return alertes.filter((a) => {
+            if (["rupture", "stock_bas", "surstock"].includes(onglet) && a.type_alerte !== onglet) return false;
+            if (q && !sansAccents([a.produit_nom, a.categorie_nom, a.marque_nom, a.fournisseur_nom].filter(Boolean).join(" ")).includes(q)) return false;
+            return true;
+        });
+    }, [alertes, onglet, searchTerm]);
 
-    // ========== ERREUR ==========
-    if (error && !data) {
-        return (
-            <div className="alertes-error">
-                <p>{error}</p>
-                <button className="btn btn-primary" onClick={loadAlertes}>
-                    <RefreshCw size={16} /> Réessayer
-                </button>
-            </div>
-        );
-    }
+    const { page, nbPages, setPage, numeros, visibles } = usePagination(filtrees, 20, [onglet, searchTerm]);
+
+    const ETAPES = [
+        { value: "toutes", label: "Toutes les alertes", count: alertes.length, tone: "all" },
+        { value: "rupture", label: "Ruptures", count: stats.total_rupture, tone: "bad" },
+        { value: "stock_bas", label: "Stock bas", count: stats.total_stock_bas, tone: "warn" },
+        { value: "surstock", label: "Surstock", count: stats.total_surstock, tone: "info" },
+        { value: "fournisseurs", label: "Par fournisseur", count: parFournisseur.length, tone: "muted", apart: true },
+    ];
 
     return (
-        <div className="alertes-container">
-            {/* ==================== EN-TÊTE ==================== */}
-            <div className="alertes-header">
-                <div>
-                    <h1 className="alertes-title">
-                        <Bell size={28} />
-                        Alertes de Stock
-                    </h1>
-                    <p className="alertes-subtitle">
-                        {stats.total_alertes} alerte(s) nécessitant votre attention
-                    </p>
-                </div>
-                <div className="alertes-actions">
-                    <button className="btn btn-secondary" onClick={handleExport}>
-                        <Download size={18} />
-                        <span>Exporter CSV</span>
-                    </button>
-                    <button
-                        className="btn btn-secondary"
-                        onClick={loadAlertes}
-                        disabled={loading}
-                    >
-                        <RefreshCw size={18} className={loading ? 'spinning' : ''} />
-                    </button>
-                </div>
-            </div>
+        <Page className="al">
+            <PageHead title="Alertes de stock" sub="Les produits à commander avant d'en manquer, et ceux que vous avez en trop">
+                <button type="button" className="vt-btn vt-btn--icon" onClick={loadAlertes} disabled={loading}
+                        aria-label="Rafraîchir" title="Rafraîchir">
+                    <RefreshCw size={16} className={loading ? "vt-spin" : ""} />
+                </button>
+                <button type="button" className="vt-btn" onClick={handleExport}>
+                    <Download size={16} /> Exporter
+                </button>
+            </PageHead>
 
-            {/* ==================== BANNIÈRE CRITIQUE ==================== */}
-            {stats.total_rupture > 0 && (
-                <div className="alert-banner critical">
-                    <AlertCircle size={24} />
-                    <div className="alert-banner-content">
-                        <strong>Attention : {stats.total_rupture} produit(s) en rupture de stock</strong>
-                        <span>Ces produits ne peuvent plus être vendus. Commandez-les rapidement.</span>
-                    </div>
-                    <button
-                        className="alert-banner-btn"
-                        onClick={() => setActiveTab('rupture')}
-                    >
-                        Voir les ruptures
-                    </button>
+            <Overview label="À commander" value={fcfa(stats.valeur_reapprovisionnement)}
+                      note={stats.total_rupture + stats.total_stock_bas > 0
+                          ? `Coût estimé pour ${pluriel(stats.total_rupture + stats.total_stock_bas, "produit")} en rupture ou en stock bas`
+                          : "Aucun produit à commander"}>
+                {ETAPES.map((e) => (
+                    <Stage key={e.value} count={e.count} label={e.label} tone={e.tone} apart={e.apart}
+                           pressed={onglet === e.value}
+                           onClick={() => setOnglet(onglet === e.value ? "toutes" : e.value)} />
+                ))}
+            </Overview>
+
+            {stats.total_rupture > 0 && onglet !== "rupture" && (
+                <div className="vt-banner" data-s="bad">
+                    <AlertCircle size={16} />
+                    <span>
+                        <strong>{pluriel(stats.total_rupture, "produit")} en rupture :</strong> ils ne peuvent plus être vendus.{" "}
+                        <button type="button" className="vt-link" onClick={() => setOnglet("rupture")}>Voir les ruptures</button>
+                    </span>
                 </div>
             )}
 
-            {/* ==================== KPIs ==================== */}
-            <div className="kpi-grid">
-                <div className="kpi-card kpi-critical">
-                    <div className="kpi-icon kpi-red">
-                        <AlertCircle size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">Ruptures</span>
-                        <span className="kpi-value">{stats.total_rupture}</span>
-                        <span className="kpi-sub">À commander d'urgence</span>
-                    </div>
-                </div>
+            {error && !loading && <ErrorBar message={error} onRetry={loadAlertes} />}
 
-                <div className="kpi-card kpi-warning">
-                    <div className="kpi-icon kpi-orange">
-                        <TrendingDown size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">Stock bas</span>
-                        <span className="kpi-value">{stats.total_stock_bas}</span>
-                        <span className="kpi-sub">Sous le seuil minimum</span>
-                    </div>
-                </div>
-
-                <div className="kpi-card">
-                    <div className="kpi-icon kpi-purple">
-                        <TrendingUp size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">Surstock</span>
-                        <span className="kpi-value">{stats.total_surstock}</span>
-                        <span className="kpi-sub">Stock excessif</span>
-                    </div>
-                </div>
-
-                <div className="kpi-card kpi-highlight">
-                    <div className="kpi-icon kpi-blue">
-                        <Banknote size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">Réapprovisionnement</span>
-                        <span className="kpi-value">{formatMontant(stats.valeur_reapprovisionnement)}</span>
-                        <span className="kpi-sub">Coût estimé</span>
-                    </div>
-                </div>
-            </div>
-
-            {/* ==================== ONGLETS ==================== */}
-            <div className="alertes-tabs">
-                <button
-                    className={`tab ${activeTab === 'toutes' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('toutes')}
-                >
-                    <Package size={16} /> Toutes ({alertes.length})
-                </button>
-                <button
-                    className={`tab ${activeTab === 'rupture' ? 'active' : ''} tab-danger`}
-                    onClick={() => setActiveTab('rupture')}
-                >
-                    <AlertCircle size={16} /> Ruptures ({stats.total_rupture})
-                </button>
-                <button
-                    className={`tab ${activeTab === 'stock_bas' ? 'active' : ''} tab-warning`}
-                    onClick={() => setActiveTab('stock_bas')}
-                >
-                    <TrendingDown size={16} /> Stock bas ({stats.total_stock_bas})
-                </button>
-                <button
-                    className={`tab ${activeTab === 'surstock' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('surstock')}
-                >
-                    <TrendingUp size={16} /> Surstock ({stats.total_surstock})
-                </button>
-                <button
-                    className={`tab ${activeTab === 'fournisseurs' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('fournisseurs')}
-                >
-                    <Truck size={16} /> Par fournisseur ({parFournisseur.length})
-                </button>
-            </div>
-
-            {/* ==================== CONTENU ==================== */}
-            <div className="alertes-content">
-
-                {/* ✅ ONGLET TOUTES / RUPTURES / STOCK BAS / SURSTOCK */}
-                {['toutes', 'rupture', 'stock_bas', 'surstock'].includes(activeTab) && (
-                    <>
-                        {activeTab === 'toutes' && (parCategorie.length > 0 || pieData.length > 0) && (
-                            <div className="charts-grid">
-                                <div className="chart-card">
-                                    <div className="chart-header">
-                                        <h3>Répartition par type</h3>
+            {onglet === "fournisseurs" ? (
+                <div className="al-fournisseurs">
+                    {parFournisseur.length === 0 && !loading ? (
+                        <div className="vt-table-wrap"><Empty icon={CheckCircle} title="Aucune commande à prévoir" text="Aucun fournisseur n'a de produit en rupture ou en stock bas." /></div>
+                    ) : parFournisseur.map((f) => (
+                        <article key={f.id_fournisseur || "aucun"} className="vt-card al-four">
+                            <div className="al-four-head">
+                                <div className="al-four-nom">
+                                    <Truck size={18} />
+                                    <div>
+                                        <h2>{f.fournisseur_nom || "Sans fournisseur"}</h2>
+                                        <div className="vt-cell-sub al-contacts">
+                                            {f.fournisseur_telephone && <a href={`tel:${f.fournisseur_telephone}`}><Phone size={12} /> {f.fournisseur_telephone}</a>}
+                                            {f.fournisseur_email && <a href={`mailto:${f.fournisseur_email}`}><Mail size={12} /> {f.fournisseur_email}</a>}
+                                        </div>
                                     </div>
-                                    <div className="chart-body">
+                                </div>
+                                <div className="al-four-total">
+                                    <span className="vt-label">À commander</span>
+                                    <strong className="vt-num">{fcfa(f.valeur_a_commander)}</strong>
+                                </div>
+                            </div>
+                            <div className="al-four-tags">
+                                <span className="vt-tag" data-s="muted">{pluriel(f.nombre_alertes, "alerte")}</span>
+                                {f.ruptures > 0 && <span className="vt-tag" data-s="bad">{pluriel(f.ruptures, "rupture")}</span>}
+                                {f.stocks_bas > 0 && <span className="vt-tag" data-s="warn">{f.stocks_bas} en stock bas</span>}
+                            </div>
+                        </article>
+                    ))}
+                </div>
+            ) : (
+                <>
+                    {onglet === "toutes" && (parCategorie.length > 0 || pieData.length > 0) && (
+                        <div className="vt-grille-2">
+                            <Carte titre="Répartition par type">
                                         {pieData.length > 0 ? (
                                             <ResponsiveContainer width="100%" height={280}>
                                                 <PieChart>
@@ -340,14 +190,9 @@ const Alertes = () => {
                                                 <p>Aucune alerte</p>
                                             </div>
                                         )}
-                                    </div>
-                                </div>
-
-                                <div className="chart-card">
-                                    <div className="chart-header">
-                                        <h3>Alertes par catégorie</h3>
-                                    </div>
-                                    <div className="chart-body">
+                                    
+</Carte>
+                            <Carte titre="Alertes par catégorie">
                                         {parCategorie.length > 0 ? (
                                             <ResponsiveContainer width="100%" height={280}>
                                                 <BarChart data={parCategorie.slice(0, 8)}>
@@ -372,236 +217,78 @@ const Alertes = () => {
                                                 <p>Aucune alerte par catégorie</p>
                                             </div>
                                         )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Barre de recherche */}
-                        <div className="alertes-search">
-                            <Search size={18} />
-                            <input
-                                type="text"
-                                placeholder="Rechercher un produit, une catégorie, un fournisseur..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                            {searchTerm && (
-                                <button
-                                    className="search-clear"
-                                    onClick={() => setSearchTerm("")}
-                                >
-                                    <X size={16} />
-                                </button>
-                            )}
+                                    
+</Carte>
                         </div>
+                    )}
 
-                        {/* Liste des alertes */}
-                        {alertesFiltrees.length > 0 ? (
-                            <div className="alertes-list">
-                                {alertesFiltrees.map((alerte) => {
-                                    const config = TYPES_ALERTES[alerte.type_alerte] || TYPES_ALERTES.stock_bas;
-                                    const Icon = config.icon;
+                    <div className="vt-toolbar">
+                        <SearchBox value={searchTerm} onChange={setSearchTerm} placeholder="Produit, catégorie, marque ou fournisseur"
+                                   label="Rechercher une alerte" />
+                        <span className="vt-count">{pluriel(filtrees.length, "produit")}</span>
+                    </div>
 
-                                    return (
-                                        <div
-                                            key={alerte.id_produit}
-                                            className={`alerte-card ${config.cls}`}
-                                        >
-                                            <div className="alerte-icon" style={{ background: config.bg, color: config.color }}>
-                                                <Icon size={22} />
-                                            </div>
-
-                                            <div className="alerte-content">
-                                                <div className="alerte-header">
-                                                    <div>
-                                                        <h4 className="alerte-produit">{alerte.produit_nom}</h4>
-                                                        <div className="alerte-meta">
-                                                            {alerte.categorie_nom && <span>{alerte.categorie_nom}</span>}
-                                                            {alerte.marque_nom && <span>• {alerte.marque_nom}</span>}
-                                                        </div>
-                                                    </div>
-                                                    <span className={`alerte-badge ${config.cls}`}>
-                                                        {config.label}
-                                                    </span>
-                                                </div>
-
-                                                <div className="alerte-stock-info">
-                                                    {/* ✅ Stock actuel via StockSelector */}
-                                                    <div className="stock-info-item">
-                                                        <span className="stock-info-label">Stock actuel</span>
-                                                        <span className="stock-info-value" style={{ color: config.color }}>
-                                                            <StockSelector
-                                                                idProduit={`alerte-stock-${alerte.id_produit}`}
-                                                                stockBase={alerte.quantite_stock}
-                                                                unitesVente={alerte.unites_vente || []}
-                                                                uniteBase={{
-                                                                    nom: alerte.unite_nom,
-                                                                    symbole: alerte.unite_symbole,
-                                                                }}
-                                                                isRupture={alerte.type_alerte === 'rupture'}
-                                                                variant="list"
-                                                            />
-                                                        </span>
-                                                    </div>
-
-                                                    {/* ✅ Stock min via StockSelector */}
-                                                    <div className="stock-info-item">
-                                                        <span className="stock-info-label">Stock min</span>
-                                                        <span className="stock-info-value">
-                                                            <StockSelector
-                                                                idProduit={`alerte-min-${alerte.id_produit}`}
-                                                                stockBase={alerte.quantite_minimale}
-                                                                unitesVente={alerte.unites_vente || []}
-                                                                uniteBase={{
-                                                                    nom: alerte.unite_nom,
-                                                                    symbole: alerte.unite_symbole,
-                                                                }}
-                                                                variant="list"
-                                                            />
-                                                        </span>
-                                                    </div>
-
-                                                    {/* ✅ Stock max via StockSelector */}
-                                                    {alerte.quantite_maximale > 0 && (
-                                                        <div className="stock-info-item">
-                                                            <span className="stock-info-label">Stock max</span>
-                                                            <span className="stock-info-value">
-                                                                <StockSelector
-                                                                    idProduit={`alerte-max-${alerte.id_produit}`}
-                                                                    stockBase={alerte.quantite_maximale}
-                                                                    unitesVente={alerte.unites_vente || []}
-                                                                    uniteBase={{
-                                                                        nom: alerte.unite_nom,
-                                                                        symbole: alerte.unite_symbole,
-                                                                    }}
-                                                                    variant="list"
-                                                                />
-                                                            </span>
-                                                        </div>
-                                                    )}
-
-                                                    {/* ✅ À commander via StockSelector */}
-                                                    {(alerte.type_alerte === 'rupture' || alerte.type_alerte === 'stock_bas') && (
+                    <div className="vt-table-wrap" aria-busy={loading || undefined}>
+                        {loading && data && <div className="vt-busybar" />}
+                        <table className="vt-table al-table">
+                            <thead>
+                                <tr>
+                                    <th>Produit</th>
+                                    <th>Alerte</th>
+                                    <th>En stock</th>
+                                    <th className="al-hide">Seuil min.</th>
+                                    <th>À commander</th>
+                                    <th className="vt-th-right al-hide-sm">Coût estimé</th>
+                                    <th className="al-hide">Fournisseur</th>
+                                </tr>
+                            </thead>
+                            <tbody style={numeros}>
+                                {loading && !data
+                                    ? <SkeletonRows cols={7} widths={[65, 40, 40, 40, 40, 45, 55]} />
+                                    : visibles.map((a) => {
+                                        const t = TYPES[a.type_alerte] || TYPES.stock_bas;
+                                        const aCommander = a.type_alerte === "rupture" || a.type_alerte === "stock_bas";
+                                        return (
+                                            <tr key={a.id_produit}>
+                                                <td>
+                                                    <div className="vt-cell-main vt-cell-main--plain">{a.produit_nom}</div>
+                                                    <div className="vt-cell-sub">{[a.categorie_nom, a.marque_nom].filter(Boolean).join(" · ") || " "}</div>
+                                                </td>
+                                                <td><Badge tone={t.tone}>{t.label}</Badge></td>
+                                                <td><Qte a={a} valeur={a.quantite_stock} id={`al-st-${a.id_produit}`} /></td>
+                                                <td className="al-hide">
+                                                    {a.type_alerte === "surstock" && a.quantite_maximale > 0
+                                                        ? <span className="al-max">max. <Qte a={a} valeur={a.quantite_maximale} id={`al-max-${a.id_produit}`} /></span>
+                                                        : <Qte a={a} valeur={a.quantite_minimale} id={`al-min-${a.id_produit}`} />}
+                                                </td>
+                                                <td>{aCommander ? <Qte a={a} valeur={a.quantite_a_commander} id={`al-cmd-${a.id_produit}`} /> : <span className="vt-muted">-</span>}</td>
+                                                <td className="vt-td-right vt-num al-hide-sm">{aCommander ? fcfa(a.valeur_manque) : <span className="vt-muted">-</span>}</td>
+                                                <td className="al-hide">
+                                                    {a.fournisseur_nom ? (
                                                         <>
-                                                            <div className="stock-info-item highlight">
-                                                                <span className="stock-info-label">À commander</span>
-                                                                <span className="stock-info-value">
-                                                                    <StockSelector
-                                                                        idProduit={`alerte-cmd-${alerte.id_produit}`}
-                                                                        stockBase={alerte.quantite_a_commander}
-                                                                        unitesVente={alerte.unites_vente || []}
-                                                                        uniteBase={{
-                                                                            nom: alerte.unite_nom,
-                                                                            symbole: alerte.unite_symbole,
-                                                                        }}
-                                                                        variant="list"
-                                                                    />
-                                                                </span>
-                                                            </div>
-                                                            <div className="stock-info-item highlight">
-                                                                <span className="stock-info-label">Coût estimé</span>
-                                                                <span className="stock-info-value">
-                                                                    {formatMontant(alerte.valeur_manque)}
-                                                                </span>
-                                                            </div>
+                                                            <div>{a.fournisseur_nom}</div>
+                                                            {a.fournisseur_telephone && <a className="vt-cell-sub al-tel" href={`tel:${a.fournisseur_telephone}`}>{a.fournisseur_telephone}</a>}
                                                         </>
-                                                    )}
-                                                </div>
-
-                                                {alerte.fournisseur_nom && (
-                                                    <div className="alerte-fournisseur">
-                                                        <Truck size={14} />
-                                                        <span>{alerte.fournisseur_nom}</span>
-                                                        {alerte.fournisseur_telephone && (
-                                                            <>
-                                                                <Phone size={12} />
-                                                                <span>{alerte.fournisseur_telephone}</span>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        ) : (
-                            <div className="empty-state-full">
-                                <CheckCircle size={64} />
-                                <h3>Aucune alerte</h3>
-                                <p>
-                                    {searchTerm
-                                        ? 'Aucun résultat pour votre recherche'
-                                        : 'Votre stock est bien géré !'}
-                                </p>
-                            </div>
-                        )}
-                    </>
-                )}
-
-                {/* ✅ ONGLET FOURNISSEURS */}
-                {activeTab === 'fournisseurs' && (
-                    <div className="fournisseurs-alertes">
-                        {parFournisseur.length > 0 ? (
-                            parFournisseur.map((f) => (
-                                <div key={f.id_fournisseur || 'none'} className="fournisseur-card">
-                                    <div className="fournisseur-header">
-                                        <div className="fournisseur-info">
-                                            <div className="fournisseur-icon">
-                                                <Truck size={24} />
-                                            </div>
-                                            <div>
-                                                <h4>{f.fournisseur_nom}</h4>
-                                                <div className="fournisseur-contacts">
-                                                    {f.fournisseur_telephone && (
-                                                        <span>
-                                                            <Phone size={12} />
-                                                            {f.fournisseur_telephone}
-                                                        </span>
-                                                    )}
-                                                    {f.fournisseur_email && (
-                                                        <span>
-                                                            <Mail size={12} />
-                                                            {f.fournisseur_email}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="fournisseur-stats">
-                                            <div className="fournisseur-stat">
-                                                <span className="stat-value">{f.nombre_alertes}</span>
-                                                <span className="stat-label">Alertes</span>
-                                            </div>
-                                            <div className="fournisseur-stat danger">
-                                                <span className="stat-value">{f.ruptures}</span>
-                                                <span className="stat-label">Ruptures</span>
-                                            </div>
-                                            <div className="fournisseur-stat warning">
-                                                <span className="stat-value">{f.stocks_bas}</span>
-                                                <span className="stat-label">Stock bas</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="fournisseur-footer">
-                                        <span className="valeur-commande">
-                                            Montant à commander : <strong>{formatMontant(f.valeur_a_commander)}</strong>
-                                        </span>
-                                    </div>
-                                </div>
-                            ))
-                        ) : (
-                            <div className="empty-state-full">
-                                <CheckCircle size={64} />
-                                <h3>Aucune alerte fournisseur</h3>
-                                <p>Tous vos fournisseurs sont à jour</p>
-                            </div>
+                                                    ) : <span className="vt-muted">-</span>}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                            </tbody>
+                        </table>
+                        {!loading && visibles.length === 0 && (
+                            searchTerm
+                                ? <Empty icon={SearchX} title="Aucun produit ne correspond" text="Modifiez la recherche." />
+                                : <Empty icon={CheckCircle} title="Aucune alerte" text="Tous vos produits sont entre leur seuil minimum et maximum." />
                         )}
                     </div>
-                )}
-            </div>
-        </div>
+
+                    <Pager page={page} nbPages={nbPages} total={filtrees.length} unite="produit" onChange={setPage} />
+                </>
+            )}
+
+            <Toast toast={toast} onClose={closeToast} />
+        </Page>
     );
 };
 

@@ -538,7 +538,7 @@ export default function Caisse() {
                   <th className="vt-th-right">Actions</th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody style={{ counterReset: `ligne ${(pageCourante - 1) * PAR_PAGE}` }}>
                 {histoVisibles.map((h) => (
                   <tr key={h.id_session}>
                     <td>

@@ -1,104 +1,60 @@
-// pages/Rapports/BeneficesMarges/BeneficesMarges.jsx
-import React, { useState, useEffect, useCallback } from "react";
+// pages/BeneficesMarges/BeneficesMarges.jsx — au style Ventes
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useParams } from "react-router-dom";
-import {
-    TrendingUp, TrendingDown, Download, RefreshCw,
-    Banknote, Percent, ShoppingCart, Package, Award,
-    Users, BarChart3, Receipt, Target, ArrowUp, ArrowDown,
-    AlertTriangle, Info, Wallet, Minus, Equal
-} from "lucide-react";
-import {
-    ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
-    Tooltip, CartesianGrid, LineChart, Line, PieChart, Pie, Cell,
-    Legend, ComposedChart, Area
-} from 'recharts';
+import { Download, RefreshCw, AlertTriangle, Minus, Equal, SearchX, TrendingDown, Package, Target } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend, ComposedChart, Area } from "recharts";
 import BeneficeService from "../../services/beneficeService";
 import { useUser } from "../../context/AuthContext";
 import StockSelector from "../../components/StockSelector/StockSelector";
+import { Page, PageHead, ErrorBar, Empty, Periode, Onglets, Chiffres, Carte, SearchBox, useToast, Toast, bornesPeriode, fcfa, dateFR, sansAccents, pluriel } from "../../components/UI/Vt";
+import "../Rapports/RapportVentes/RapportVentes.css";
 import "./BeneficesMarges.css";
 
-// ========== FORMATAGE ==========
-const formatMontant = (value) => {
-    if (value === null || value === undefined) return 'N/D';
-    const num = parseFloat(value);
-    if (isNaN(num)) return 'N/D';
-    return Math.round(num).toLocaleString('fr-FR') + ' FCFA';
-};
-
+// ---------- Graphiques d'origine (gardés tels quels : vos clients les connaissent) ----------
+const formatMontant = fcfa;
 const formatMontantCourt = (value) => {
     const num = parseFloat(value) || 0;
     if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
     if (num >= 1000) return (num / 1000).toFixed(0) + 'k';
     return num.toFixed(0);
 };
-
-const formatPct = (value) => {
-    if (value === null || value === undefined) return 'N/D';
-    const num = parseFloat(value);
-    if (isNaN(num)) return 'N/D';
-    return num.toFixed(2) + '%';
-};
-
-const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
-    return new Date(dateStr).toLocaleDateString('fr-FR', {
-        day: '2-digit', month: '2-digit', year: 'numeric'
-    });
-};
-
-const renderBenefice = (row, opts = {}) => {
-    const { className = '', showBadge = true } = opts;
-    const dispo = row?.benefice_disponible !== false;
-    const benefice = row?.benefice;
-    const estime = row?.benefice_estime ?? benefice;
-
-    if (dispo && benefice !== null && benefice !== undefined) {
-        return (
-            <span className={`benefice-value text-green ${className}`}>
-                {formatMontant(benefice)}
-            </span>
-        );
-    }
-
-    return (
-        <div className={`benefice-incomplet ${className}`}>
-            <span className="benefice-estime">
-                ≈ {formatMontant(estime)}
-            </span>
-            {showBadge && (
-                <span className="badge-incomplet" title={`${row?.nb_lignes_sans_prix || 0} ligne(s) sans prix d'achat`}>
-                    <AlertTriangle size={11} />
-                    Incomplet
-                </span>
-            )}
-        </div>
-    );
-};
-
+const formatDate = dateFR;
 const CATEGORIE_COLORS = [
     '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#995F2F',
     '#06b6d4', '#ec4899', '#f97316', '#84cc16', '#6366f1'
 ];
 
+const pct = (v) => (v === null || v === undefined || Number.isNaN(Number(v)) ? "-" : `${Number(v).toFixed(1).replace(".", ",")} %`);
+
+/** Bénéfice d'une ligne : exact, ou estimé (≈) quand des prix d'achat manquent */
+const Benefice = ({ row }) => {
+    const exact = row?.benefice_disponible !== false && row?.benefice !== null && row?.benefice !== undefined;
+    const v = exact ? row.benefice : (row?.benefice_estime ?? row?.benefice);
+    return (
+        <span className={`vt-num bm-ben ${Number(v) < 0 ? "vt-bad" : "vt-good"}`}
+              title={exact ? undefined : `${row?.nb_lignes_sans_prix || 0} ligne(s) sans prix d'achat : estimation`}>
+            {exact ? "" : "≈ "}{fcfa(v)}
+        </span>
+    );
+};
+
+const Marge = ({ v }) => {
+    if (v === null || v === undefined) return <span className="vt-muted">-</span>;
+    const n = Number(v);
+    return <span className="vt-tag" data-s={n >= 30 ? "ok" : n >= 15 ? "warn" : "bad"}>{pct(n)}</span>;
+};
+
 const BeneficesMarges = () => {
     const { isAuthenticated } = useUser();
-    const { slug = '' } = useParams();
-    const token = localStorage.getItem('token');
-
-    const today = new Date();
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastDayOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-
-    const formatDateInput = (d) => d.toISOString().split('T')[0];
-
-    const [dateDebut, setDateDebut] = useState(formatDateInput(firstDayOfMonth));
-    const [dateFin, setDateFin] = useState(formatDateInput(lastDayOfMonth));
-
-    const [loading, setLoading] = useState(false);
+    const { slug = "" } = useParams();
+    const token = localStorage.getItem("token");
+    const [[dateDebut, dateFin], setPeriode] = useState(() => bornesPeriode("mois"));
+    const [loading, setLoading] = useState(!!token);
     const [error, setError] = useState(null);
     const [data, setData] = useState(null);
-    const [activeTab, setActiveTab] = useState("resume");
-    const [searchProduit, setSearchProduit] = useState("");
+    const [onglet, setOnglet] = useState("resume");
+    const [recherche, setRecherche] = useState("");
+    const [toast, showToast, closeToast] = useToast();
 
     const loadBenefices = useCallback(async () => {
         if (!token) return;
@@ -106,381 +62,137 @@ const BeneficesMarges = () => {
         setError(null);
         try {
             const res = await BeneficeService.getBenefices(token, dateDebut, dateFin);
-            if (res.success) {
-                setData(res.data);
-            } else {
-                setError(res.message || 'Erreur lors du chargement');
-            }
+            if (res.success) setData(res.data);
+            else setError(res.message || "Erreur lors du chargement");
         } catch (e) {
-            console.error('❌ loadBenefices error:', e);
-            setError(e.message || 'Erreur lors du chargement');
+            setError(e.message || "Erreur lors du chargement");
         } finally {
             setLoading(false);
         }
     }, [token, dateDebut, dateFin]);
 
-    useEffect(() => {
-        if (isAuthenticated && token) {
-            loadBenefices();
-        }
-    }, [isAuthenticated, token, loadBenefices]);
+    useEffect(() => { if (isAuthenticated && token) loadBenefices(); }, [isAuthenticated, token, loadBenefices]);
 
     const handleExport = async () => {
         try {
             const response = await BeneficeService.exportBenefices(token, dateDebut, dateFin);
-            const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8;' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `benefices_${dateDebut}_${dateFin}.csv`;
-            link.click();
+            const url = URL.createObjectURL(new Blob([response.data], { type: "text/csv;charset=utf-8;" }));
+            const a = document.createElement("a");
+            a.href = url; a.download = `benefices_${dateDebut}_${dateFin}.csv`; a.click();
             URL.revokeObjectURL(url);
         } catch (e) {
-            console.error('❌ Export error:', e);
-            alert('Erreur lors de l\'exportation');
+            showToast("Erreur lors de l'export", "error");
         }
     };
 
-    const setPreset = (preset) => {
-        const now = new Date();
-        let debut, fin;
-
-        switch (preset) {
-            case 'today':
-                debut = fin = now;
-                break;
-            case 'week':
-                const dayOfWeek = now.getDay() || 7;
-                debut = new Date(now);
-                debut.setDate(now.getDate() - dayOfWeek + 1);
-                fin = now;
-                break;
-            case 'month':
-                debut = new Date(now.getFullYear(), now.getMonth(), 1);
-                fin = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-                break;
-            case 'year':
-                debut = new Date(now.getFullYear(), 0, 1);
-                fin = new Date(now.getFullYear(), 11, 31);
-                break;
-            default:
-                return;
-        }
-
-        setDateDebut(formatDateInput(debut));
-        setDateFin(formatDateInput(fin));
+    const t = data?.totaux || {
+        nombre_commandes: 0, chiffre_affaires: 0, cout_achat: 0, benefice_brut: null, benefice_estime: 0,
+        benefice_disponible: true, quantite_vendue: 0, marge_brute_pct: null, taux_marge: null,
+        nb_lignes_sans_prix: 0, nb_lignes_total: 0, taux_couverture: 100,
     };
-
-    const totaux = data?.totaux || {
-        nombre_commandes: 0,
-        chiffre_affaires: 0,
-        cout_achat: 0,
-        benefice_brut: null,
-        benefice_estime: 0,
-        benefice_disponible: true,
-        quantite_vendue: 0,
-        marge_brute_pct: null,
-        taux_marge: null,
-        nb_lignes_sans_prix: 0,
-        nb_lignes_total: 0,
-        taux_couverture: 100
-    };
-
-    const resultatNet = data?.resultat_net || null;
-    const commandes = data?.commandes || [];
-    const parProduit = data?.par_produit || [];
+    const net = data?.resultat_net || null;
+    const parProduit = useMemo(() => data?.par_produit || [], [data]);
     const parCategorie = data?.par_categorie || [];
     const parJour = data?.par_jour || [];
     const topProduits = data?.top_produits || [];
     const topClients = data?.top_clients || [];
-    const produitsRentables = data?.produits_rentables || [];
+    const rentables = data?.produits_rentables || [];
+    const incomplet = !t.benefice_disponible;
+    const aDesBeneficesIncomplets = incomplet;
+    const beneficeBrut = incomplet ? t.benefice_estime : t.benefice_brut;
 
-    const aDesBeneficesIncomplets = !totaux.benefice_disponible;
+    const produitsFiltres = useMemo(() => {
+        const q = sansAccents(recherche.trim());
+        if (!q) return parProduit;
+        return parProduit.filter((p) => sansAccents([p.produit_nom, p.categorie_nom, p.marque_nom].filter(Boolean).join(" ")).includes(q));
+    }, [parProduit, recherche]);
 
-    const produitsFiltres = searchProduit
-        ? parProduit.filter(p =>
-            p.produit_nom?.toLowerCase().includes(searchProduit.toLowerCase()) ||
-            p.categorie_nom?.toLowerCase().includes(searchProduit.toLowerCase()) ||
-            p.marque_nom?.toLowerCase().includes(searchProduit.toLowerCase())
-        )
-        : parProduit;
-
-    if (loading && !data) {
-        return (
-            <div className="benefices-loading">
-                <div className="spinner"></div>
-                <p>Chargement des bénéfices...</p>
-            </div>
-        );
-    }
-
-    if (error && !data) {
-        return (
-            <div className="benefices-error">
-                <p>{error}</p>
-                <button className="btn btn-primary" onClick={loadBenefices}>
-                    <RefreshCw size={16} /> Réessayer
-                </button>
-            </div>
-        );
-    }
+    const qte = (row, id) => (
+        <StockSelector idProduit={id} stockBase={row.quantite_vendue_base || row.quantite_vendue || 0}
+                       unitesVente={row.unites_vente || []} uniteBase={{ nom: row.unite_nom, symbole: row.unite_symbole }} variant="list" />
+    );
 
     return (
-        <div className="benefices-container">
-            {/* ==================== EN-TÊTE ==================== */}
-            <div className="benefices-header">
-                <div>
-                    <h1 className="benefices-title">
-                        <Banknote size={28} />
-                        Bénéfices & Marges
-                    </h1>
-                    <p className="benefices-subtitle">
-                        Analyse de la rentabilité du {formatDate(dateDebut)} au {formatDate(dateFin)}
-                    </p>
-                </div>
-                <div className="benefices-actions">
-                    <button className="btn btn-secondary" onClick={handleExport}>
-                        <Download size={18} />
-                        <span>Exporter CSV</span>
-                    </button>
-                    <button
-                        className="btn btn-secondary"
-                        onClick={loadBenefices}
-                        disabled={loading}
-                    >
-                        <RefreshCw size={18} className={loading ? 'spinning' : ''} />
-                    </button>
-                </div>
-            </div>
+        <Page className="bm">
+            <PageHead title="Bénéfices et marges" sub={`Du ${dateFR(dateDebut)} au ${dateFR(dateFin)} · ce que vos ventes vous rapportent vraiment`}>
+                <button type="button" className="vt-btn vt-btn--icon" onClick={loadBenefices} disabled={loading} aria-label="Rafraîchir" title="Rafraîchir">
+                    <RefreshCw size={16} className={loading ? "vt-spin" : ""} />
+                </button>
+                <button type="button" className="vt-btn" onClick={handleExport}><Download size={16} /> Exporter</button>
+            </PageHead>
 
-            {/* ==================== FILTRES ==================== */}
-            <div className="benefices-filters">
-                <div className="filter-row">
-                    <div className="filter-group">
-                        <label>Du</label>
-                        <input
-                            type="date"
-                            value={dateDebut}
-                            onChange={(e) => setDateDebut(e.target.value)}
-                            max={dateFin}
-                        />
-                    </div>
-                    <div className="filter-group">
-                        <label>Au</label>
-                        <input
-                            type="date"
-                            value={dateFin}
-                            onChange={(e) => setDateFin(e.target.value)}
-                            min={dateDebut}
-                        />
-                    </div>
-                    <div className="preset-buttons">
-                        <button className="preset-btn" onClick={() => setPreset('today')}>Aujourd'hui</button>
-                        <button className="preset-btn" onClick={() => setPreset('week')}>Cette semaine</button>
-                        <button className="preset-btn" onClick={() => setPreset('month')}>Ce mois</button>
-                        <button className="preset-btn" onClick={() => setPreset('year')}>Cette année</button>
-                    </div>
-                </div>
-            </div>
+            <Periode debut={dateDebut} fin={dateFin} onChange={(d, f) => setPeriode([d, f])} />
 
-            {/* ==================== BANDEAU BÉNÉFICE INCOMPLET ==================== */}
-            {aDesBeneficesIncomplets && (
-                <div className="benefice-warning-banner">
-                    <AlertTriangle size={22} />
-                    <div className="banner-content">
-                        <strong>Bénéfice incomplet</strong>
-                        <span>
-                            {totaux.nb_lignes_sans_prix} ligne(s) sans prix d'achat sur{' '}
-                            {totaux.nb_lignes_total} — le bénéfice affiché est une <strong>estimation</strong>.
-                            Complétez les prix d'achat pour plus de précision.
-                        </span>
-                    </div>
-                    <div className="banner-couverture">
-                        <span className="couverture-label">Couverture</span>
-                        <span className="couverture-value">{totaux.taux_couverture}%</span>
-                    </div>
+            {error && !loading && <ErrorBar message={error} onRetry={loadBenefices} />}
+
+            {incomplet && (
+                <div className="vt-banner" data-s="warn">
+                    <AlertTriangle size={16} />
+                    <span>
+                        <strong>Bénéfice estimé :</strong> {pluriel(t.nb_lignes_sans_prix, "ligne")} de vente sur {t.nb_lignes_total} n'ont pas de prix d'achat
+                        ({t.taux_couverture} % des lignes couvertes). Complétez le prix d'achat de ces produits pour un chiffre exact.
+                    </span>
                 </div>
             )}
 
-            {/* ==================== KPIs ==================== */}
-            <div className="kpi-grid">
-                <div className="kpi-card">
-                    <div className="kpi-icon kpi-blue">
-                        <ShoppingCart size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">Chiffre d'affaires</span>
-                        <span className="kpi-value">{formatMontant(totaux.chiffre_affaires)}</span>
-                        <span className="kpi-sub">{totaux.nombre_commandes} commandes</span>
-                    </div>
-                </div>
+            <div className={loading && data ? "rp-maj" : undefined}>
+                <Chiffres items={[
+                    { label: "Chiffre d'affaires", value: fcfa(t.chiffre_affaires), note: pluriel(t.nombre_commandes, "vente") },
+                    { label: "Coût d'achat des produits vendus", value: fcfa(t.cout_achat), note: `${t.quantite_vendue} unités vendues${incomplet ? " (partiel)" : ""}` },
+                    { label: `Bénéfice brut${incomplet ? " (estimé)" : ""}`, value: `${incomplet ? "≈ " : ""}${fcfa(beneficeBrut)}`, note: Number(beneficeBrut) < 0 ? "Vous vendez à perte" : "Ventes moins coût d'achat", fort: true, tone: Number(beneficeBrut) < 0 ? "bad" : "ok" },
+                    { label: "Marge brute", value: pct(t.marge_brute_pct), note: t.taux_marge !== null && t.taux_marge !== undefined ? `Sur le prix de vente · soit ${pct(t.taux_marge)} du prix d'achat` : "Sur le prix de vente" },
+                ]} />
 
-                <div className="kpi-card">
-                    <div className="kpi-icon kpi-orange">
-                        <Package size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">Coût d'achat</span>
-                        <span className="kpi-value">{formatMontant(totaux.cout_achat)}</span>
-                        <span className="kpi-sub">
-                            {totaux.quantite_vendue} unités
-                            {!totaux.benefice_disponible && ' (partiel)'}
-                        </span>
-                    </div>
-                </div>
-
-                <div className={`kpi-card highlight ${!totaux.benefice_disponible ? 'kpi-incomplete' : ''}`}>
-                    <div className="kpi-icon kpi-green">
-                        <TrendingUp size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">
-                            Bénéfice brut
-                            {!totaux.benefice_disponible && (
-                                <span className="badge-inline-warning">
-                                    <AlertTriangle size={11} /> Estimation
-                                </span>
-                            )}
-                        </span>
-                        <span className="kpi-value text-green">
-                            {formatMontant(
-                                totaux.benefice_disponible
-                                    ? totaux.benefice_brut
-                                    : totaux.benefice_estime
-                            )}
-                        </span>
-                        <span className="kpi-sub">
-                            {totaux.benefice_disponible
-                                ? (totaux.benefice_brut >= 0 ? 'Rentable' : 'Perte')
-                                : `${totaux.nb_lignes_sans_prix} ligne(s) sans prix`
-                            }
-                        </span>
-                    </div>
-                </div>
-
-                <div className="kpi-card">
-                    <div className="kpi-icon kpi-purple">
-                        <Percent size={24} />
-                    </div>
-                    <div className="kpi-content">
-                        <span className="kpi-label">Marge brute</span>
-                        <span className="kpi-value">
-                            {totaux.benefice_disponible
-                                ? formatPct(totaux.marge_brute_pct)
-                                : 'N/D'
-                            }
-                        </span>
-                        <span className="kpi-sub">
-                            {totaux.benefice_disponible
-                                ? `Taux de marge : ${formatPct(totaux.taux_marge)}`
-                                : 'Marge non calculable'
-                            }
-                        </span>
-                    </div>
-                </div>
-            </div>
-
-            {/* ==================== RÉSULTAT NET (marge brute - dépenses) ==================== */}
-            {resultatNet && (
-                <section className="bm-net" aria-label="Résultat net de la période">
-                    <div className="bm-net-calc">
-                        <div className="bm-net-term">
-                            <span className="bm-net-label">
-                                Bénéfice brut
-                                {resultatNet.estimation && <span className="badge-inline-warning"><AlertTriangle size={11} /> Estimation</span>}
-                            </span>
-                            <span className="bm-net-value">{formatMontant(resultatNet.benefice_brut)}</span>
-                        </div>
-                        <Minus size={18} className="bm-net-op" aria-label="moins" />
-                        <div className="bm-net-term">
-                            <span className="bm-net-label">Dépenses de fonctionnement</span>
-                            <span className="bm-net-value bm-net-dep">{formatMontant(resultatNet.depenses)}</span>
-                            <span className="bm-net-sub">
-                                {resultatNet.nombre_depenses > 0
-                                    ? `${resultatNet.nombre_depenses} dépense${resultatNet.nombre_depenses > 1 ? 's' : ''}`
-                                    : 'Aucune dépense saisie'}
-                                {' · '}
-                                <Link to={`/${slug}/depenses`} className="bm-net-link">
-                                    {resultatNet.nombre_depenses > 0 ? 'Voir le détail' : 'Saisir les dépenses'}
-                                </Link>
-                            </span>
-                        </div>
-                        <Equal size={18} className="bm-net-op" aria-label="égale" />
-                        <div className={`bm-net-term bm-net-result ${resultatNet.benefice_net < 0 ? 'is-neg' : ''}`}>
-                            <span className="bm-net-label">Bénéfice net</span>
-                            <span className="bm-net-value">{formatMontant(resultatNet.benefice_net)}</span>
-                            <span className="bm-net-sub">
-                                {resultatNet.marge_nette_pct !== null
-                                    ? `Marge nette : ${formatPct(resultatNet.marge_nette_pct)}`
-                                    : resultatNet.benefice_net < 0 ? 'Perte sur la période' : '—'}
-                            </span>
-                        </div>
-                    </div>
-                    {resultatNet.depenses_par_categorie?.length > 0 && (
-                        <div className="bm-net-cats">
-                            <Wallet size={14} />
-                            {resultatNet.depenses_par_categorie.slice(0, 5).map((c) => (
-                                <span key={c.categorie_nom} className="bm-net-cat">
-                                    {c.categorie_nom} <strong>{formatMontant(c.total)}</strong>
-                                </span>
-                            ))}
-                            {resultatNet.depenses_par_categorie.length > 5 && (
-                                <span className="bm-net-cat">+{resultatNet.depenses_par_categorie.length - 5} autre(s)</span>
-                            )}
-                        </div>
-                    )}
-                </section>
-            )}
-
-            {/* ==================== ONGLETS ==================== */}
-            <div className="benefices-tabs">
-                <button
-                    className={`tab ${activeTab === 'resume' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('resume')}
-                >
-                    <BarChart3 size={16} /> Résumé
-                </button>
-                <button
-                    className={`tab ${activeTab === 'produits' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('produits')}
-                >
-                    <Package size={16} /> Produits ({parProduit.length})
-                </button>
-                <button
-                    className={`tab ${activeTab === 'categories' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('categories')}
-                >
-                    <Target size={16} /> Catégories ({parCategorie.length})
-                </button>
-                <button
-                    className={`tab ${activeTab === 'rentables' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('rentables')}
-                >
-                    <Award size={16} /> Top Rentables ({produitsRentables.length})
-                </button>
-                <button
-                    className={`tab ${activeTab === 'clients' ? 'active' : ''}`}
-                    onClick={() => setActiveTab('clients')}
-                >
-                    <Users size={16} /> Top Clients ({topClients.length})
-                </button>
-            </div>
-
-            {/* ==================== CONTENU ==================== */}
-            <div className="benefices-content">
-
-                {activeTab === 'resume' && (
-                    <>
-                        <div className="chart-card">
-                            <div className="chart-header">
-                                <h3>Évolution du chiffre d'affaires et des bénéfices</h3>
-                                {aDesBeneficesIncomplets && (
-                                    <span className="chart-header-badge">
-                                        <AlertTriangle size={12} /> Données partielles
-                                    </span>
-                                )}
+                {net && (
+                    <section className="vt-card bm-net" aria-label="Résultat net de la période">
+                        <div className="bm-net-calc">
+                            <div className="bm-net-terme">
+                                <span className="vt-label">Bénéfice brut{net.estimation ? " (estimé)" : ""}</span>
+                                <strong className="vt-num">{fcfa(net.benefice_brut)}</strong>
                             </div>
-                            <div className="chart-body">
+                            <Minus size={18} className="bm-net-op" aria-label="moins" />
+                            <div className="bm-net-terme">
+                                <span className="vt-label">Dépenses de la période</span>
+                                <strong className="vt-num vt-bad">{fcfa(net.depenses)}</strong>
+                                <span className="vt-cell-sub">
+                                    {net.nombre_depenses > 0 ? pluriel(net.nombre_depenses, "dépense") : "Aucune dépense saisie"}
+                                    {" · "}<Link className="vt-link" to={`/${slug}/depenses`}>{net.nombre_depenses > 0 ? "Voir le détail" : "Saisir les dépenses"}</Link>
+                                </span>
+                            </div>
+                            <Equal size={18} className="bm-net-op" aria-label="égale" />
+                            <div className="bm-net-terme bm-net-res" data-s={net.benefice_net < 0 ? "bad" : "ok"}>
+                                <span className="vt-label">Bénéfice net</span>
+                                <strong className="vt-num">{fcfa(net.benefice_net)}</strong>
+                                <span className="vt-cell-sub">
+                                    {net.marge_nette_pct !== null && net.marge_nette_pct !== undefined ? `Marge nette : ${pct(net.marge_nette_pct)}` : net.benefice_net < 0 ? "Perte sur la période" : " "}
+                                </span>
+                            </div>
+                        </div>
+                        {net.depenses_par_categorie?.length > 0 && (
+                            <div className="bm-net-cats">
+                                {net.depenses_par_categorie.slice(0, 6).map((c) => (
+                                    <span key={c.categorie_nom} className="vt-tag" data-s="muted">{c.categorie_nom} · {fcfa(c.total)}</span>
+                                ))}
+                                {net.depenses_par_categorie.length > 6 && <span className="vt-muted">+{net.depenses_par_categorie.length - 6} autres</span>}
+                            </div>
+                        )}
+                    </section>
+                )}
+
+                <Onglets actif={onglet} onChange={setOnglet} items={[
+                    { id: "resume", label: "Résumé" },
+                    { id: "produits", label: "Produits", count: parProduit.length },
+                    { id: "categories", label: "Catégories", count: parCategorie.length },
+                    { id: "rentables", label: "Les plus rentables", count: rentables.length },
+                    { id: "clients", label: "Meilleurs clients", count: topClients.length },
+                ]} />
+
+                {loading && !data && <Carte><div className="vt-graph vt-graph-vide">Chargement…</div></Carte>}
+
+                {data && onglet === "resume" && (
+                    <>
+                        <Carte titre="Évolution du chiffre d'affaires et des bénéfices" className="bm-bloc"
+                               actions={incomplet ? <span className="vt-tag" data-s="warn"><AlertTriangle size={12} /> Données partielles</span> : null}>
                                 {parJour.length > 0 ? (
                                     <ResponsiveContainer width="100%" height={320}>
                                         <ComposedChart data={parJour}>
@@ -538,15 +250,10 @@ const BeneficesMarges = () => {
                                         <p>Aucune vente sur la période</p>
                                     </div>
                                 )}
-                            </div>
-                        </div>
-
-                        <div className="charts-grid">
-                            <div className="chart-card">
-                                <div className="chart-header">
-                                    <h3>Bénéfices par catégorie</h3>
-                                </div>
-                                <div className="chart-body">
+                            
+</Carte>
+                        <div className="vt-grille-2">
+                            <Carte titre="Bénéfices par catégorie">
                                     {parCategorie.length > 0 ? (
                                         <ResponsiveContainer width="100%" height={300}>
                                             <PieChart>
@@ -577,14 +284,9 @@ const BeneficesMarges = () => {
                                             <p>Aucune donnée</p>
                                         </div>
                                     )}
-                                </div>
-                            </div>
-
-                            <div className="chart-card">
-                                <div className="chart-header">
-                                    <h3>Top 5 produits par bénéfice</h3>
-                                </div>
-                                <div className="chart-body">
+                                
+</Carte>
+                            <Carte titre="Top 5 produits par bénéfice">
                                     {topProduits.slice(0, 5).length > 0 ? (
                                         <ResponsiveContainer width="100%" height={300}>
                                             <BarChart data={topProduits.slice(0, 5)} layout="vertical">
@@ -615,103 +317,47 @@ const BeneficesMarges = () => {
                                             <p>Aucune vente</p>
                                         </div>
                                     )}
-                                </div>
-                            </div>
+                                
+</Carte>
                         </div>
                     </>
                 )}
 
-                {activeTab === 'produits' && (
-                    <div className="benefices-card">
-                        <div className="card-header">
-                            <h3>Rentabilité par produit</h3>
-                            <div className="search-box-small">
-                                <input
-                                    type="text"
-                                    placeholder="Rechercher..."
-                                    value={searchProduit}
-                                    onChange={(e) => setSearchProduit(e.target.value)}
-                                />
-                            </div>
+                {data && onglet === "produits" && (
+                    <>
+                        <div className="vt-toolbar">
+                            <SearchBox value={recherche} onChange={setRecherche} placeholder="Produit, catégorie ou marque" />
+                            <span className="vt-count">{pluriel(produitsFiltres.length, "produit")}</span>
                         </div>
-                        <div className="card-body">
-                            {produitsFiltres.length > 0 ? (
-                                <div className="table-container">
-                                    <table className="benefices-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Produit</th>
-                                                <th>Catégorie</th>
-                                                <th>Qté</th>
-                                                <th>Prix achat</th>
-                                                <th>Prix vente</th>
-                                                <th>Marge unit.</th>
-                                                <th>Marge %</th>
-                                                <th>CA</th>
-                                                <th>Bénéfice</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {produitsFiltres.map((p) => (
-                                                <tr key={p.id_produit}>
-                                                    <td className="font-semibold">{p.produit_nom}</td>
-                                                    <td className="text-muted">{p.categorie_nom || '-'}</td>
-                                                    {/* ✅ StockSelector */}
-                                                    <td className="text-center">
-                                                        <StockSelector
-                                                            idProduit={`benefice-${p.id_produit}`}
-                                                            stockBase={p.quantite_vendue_base || p.quantite_vendue || 0}
-                                                            unitesVente={p.unites_vente || []}
-                                                            uniteBase={{
-                                                                nom: p.unite_nom,
-                                                                symbole: p.unite_symbole,
-                                                            }}
-                                                            variant="list"
-                                                        />
-                                                    </td>
-                                                    <td>{formatMontant(p.prix_achat)}</td>
-                                                    <td>{formatMontant(p.prix_vente)}</td>
-                                                    <td className={p.marge_unitaire >= 0 ? 'text-success' : 'text-danger'}>
-                                                        {formatMontant(p.marge_unitaire)}
-                                                    </td>
-                                                    <td>
-                                                        {p.marge_unitaire_pct !== null ? (
-                                                            <span className={`marge-badge ${
-                                                                p.marge_unitaire_pct >= 30 ? 'marge-high' :
-                                                                p.marge_unitaire_pct >= 15 ? 'marge-medium' : 'marge-low'
-                                                            }`}>
-                                                                {formatPct(p.marge_unitaire_pct)}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="badge-incomplet">N/D</span>
-                                                        )}
-                                                    </td>
-                                                    <td>{formatMontant(p.chiffre_affaires)}</td>
-                                                    <td>{renderBenefice(p)}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <div className="empty-chart">
-                                    <Package size={40} />
-                                    <p>Aucun produit trouvé</p>
-                                </div>
-                            )}
+                        <div className="vt-table-wrap">
+                            <table className="vt-table bm-table">
+                                <thead><tr><th>Produit</th><th>Vendu</th><th className="vt-th-right rp-hide">Achat / vente</th><th className="vt-th-right">Marge</th><th className="vt-th-right rp-hide">Chiffre d'affaires</th><th className="vt-th-right">Bénéfice</th></tr></thead>
+                                <tbody>
+                                    {produitsFiltres.map((p) => (
+                                        <tr key={p.id_produit}>
+                                            <td>
+                                                <div className="vt-cell-main vt-cell-main--plain">{p.produit_nom}</div>
+                                                <div className="vt-cell-sub">{[p.categorie_nom, p.marque_nom].filter(Boolean).join(" · ") || " "}</div>
+                                            </td>
+                                            <td>{qte(p, `benefice-${p.id_produit}`)}</td>
+                                            <td className="vt-td-right rp-hide">
+                                                <div className="vt-num">{fcfa(p.prix_vente)}</div>
+                                                <div className="vt-cell-sub vt-num">achat {p.prix_achat ? fcfa(p.prix_achat) : "inconnu"}</div>
+                                            </td>
+                                            <td className="vt-td-right"><Marge v={p.marge_unitaire_pct} /></td>
+                                            <td className="vt-td-right vt-num rp-hide">{fcfa(p.chiffre_affaires)}</td>
+                                            <td className="vt-td-right"><Benefice row={p} /></td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {produitsFiltres.length === 0 && <Empty icon={SearchX} title={recherche ? "Aucun produit ne correspond" : "Aucune vente sur la période"} />}
                         </div>
-                    </div>
+                    </>
                 )}
 
-                {activeTab === 'categories' && (
-                    <>
-                        {parCategorie.length > 0 ? (
-                            <>
-                                <div className="chart-card">
-                                    <div className="chart-header">
-                                        <h3>Bénéfices par catégorie</h3>
-                                    </div>
-                                    <div className="chart-body">
+                {data && onglet === "categories" && parCategorie.length > 0 && (
+                    <Carte titre="Bénéfices par catégorie" className="bm-bloc">
                                         <ResponsiveContainer width="100%" height={350}>
                                             <BarChart data={parCategorie}>
                                                 <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
@@ -733,213 +379,84 @@ const BeneficesMarges = () => {
                                                 />
                                             </BarChart>
                                         </ResponsiveContainer>
-                                    </div>
-                                </div>
-
-                                <div className="benefices-card">
-                                    <div className="card-header">
-                                        <h3>Détail par catégorie</h3>
-                                    </div>
-                                    <div className="card-body">
-                                        <div className="table-container">
-                                            <table className="benefices-table">
-                                                <thead>
-                                                    <tr>
-                                                        <th>Catégorie</th>
-                                                        <th>Produits</th>
-                                                        <th>Qté vendue</th>
-                                                        <th>CA</th>
-                                                        <th>Coût achat</th>
-                                                        <th>Bénéfice</th>
-                                                        <th>Marge %</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {parCategorie.map((c) => (
-                                                        <tr key={c.id_categorie || 'none'}>
-                                                            <td className="font-semibold">{c.categorie_nom}</td>
-                                                            <td className="text-center">{c.nombre_produits}</td>
-                                                            {/* ✅ StockSelector sur Qté vendue (agrégat) */}
-                                                            <td className="text-center">
-                                                                <StockSelector
-                                                                    idProduit={`benefice-cat-${c.id_categorie || 'none'}`}
-                                                                    stockBase={c.quantite_vendue_base || c.quantite_vendue || 0}
-                                                                    unitesVente={[]}
-                                                                    uniteBase={null}
-                                                                    variant="list"
-                                                                />
-                                                            </td>
-                                                            <td>{formatMontant(c.chiffre_affaires)}</td>
-                                                            <td>{formatMontant(c.cout_achat)}</td>
-                                                            <td>{renderBenefice(c)}</td>
-                                                            <td>
-                                                                {c.marge_pct !== null ? (
-                                                                    <span className={`marge-badge ${
-                                                                        c.marge_pct >= 30 ? 'marge-high' :
-                                                                        c.marge_pct >= 15 ? 'marge-medium' : 'marge-low'
-                                                                    }`}>
-                                                                        {formatPct(c.marge_pct)}
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="badge-incomplet">N/D</span>
-                                                                )}
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                </div>
-                            </>
-                        ) : (
-                            <div className="benefices-card">
-                                <div className="card-body">
-                                    <div className="empty-chart">
-                                        <Target size={48} />
-                                        <p>Aucune donnée par catégorie</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </>
+                                    
+                    </Carte>
                 )}
-
-                {activeTab === 'rentables' && (
-                    <div className="benefices-card">
-                        <div className="card-header">
-                            <h3>
-                                <Award size={18} />
-                                Produits les plus rentables (par marge %)
-                            </h3>
-                        </div>
-                        <div className="card-body">
-                            {produitsRentables.length > 0 ? (
-                                <div className="table-container">
-                                    <table className="benefices-table">
-                                        <thead>
-                                            <tr>
-                                                <th>#</th>
-                                                <th>Produit</th>
-                                                <th>Marque</th>
-                                                <th>Prix achat</th>
-                                                <th>Prix vente</th>
-                                                <th>Marge unit.</th>
-                                                <th>Marge %</th>
-                                                <th>Qté vendue</th>
-                                                <th>Bénéfice total</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {produitsRentables.map((p, i) => (
-                                                <tr key={p.id_produit}>
-                                                    <td>
-                                                        <span className={`rank-badge rank-${i + 1}`}>
-                                                            {i + 1}
-                                                        </span>
-                                                    </td>
-                                                    <td className="font-semibold">{p.produit_nom}</td>
-                                                    <td className="text-muted">{p.marque_nom || '-'}</td>
-                                                    <td>{formatMontant(p.prix_achat)}</td>
-                                                    <td>{formatMontant(p.prix_vente)}</td>
-                                                    <td className="text-success font-semibold">
-                                                        {formatMontant(p.marge_unitaire)}
-                                                    </td>
-                                                    <td>
-                                                        {p.marge_pct !== null ? (
-                                                            <span className={`marge-badge ${
-                                                                p.marge_pct >= 30 ? 'marge-high' :
-                                                                p.marge_pct >= 15 ? 'marge-medium' : 'marge-low'
-                                                            }`}>
-                                                                {formatPct(p.marge_pct)}
-                                                            </span>
-                                                        ) : (
-                                                            <span className="badge-incomplet">N/D</span>
-                                                        )}
-                                                    </td>
-                                                    {/* ✅ StockSelector */}
-                                                    <td className="text-center">
-                                                        <StockSelector
-                                                            idProduit={`benefice-rent-${p.id_produit}`}
-                                                            stockBase={p.quantite_vendue_base || p.quantite_vendue || 0}
-                                                            unitesVente={p.unites_vente || []}
-                                                            uniteBase={{
-                                                                nom: p.unite_nom,
-                                                                symbole: p.unite_symbole,
-                                                            }}
-                                                            variant="list"
-                                                        />
-                                                    </td>
-                                                    <td className="font-bold text-green">
-                                                        {formatMontant(p.benefice_total)}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <div className="empty-chart">
-                                    <Award size={48} />
-                                    <p>Aucun produit rentable</p>
-                                    <span>Les produits avec marge positive apparaîtront ici</span>
-                                </div>
-                            )}
-                        </div>
+                {data && onglet === "categories" && (
+                    <div className="vt-table-wrap">
+                        <table className="vt-table bm-table">
+                            <thead><tr><th>Catégorie</th><th>Vendu</th><th className="vt-th-right rp-hide">Chiffre d'affaires</th><th className="vt-th-right rp-hide">Coût d'achat</th><th className="vt-th-right">Marge</th><th className="vt-th-right">Bénéfice</th></tr></thead>
+                            <tbody>
+                                {parCategorie.map((c, i) => (
+                                    <tr key={c.categorie_nom || i}>
+                                        <td>
+                                            <div className="vt-cell-main vt-cell-main--plain">{c.categorie_nom || "Sans catégorie"}</div>
+                                            <div className="vt-cell-sub">{pluriel(c.nombre_produits || 0, "produit")}</div>
+                                        </td>
+                                        <td>{qte(c, `benefice-cat-${i}`)}</td>
+                                        <td className="vt-td-right vt-num rp-hide">{fcfa(c.chiffre_affaires)}</td>
+                                        <td className="vt-td-right vt-num rp-hide">{fcfa(c.cout_achat)}</td>
+                                        <td className="vt-td-right"><Marge v={c.marge_pct} /></td>
+                                        <td className="vt-td-right"><Benefice row={c} /></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        {parCategorie.length === 0 && <Empty title="Aucune vente sur la période" />}
                     </div>
                 )}
 
-                {activeTab === 'clients' && (
-                    <div className="benefices-card">
-                        <div className="card-header">
-                            <h3>
-                                <Users size={18} />
-                                Top 10 clients par bénéfice généré
-                            </h3>
-                        </div>
-                        <div className="card-body">
-                            {topClients.length > 0 ? (
-                                <div className="table-container">
-                                    <table className="benefices-table">
-                                        <thead>
-                                            <tr>
-                                                <th>#</th>
-                                                <th>Client</th>
-                                                <th>Téléphone</th>
-                                                <th>Commandes</th>
-                                                <th>Chiffre d'affaires</th>
-                                                <th>Bénéfice généré</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {topClients.map((c, i) => (
-                                                <tr key={`${c.nomclient}-${i}`}>
-                                                    <td>
-                                                        <span className={`rank-badge rank-${i + 1}`}>
-                                                            {i + 1}
-                                                        </span>
-                                                    </td>
-                                                    <td className="font-semibold">{c.nomclient}</td>
-                                                    <td className="text-muted">{c.telephone || '-'}</td>
-                                                    <td className="text-center">{c.nombre_commandes}</td>
-                                                    <td>{formatMontant(c.chiffre_affaires)}</td>
-                                                    <td>{renderBenefice(c)}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            ) : (
-                                <div className="empty-chart">
-                                    <Users size={48} />
-                                    <p>Aucun client sur la période</p>
-                                </div>
-                            )}
-                        </div>
+                {data && onglet === "rentables" && (
+                    <div className="vt-table-wrap">
+                        <table className="vt-table bm-table">
+                            <thead><tr><th>Produit</th><th className="vt-th-right rp-hide">Achat / vente</th><th className="vt-th-right">Marge</th><th>Vendu</th><th className="vt-th-right">Bénéfice</th></tr></thead>
+                            <tbody>
+                                {rentables.map((p, i) => (
+                                    <tr key={p.id_produit}>
+                                        <td>
+                                            <div className="vt-cell-main vt-cell-main--plain">{p.produit_nom}</div>
+                                            <div className="vt-cell-sub">{p.marque_nom || " "}</div>
+                                        </td>
+                                        <td className="vt-td-right rp-hide">
+                                            <div className="vt-num">{fcfa(p.prix_vente)}</div>
+                                            <div className="vt-cell-sub vt-num">achat {fcfa(p.prix_achat)}</div>
+                                        </td>
+                                        <td className="vt-td-right"><Marge v={p.marge_pct} /></td>
+                                        <td>{qte(p, `benefice-rent-${p.id_produit}`)}</td>
+                                        <td className="vt-td-right"><span className="vt-num vt-good bm-ben">{fcfa(p.benefice_total)}</span></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        {rentables.length === 0 && <Empty title="Aucune vente sur la période" />}
+                    </div>
+                )}
+
+                {data && onglet === "clients" && (
+                    <div className="vt-table-wrap">
+                        <table className="vt-table bm-table">
+                            <thead><tr><th>Client</th><th className="vt-th-right rp-hide">Ventes</th><th className="vt-th-right">Chiffre d'affaires</th><th className="vt-th-right">Bénéfice</th></tr></thead>
+                            <tbody>
+                                {topClients.map((c, i) => (
+                                    <tr key={`${c.nomclient}-${i}`}>
+                                        <td>
+                                            <div className="vt-cell-main vt-cell-main--plain">{c.nomclient || "Client sans nom"}</div>
+                                            <div className="vt-cell-sub">{c.telephone || " "}</div>
+                                        </td>
+                                        <td className="vt-td-right vt-num rp-hide">{c.nombre_commandes}</td>
+                                        <td className="vt-td-right vt-num">{fcfa(c.chiffre_affaires)}</td>
+                                        <td className="vt-td-right"><Benefice row={c} /></td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        {topClients.length === 0 && <Empty title="Aucun client sur la période" />}
                     </div>
                 )}
             </div>
-        </div>
+
+            <Toast toast={toast} onClose={closeToast} />
+        </Page>
     );
 };
 

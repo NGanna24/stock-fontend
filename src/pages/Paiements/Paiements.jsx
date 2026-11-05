@@ -605,6 +605,7 @@ const Paiements = () => {
             <th className="pm-col-check">
               <input type="checkbox" className="pm-check" checked={allPageSelected} onChange={toggleSelectPage} aria-label="Tout sélectionner" />
             </th>
+            <th className="col-num">N°</th>
             <th>Référence</th>
             <th>Date</th>
             <th>Client</th>
@@ -616,7 +617,7 @@ const Paiements = () => {
           </tr>
         </thead>
         <tbody>
-          {currentItems.map((p) => {
+          {currentItems.map((p, i) => {
             const tone = (MODES[p.mode_paiement] || MODES.autre).tone;
             const selected = selectedIds.includes(p.id_paiement);
             return (
@@ -628,6 +629,7 @@ const Paiements = () => {
                 <td className="pm-col-check" onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" className="pm-check" checked={selected} onChange={() => toggleSelect(p.id_paiement)} aria-label={`Sélectionner paiement #${p.id_paiement}`} />
                 </td>
+                <td className="col-num">{firstIdx + i + 1}</td>
                 <td><span className="pm-ref">#{p.id_paiement}</span></td>
                 <td className="pm-muted">{p.date_paiement_formatee || formatDate(p.date_paiement)}</td>
                 <td>

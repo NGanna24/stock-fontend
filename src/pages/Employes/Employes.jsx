@@ -592,6 +592,7 @@ const Employes = () => {
             <th className="em-col-check">
               <input type="checkbox" className="em-check" checked={allPageSelected} onChange={toggleSelectPage} aria-label="Tout sélectionner" />
             </th>
+            <th className="col-num">N°</th>
             <th>Employé</th>
             <th>Téléphone</th>
             <th>Rôle</th>
@@ -602,7 +603,7 @@ const Employes = () => {
           </tr>
         </thead>
         <tbody>
-          {currentItems.map((e) => {
+          {currentItems.map((e, i) => {
             const tone = e.role_nom || "other";
             const selected = selectedIds.includes(e.id_employe);
             return (
@@ -614,6 +615,7 @@ const Employes = () => {
                 <td className="em-col-check" onClick={(ev) => ev.stopPropagation()}>
                   <input type="checkbox" className="em-check" checked={selected} onChange={() => toggleSelect(e.id_employe)} aria-label={`Sélectionner ${e.fullname}`} />
                 </td>
+                <td className="col-num">{firstIdx + i + 1}</td>
                 <td>
                   <div className="em-emp-cell">
                     <span className="em-avatar">{e.fullname?.charAt(0).toUpperCase() || "?"}</span>

@@ -973,6 +973,7 @@ const toggleSelect = (id) =>
             <th className="ca-col-check">
               <input type="checkbox" className="ca-check" checked={allPageSelected} onChange={toggleSelectPage} aria-label="Tout sélectionner" />
             </th>
+            <th className="col-num">N°</th>
             <th>Commande</th>
             <th>Fournisseur</th>
             <th>Date</th>
@@ -983,7 +984,7 @@ const toggleSelect = (id) =>
           </tr>
         </thead>
         <tbody>
-          {currentItems.map((c) => {
+          {currentItems.map((c, i) => {
             const tone = (STATUTS[c.statut] || STATUTS.en_attente).tone;
             const selected = selectedIds.includes(c.id_commande_achat);
             return (
@@ -995,6 +996,7 @@ const toggleSelect = (id) =>
                 <td className="ca-col-check" onClick={(e) => e.stopPropagation()}>
                   <input type="checkbox" className="ca-check" checked={selected} onChange={() => toggleSelect(c.id_commande_achat)} aria-label={`Sélectionner ${c.numero_commande}`} />
                 </td>
+                <td className="col-num">{firstIdx + i + 1}</td>
                 <td><span className="ca-ref">{c.numero_commande}</span></td>
                 <td><span className="ca-supplier"><Building size={14} />{c.fournisseur_nom || "—"}</span></td>
                 <td className="ca-muted">{formatDate(c.date_commande)}</td>
