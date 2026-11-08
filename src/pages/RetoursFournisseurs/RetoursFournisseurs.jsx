@@ -15,6 +15,28 @@ import {
 } from "../../components/UI/Vt";
 import "./RetoursFournisseurs.css";
 import RetourPDFActions from "../../components/RetourFournisseur/RetourPDFActions";
+import StockInputWithSelector from "../../components/StockSelector/StockInputWithSelector";
+
+// Quantité en unité de base affichée dans les unités du produit : « 2 Cartons 3 Pièces »
+const plurielU = (n, mot) => (n > 1 && !/[sxz]$/i.test(mot) ? `${mot}s` : mot);
+const enUnites = (base, produit) => {
+  let reste = Math.max(0, Math.round((Number(base) || 0) * 1000) / 1000);
+  const nomBase = produit?.unite_nom || "Unité";
+  const grandes = (produit?.unites_vente || [])
+    .filter((u) => Number(u.quantite_base) > 1)
+    .sort((a, b) => b.quantite_base - a.quantite_base);
+  const morceaux = [];
+  for (const u of grandes) {
+    const n = Math.floor(reste / u.quantite_base + 1e-9);
+    if (n > 0) {
+      morceaux.push(`${n} ${plurielU(n, u.nom)}`);
+      reste = Math.round((reste - n * u.quantite_base) * 1000) / 1000;
+    }
+  }
+  if (reste > 0 || morceaux.length === 0) morceaux.push(`${reste} ${plurielU(reste, nomBase)}`);
+  return morceaux.join(" ");
+};
+
 
 // ============================================================
 // HELPERS
@@ -226,10 +248,10 @@ const RetoursFournisseurs = () => {
     }));
   };
 
-  const updateQuantite = (idProduit, valeur, max) => {
-    let q = parseInt(valeur, 10);
-    if (isNaN(q) || q < 1) q = 1;
-    if (q > max) q = max;
+  // Quantité en unité de base (cartons + pièces déjà additionnés). On ne la
+  // corrige pas pendant la frappe : un dépassement est signalé et bloque l'envoi.
+  const updateQuantite = (idProduit, valeur) => {
+    const q = Math.max(0, parseFloat(valeur) || 0);
 
     setSelection(prev => ({
       ...prev,
@@ -305,6 +327,16 @@ const RetoursFournisseurs = () => {
     }
     if (lignesSelectionnees.length === 0) {
       setFormError("Veuillez sélectionner au moins un produit");
+      return;
+    }
+    const vide = lignesSelectionnees.find(l => !(l.quantite > 0));
+    if (vide) {
+      setFormError(`Indiquez la quantité à renvoyer pour ${vide.produit.nom}`);
+      return;
+    }
+    const tropGrand = lignesSelectionnees.find(l => l.quantite > l.produit.quantite_max_retournable);
+    if (tropGrand) {
+      setFormError(`Vous ne pouvez pas renvoyer plus de ${enUnites(tropGrand.produit.quantite_max_retournable, tropGrand.produit)} de ${tropGrand.produit.nom}`);
       return;
     }
 
@@ -705,14 +737,21 @@ const RetoursFournisseurs = () => {
                                     <div className="vt-cell-sub">Déjà renvoyé : {p.quantite_deja_retournee}</div>
                                   )}
                                 </td>
-                                <td className="vt-right vt-num rfo-hide-sm">{p.quantite_stock}</td>
-                                <td className="vt-right vt-num rfo-hide-sm">{p.quantite_recue}</td>
-                                <td className="vt-right vt-num vt-strong">{p.quantite_max_retournable}</td>
-                                <td className="vt-right">
-                                  <input type="number" className="vt-input vt-num rfo-qte" value={qte} min="1"
-                                         max={p.quantite_max_retournable} readOnly={!sel.selected}
-                                         aria-label={`Quantité de ${p.nom}`}
-                                         onChange={(e) => updateQuantite(p.id_produit, e.target.value, p.quantite_max_retournable)} />
+                                <td className="vt-right vt-num rfo-hide-sm">{enUnites(p.quantite_stock, p)}</td>
+                                <td className="vt-right vt-num rfo-hide-sm">{enUnites(p.quantite_recue, p)}</td>
+                                <td className="vt-right vt-num vt-strong">{enUnites(p.quantite_max_retournable, p)}</td>
+                                <td className={`vt-right rfo-qte-cell ${qte > p.quantite_max_retournable ? 'rfo-trop' : ''}`}>
+                                  <StockInputWithSelector
+                                    name={`rfo-q-${p.id_produit}`}
+                                    value={qte || ''}
+                                    onChange={(e) => updateQuantite(p.id_produit, e.target.value)}
+                                    unitesVente={p.unites_vente || []}
+                                    uniteBase={{ nom: p.unite_nom }}
+                                    disabled={!sel.selected}
+                                  />
+                                  {qte > p.quantite_max_retournable && (
+                                    <div className="rfo-trop-texte">Max. {enUnites(p.quantite_max_retournable, p)}</div>
+                                  )}
                                 </td>
                                 <td className="vt-right vt-num">{sel.selected ? formatMontant(qte * p.prix_achat) : '-'}</td>
                               </tr>

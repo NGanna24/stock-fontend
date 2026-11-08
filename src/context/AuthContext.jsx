@@ -134,6 +134,20 @@ export function AuthContextProvider({ children }) {
         }
     };
 
+    // ==================== MISE À JOUR LOCALE DU COMPTE ====================
+    // Fusionne les champs reçus avec le compte connecté (garde entrepôts,
+    // fonctionnalités, slug…) et les mémorise pour la prochaine ouverture.
+    const updateUser = (champs) => {
+        if (!champs) return;
+        setUser((prev) => {
+            const suivant = { ...(prev || {}), ...champs };
+            try {
+                localStorage.setItem('user', JSON.stringify(suivant));
+            } catch (e) { /* stockage indisponible */ }
+            return suivant;
+        });
+    };
+
     // ==================== GET PROFILE ====================
     const getProfile = async () => {
         setLoading(true);
@@ -180,8 +194,7 @@ export function AuthContextProvider({ children }) {
             });
 
             if (response.data && response.data.user) {
-                setUser(response.data.user);
-                localStorage.setItem('user', JSON.stringify(response.data.user));
+                updateUser(response.data.user);
             }
 
             return { success: true, data: response.data };
@@ -252,6 +265,7 @@ export function AuthContextProvider({ children }) {
         logout,
         getProfile,
         updateProfile,
+        updateUser,
         changePassword,
     };
 
@@ -268,4 +282,4 @@ export function useUser() {
         throw new Error("useUser doit être utilisé à l'intérieur d'un AuthContextProvider");
     }
     return context;
-}
+}

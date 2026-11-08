@@ -14,6 +14,8 @@ export const ROLE_PERMISSIONS = {
         'rapport-ventes', 'rapport-achats', 'rapport-stocks', 'benefices',
         // Principal
         'dashboard', 'alertes',
+        // Réglages de l'ordinateur
+        'parametres',
     ],
 
     caissier: [
@@ -22,6 +24,8 @@ export const ROLE_PERMISSIONS = {
         'clients', 'commandes-clients', 'caisse', 'factures', 'recettes', 'retours-clients', 'relances',
         // Consultation produits
         'produits',
+        // Réglages de l'ordinateur
+        'parametres',
     ],
 
     magasinier: [ 
@@ -30,6 +34,8 @@ export const ROLE_PERMISSIONS = {
         'produits', 'categories', 'marques', 'modeles', 'unites', 'mouvements', 'inventaires',
         // Approvisionnement
         'fournisseurs', 'commandes-achat', 'receptions', 'retours-fournisseurs',
+        // Réglages de l'ordinateur
+        'parametres',
     ],
 };
 

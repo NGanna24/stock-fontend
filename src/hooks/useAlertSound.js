@@ -1,5 +1,6 @@
 // hooks/useAlertSound.js
 import { useCallback, useRef, useEffect, useState } from 'react';
+import { sonAlertesActif } from '../config/preferences';
 
 const useAlertSound = () => {
     const audioContextRef = useRef(null);
@@ -143,8 +144,12 @@ const useAlertSound = () => {
 
         console.log(`🔔 Démarrage boucle sonore (${type}, toutes les ${intervalMs}ms)`);
 
+        // Son coupé dans Paramètres : aucune boucle
+        if (!sonAlertesActif()) return;
+
         // ✅ Jouer immédiatement le premier son
         const playOnce = () => {
+            if (!sonAlertesActif()) return; // coupé entre-temps
             if (type === 'critical') {
                 playCritical();
             } else {

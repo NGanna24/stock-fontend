@@ -587,7 +587,21 @@ TRANSFERT: {
             DETAIL: (id) => `${BASE_URL}/api/super-admin/utilisateurs/${id}`,
             TOGGLE: (id) => `${BASE_URL}/api/super-admin/utilisateurs/${id}/toggle`,
         },
+
+        // Abonnements des patrons (paiement validé à la main)
+        ABONNEMENTS: {
+            LISTE: `${BASE_URL}/api/super-admin/abonnements`,
+            REGLAGES: `${BASE_URL}/api/super-admin/abonnements/reglages`,
+            DETAIL: (id) => `${BASE_URL}/api/super-admin/abonnements/${id}`,
+            PROLONGER: (id) => `${BASE_URL}/api/super-admin/abonnements/${id}/prolonger`,
+            PAIEMENT: (id, idAbonnement) => `${BASE_URL}/api/super-admin/abonnements/${id}/paiements/${idAbonnement}`,
+        },
+    },
+
+    // Abonnement du patron connecté
+    ABONNEMENT: {
+        MOI: `${BASE_URL}/api/abonnement`,
     },
 };
 
-export default API_URL;
+export default API_URL;

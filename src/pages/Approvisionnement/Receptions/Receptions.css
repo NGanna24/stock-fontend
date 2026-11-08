@@ -852,7 +852,7 @@
 .rc-lines-table .c-check { width: 52px; text-align: center; }
 .rc-lines-table .c-produit { width: 230px; }
 .rc-lines-table .c-qte { width: 130px; }
-.rc-lines-table .c-recu { width: 170px; }
+.rc-lines-table .c-recu { width: 190px; }
 .rc-lines-table .c-ecart { width: 130px; }
 .rc-lines-table .c-prix { width: 140px; }
 .rc-lines-table .c-etat { width: 140px; }
@@ -876,8 +876,6 @@
 
 /* ligne non validée : barre rouge à gauche + fond légèrement teinté */
 .rc-lines-table tr.is-invalid { background: #fdf6f5; }
-.rc-lines-table tr.is-invalid td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
-.rc-lines-table tr.is-valid td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 
 .rc-check {
   display: inline-flex; padding: 6px;
@@ -1092,4 +1090,4 @@
 .ca-scope-tab.is-active, .rc-scope-tab.is-active, .rt-scope-tab.is-active {
   opacity: 1; background: #fff; color: #111; box-shadow: 0 1px 4px rgba(0, 0, 0, .15);
 }
-.ca-scope-tab:focus-visible, .rc-scope-tab:focus-visible, .rt-scope-tab:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.ca-scope-tab:focus-visible, .rc-scope-tab:focus-visible, .rt-scope-tab:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }

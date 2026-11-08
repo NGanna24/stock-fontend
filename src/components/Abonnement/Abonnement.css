@@ -1,0 +1,81 @@
+/* components/Abonnement/Abonnement.css : rappels et moyens de paiement */
+.abo-tete {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px; margin-bottom: 14px;
+  border-radius: 10px;
+  background: #FFF1E7; color: #9A3412;
+}
+.abo-tete--expire { background: #FEE2E2; color: #991B1B; }
+.abo-tete-icone {
+  display: grid; place-items: center; flex: none;
+  width: 40px; height: 40px; border-radius: 10px;
+  background: #fff; color: #C2410C;
+}
+.abo-tete--expire .abo-tete-icone { color: #B91C1C; }
+.abo-tete strong { display: block; font-size: 14.5px; }
+.abo-tete span { font-size: 13px; opacity: .9; }
+
+.abo-montant {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px 14px; margin-bottom: 16px;
+  border: 1px solid var(--miyo-border, #E2E8F0); border-radius: 10px;
+}
+.abo-montant > span:first-child { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--miyo-text-tertiary, #64748B); }
+.abo-montant strong { font-size: 24px; font-weight: 800; letter-spacing: -.02em; color: var(--miyo-text, #0F172A); }
+.abo-montant strong small { font-size: 13px; font-weight: 600; color: var(--miyo-text-tertiary, #64748B); }
+.abo-montant-detail { font-size: 12.5px; color: var(--miyo-text-secondary, #475569); }
+
+.abo-sous-titre { margin: 0 0 10px; font-size: 14px; font-weight: 700; color: var(--miyo-text, #0F172A); }
+
+.abo-moyens { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.abo-moyen {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--miyo-border, #E2E8F0); border-radius: 10px;
+  background: var(--miyo-surface, #fff);
+}
+.abo-moyen-num {
+  display: grid; place-items: center; flex: none;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--miyo-bg-subtle, #F1F5F9);
+  font-size: 12px; font-weight: 700; color: var(--miyo-text-secondary, #475569);
+}
+.abo-moyen-icone {
+  display: grid; place-items: center; flex: none;
+  width: 36px; height: 36px; border-radius: 9px;
+  background: #FFF1E7; color: #C2410C;
+}
+.abo-moyen-texte { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.abo-moyen-texte strong { font-size: 13.5px; color: var(--miyo-text, #0F172A); }
+.abo-moyen-numero { font-size: 15px; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums; color: var(--miyo-text, #0F172A); word-break: break-all; }
+.abo-moyen-titulaire { font-size: 12px; color: var(--miyo-text-tertiary, #64748B); }
+
+.abo-vide { margin: 0; padding: 12px; border-radius: 10px; background: var(--miyo-bg-subtle, #F1F5F9); font-size: 13px; color: var(--miyo-text-secondary, #475569); }
+
+.abo-note {
+  display: flex; align-items: flex-start; gap: 8px;
+  margin: 14px 0 0; font-size: 13px; line-height: 1.45;
+  color: var(--miyo-text-secondary, #475569);
+}
+.abo-note svg { flex: none; margin-top: 2px; color: #C2410C; }
+
+/* Section Abonnement des Paramètres */
+.abo-etat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+.abo-etat > div {
+  display: flex; flex-direction: column; gap: 3px;
+  padding: 12px; border-radius: 10px;
+  background: var(--miyo-bg-subtle, #F8FAFC);
+}
+.abo-etat span { font-size: 12px; color: var(--miyo-text-tertiary, #64748B); }
+.abo-etat strong { font-size: 15px; color: var(--miyo-text, #0F172A); }
+.abo-etat small { font-size: 12px; color: var(--miyo-text-secondary, #475569); }
+.abo-pastille { display: inline-flex; align-self: flex-start; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.abo-pastille--actif { background: #E0F2FE; color: #0369A1; }
+.abo-pastille--essai { background: #F1F5F9; color: #334155; }
+.abo-pastille--bientot { background: #FEF3C7; color: #B45309; }
+.abo-pastille--expire { background: #FEE2E2; color: #B91C1C; }
+
+@media (max-width: 640px) {
+  .abo-etat { grid-template-columns: 1fr; }
+  .abo-moyen { flex-wrap: wrap; }
+}

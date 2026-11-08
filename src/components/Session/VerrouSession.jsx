@@ -12,7 +12,7 @@ import { Lock, Loader, LogOut, AlertTriangle } from 'lucide-react';
 import API_URL from '../../config/api';
 import { useUser } from '../../context/AuthContext';
 import {
-  DELAI_VERROU_MIN, installerSession, noterActivite, estVerrouille, verrouiller, deverrouiller,
+  delaiVerrouMin, installerSession, noterActivite, estVerrouille, verrouiller, deverrouiller,
   inactifDepuisTrop, terminerSession, remplacerJeton, verifierCodeLocal, memoriserEmpreinte,
 } from '../../securite/session';
 import './VerrouSession.css';
@@ -119,7 +119,7 @@ export default function VerrouSession() {
           <strong>{user?.fullname || 'Utilisateur'}</strong>
           {user?.role && <span>{ROLES[user.role] || user.role}</span>}
         </p>
-        <p className="vs-aide">Verrouillé après {DELAI_VERROU_MIN} minutes sans activité. Votre travail en cours est conservé.</p>
+        <p className="vs-aide">Verrouillé après {delaiVerrouMin()} minutes sans activité. Votre travail en cours est conservé.</p>
         <input
           ref={champ}
           className="vs-code"

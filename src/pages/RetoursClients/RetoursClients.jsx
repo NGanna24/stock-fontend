@@ -9,6 +9,7 @@ import RetourClientService from "../../services/retourClient/retourClientService
 import CommandeVenteService from "../../services/commandeVenteService";
 import UniteVenteService from "../../services/uniteVenteService";
 import StockSelector from "../../components/StockSelector/StockSelector";
+import StockInputWithSelector from "../../components/StockSelector/StockInputWithSelector";
 import { useUser } from "../../context/AuthContext";
 import {
   Page, PageHead, Overview, Stage, SearchBox, Badge, ErrorBar, Empty, SkeletonRows, Pager,
@@ -269,7 +270,8 @@ const RetoursClients = () => {
         quantite_deja_retournee_base: dejaRetourne,
         quantite_retournable_base: retournable,
 
-        // Sélection utilisateur
+        // Sélection utilisateur (en unité de base : 2 cartons + 3 pièces = 27)
+        quantite_retour_base: '',
         quantite_a_retourner: 0,
         unite_selectionnee: null,
         unites_disponibles: [],
@@ -346,13 +348,8 @@ const RetoursClients = () => {
   const totalRemboursement = useMemo(() => {
     let total = 0;
     for (const ligne of lignesCommande) {
-      const qte = parseFloat(ligne.quantite_a_retourner) || 0;
-      if (qte <= 0) continue;
-
-      const unite = ligne.unite_selectionnee;
-      if (!unite) continue;
-
-      const qteBase = qte * (parseFloat(unite.quantite_base) || 1);
+      const qteBase = parseFloat(ligne.quantite_retour_base) || 0;
+      if (qteBase <= 0) continue;
 
       const prixOrigineTotal = ligne.quantite_origine * ligne.prix_vente_origine;
       const prixUnitaireBase = prixOrigineTotal / ligne.quantite_achetee_base;
@@ -365,11 +362,8 @@ const RetoursClients = () => {
   // ========== WIZARD : vérifier validité ==========
   const lignesValides = useMemo(() => {
     return lignesCommande.filter(l => {
-      const qte = parseFloat(l.quantite_a_retourner) || 0;
-      if (qte <= 0) return false;
-      if (!l.unite_selectionnee) return false;
-      const qteBase = qte * (parseFloat(l.unite_selectionnee.quantite_base) || 1);
-      return qteBase <= l.quantite_retournable_base;
+      const qteBase = parseFloat(l.quantite_retour_base) || 0;
+      return qteBase > 0 && qteBase <= l.quantite_retournable_base + 1e-9;
     });
   }, [lignesCommande]);
 
@@ -394,12 +388,15 @@ const RetoursClients = () => {
         motif_retour: motifRetour,
         type_resolution: typeResolution,
         notes: notes.trim() || null,
+        // Envoyé en unité de base (cartons + pièces déjà additionnés),
+        // avec la ligne vendue exacte (le même produit peut être sur 2 lignes)
         lignes: lignesValides.map(l => ({
           id_produit: l.id_produit,
-          id_unite_vente: l.unite_selectionnee.id_unite_vente,
-          nom_unite_vente: l.unite_selectionnee.nom,
-          quantite_base: l.unite_selectionnee.quantite_base,
-          quantite: parseFloat(l.quantite_a_retourner),
+          id_ligne_vente: l.id_ligne_vente,
+          id_unite_vente: null,
+          nom_unite_vente: l.unite_base_nom || 'Unité',
+          quantite_base: 1,
+          quantite: parseFloat(l.quantite_retour_base),
           etat_produit: l.etat_produit
         }))
       };
@@ -687,10 +684,9 @@ const RetoursClients = () => {
                             </div>
                           );
                         }
-                        const qte = parseFloat(ligne.quantite_a_retourner) || 0;
-                        const unite = ligne.unite_selectionnee;
-                        const qteBase = unite ? qte * parseFloat(unite.quantite_base || 1) : 0;
-                        const invalid = qteBase > ligne.quantite_retournable_base;
+                        const qteBase = parseFloat(ligne.quantite_retour_base) || 0;
+                        const qte = qteBase;
+                        const invalid = qteBase > ligne.quantite_retournable_base + 1e-9;
                         return (
                           <div key={index} className="rcl-ligne" data-etat={invalid ? 'erreur' : qte > 0 ? 'choisi' : ''}>
                             <div className="rcl-ligne-nom">
@@ -713,28 +709,15 @@ const RetoursClients = () => {
                             </div>
 
                             <div className="rcl-saisie">
-                              <div className="vt-field">
-                                <label htmlFor={`rcl-u-${index}`}>Unité</label>
-                                <select id={`rcl-u-${index}`} className="vt-input" value={unite?.id_unite_vente ?? 'base'}
-                                        onChange={(e) => {
-                                          const val = e.target.value;
-                                          const selected = ligne.unites_disponibles.find(u =>
-                                            (u.id_unite_vente === null ? 'base' : u.id_unite_vente) === (val === 'base' ? 'base' : parseInt(val, 10)));
-                                          updateLigne(index, 'unite_selectionnee', selected);
-                                        }}>
-                                  {ligne.unites_disponibles.map((u, i) => (
-                                    <option key={i} value={u.id_unite_vente ?? 'base'}>
-                                      {u.nom}{u.quantite_base > 1 ? ` (×${u.quantite_base})` : ''}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
                               <div className="vt-field rcl-qte">
-                                <label htmlFor={`rcl-q-${index}`}>Quantité rapportée</label>
-                                <input id={`rcl-q-${index}`} type="number" min="0" inputMode="decimal" placeholder="0"
-                                       className={`vt-input vt-num ${invalid ? 'vt-input--invalid' : ''}`}
-                                       value={ligne.quantite_a_retourner || ''}
-                                       onChange={(e) => updateLigne(index, 'quantite_a_retourner', e.target.value)} />
+                                <span className="vt-label">Quantité rapportée</span>
+                                <StockInputWithSelector
+                                  name={`rcl-q-${index}`}
+                                  value={ligne.quantite_retour_base}
+                                  onChange={(e) => updateLigne(index, 'quantite_retour_base', e.target.value)}
+                                  unitesVente={(ligne.unites_disponibles || []).filter(u => !u.is_base)}
+                                  uniteBase={uniteBaseDe(ligne)}
+                                />
                               </div>
                               {qte > 0 && (
                                 <div className="vt-field">

@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Lock, Mail, Eye, EyeOff, AlertCircle, RefreshCw, ShieldCheck
 } from "lucide-react";
-import { useSuperAdmin } from "../../../context/SuperAdminAuthContext";
+import { useSuperAdmin, KEY_RAISON_SA } from "../../../context/SuperAdminAuthContext";
 import "./SuperAdminLogin.css";
 
 const SuperAdminLogin = () => {
@@ -16,6 +16,12 @@ const SuperAdminLogin = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  // Pourquoi on revient ici (session expirée…), affiché une seule fois
+  const [raison] = useState(() => {
+    const r = sessionStorage.getItem(KEY_RAISON_SA);
+    if (r) sessionStorage.removeItem(KEY_RAISON_SA);
+    return r;
+  });
 
   // Si déjà connecté → redirection dashboard
   useEffect(() => {
@@ -53,6 +59,13 @@ const SuperAdminLogin = () => {
         </div>
 
         <form className="sal-form" onSubmit={handleSubmit}>
+          {!error && raison && (
+            <div className="sal-alert sal-alert--info" role="status">
+              <AlertCircle size={16} />
+              <span>{raison}</span>
+            </div>
+          )}
+
           {error && (
             <div className="sal-alert">
               <AlertCircle size={16} />
@@ -115,4 +128,4 @@ const SuperAdminLogin = () => {
   );
 };
 
-export default SuperAdminLogin;
+export default SuperAdminLogin;

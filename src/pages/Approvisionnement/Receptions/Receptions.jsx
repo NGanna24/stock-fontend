@@ -13,7 +13,31 @@ import FournisseurService from "../../../services/fournisseurService";
 import ProduitService from "../../../services/produitService";
 import { useUser } from "../../../context/AuthContext";
 import ConfirmModal from "../../../components/ConfirmModal/ConfirmModal";
+import StockInputWithSelector from "../../../components/StockSelector/StockInputWithSelector";
 import "./Receptions.css";
+
+// ------------------------------------------------------------
+// Quantités en plusieurs unités : une ligne est commandée dans une unité
+// d'achat (ex. Carton ×12) ; on peut recevoir « 9 cartons + 6 pièces ».
+// La quantité reçue est gardée en unité d'achat (9,5) ET en unité de base (114).
+// ------------------------------------------------------------
+const arrondir = (n, d = 4) => Math.round((Number(n) || 0) * 10 ** d) / 10 ** d;
+const pluriel = (n, mot) => (Math.abs(n) > 1 && !/[sxz]$/i.test(mot) ? `${mot}s` : mot);
+// 114 pièces avec Carton ×12  →  « 9 Cartons 6 Pièces »
+const enUnites = (base, ligne) => {
+  const qb = Number(ligne.quantite_base) || 1;
+  const total = Math.round(Math.abs(Number(base) || 0) * 1000) / 1000;
+  const grande = ligne.nom_unite_vente || "Unité";
+  if (qb <= 1) return `${total} ${pluriel(total, grande)}`;
+  const petite = ligne.unite_nom || "pièce";
+  const n = Math.floor(total / qb + 1e-9);
+  const r = Math.round((total - n * qb) * 1000) / 1000;
+  const morceaux = [];
+  if (n) morceaux.push(`${n} ${pluriel(n, grande)}`);
+  if (r) morceaux.push(`${r} ${pluriel(r, petite)}`);
+  return morceaux.join(" ") || `0 ${grande}`;
+};
+const baseCommandee = (l) => (Number(l.quantite_commandee) || 0) * (Number(l.quantite_base) || 1);
 
 const Receptions = () => {
   const { user, isAuthenticated } = useUser();
@@ -315,6 +339,7 @@ const Receptions = () => {
             ecart: 0,
             prix_achat_unite_vente: prixAchatUV,
             unite: l.nom_unite_vente || l.unite_symbole || '',
+            unite_nom: l.unite_nom || l.unite_symbole || 'pièce',
             valide: true,
             etat_marchandise: 'bon',
             num_lot: '',
@@ -409,6 +434,26 @@ const Receptions = () => {
 
     nouvellesLignes[index].valide = qteRecue > 0;
     nouvellesLignes[index].etat_marchandise = qteRecue < qteCommandee ? 'partiel' : 'bon';
+
+    setFormData({ ...formData, lignes: nouvellesLignes });
+    setToutValide(nouvellesLignes.every(l => l.valide === true));
+  };
+
+  // Saisie en plusieurs unités : la valeur reçue est le total en unité de base
+  const handleRecuBaseChange = (index, valeurBase) => {
+    const nouvellesLignes = [...formData.lignes];
+    const ligne = { ...nouvellesLignes[index] };
+    const qteBase = ligne.quantite_base || 1;
+    const totalBase = Math.max(0, parseFloat(valeurBase) || 0);
+    const qteRecue = arrondir(totalBase / qteBase);
+    const qteCommandee = ligne.quantite_commandee || 0;
+
+    ligne.quantite_totale_base = totalBase;
+    ligne.quantite_recue = qteRecue;
+    ligne.ecart = arrondir(qteCommandee - qteRecue);
+    ligne.valide = totalBase > 0;
+    ligne.etat_marchandise = totalBase < baseCommandee(ligne) - 1e-9 ? 'partiel' : 'bon';
+    nouvellesLignes[index] = ligne;
 
     setFormData({ ...formData, lignes: nouvellesLignes });
     setToutValide(nouvellesLignes.every(l => l.valide === true));
@@ -549,9 +594,9 @@ const Receptions = () => {
                 <ul>
                   {manquants.map((l, i) => (
                     <li key={i}>
-                      <strong>{l.produit_nom}</strong> : commandé <strong>{l.quantite_commandee} {l.nom_unite_vente}</strong>, reçu <strong>{l.quantite_recue} {l.nom_unite_vente}</strong>
+                      <strong>{l.produit_nom}</strong> : commandé <strong>{enUnites(baseCommandee(l), l)}</strong>, reçu <strong>{enUnites(l.quantite_totale_base, l)}</strong>
                       <span style={{ color: '#b42318', marginLeft: '6px' }}>
-                        (-{l.ecart} {l.nom_unite_vente})
+                        (−{enUnites(baseCommandee(l) - l.quantite_totale_base, l)})
                       </span>
                     </li>
                   ))}
@@ -564,9 +609,9 @@ const Receptions = () => {
                 <ul>
                   {surplus.map((l, i) => (
                     <li key={i}>
-                      <strong>{l.produit_nom}</strong> : commandé <strong>{l.quantite_commandee} {l.nom_unite_vente}</strong>, reçu <strong>{l.quantite_recue} {l.nom_unite_vente}</strong>
+                      <strong>{l.produit_nom}</strong> : commandé <strong>{enUnites(baseCommandee(l), l)}</strong>, reçu <strong>{enUnites(l.quantite_totale_base, l)}</strong>
                       <span style={{ color: '#175cd3', marginLeft: '6px' }}>
-                        (+{Math.abs(l.ecart)} {l.nom_unite_vente})
+                        (+{enUnites(l.quantite_totale_base - baseCommandee(l), l)})
                       </span>
                     </li>
                   ))}
@@ -604,8 +649,10 @@ const Receptions = () => {
         notes: null,
         lignes: lignesValidees.map(l => {
           const qteBase = l.quantite_base || 1;
-          const qteRecue = parseFloat(l.quantite_recue) || 0;
-          const quantiteTotaleBase = qteRecue * qteBase;
+          const qteRecue = arrondir(parseFloat(l.quantite_recue) || 0);
+          const quantiteTotaleBase = l.quantite_totale_base !== undefined && l.quantite_totale_base !== null
+            ? arrondir(l.quantite_totale_base, 3)
+            : arrondir(qteRecue * qteBase, 3);
 
           let prixAchatUV = null;
           if (
@@ -811,18 +858,23 @@ const Receptions = () => {
     );
   };
 
-  const renderEcart = (ecart, uniteLabel) => {
+  const renderEcart = (ecart, uniteLabel, ligne) => {
+    const ecartBase = ligne ? baseCommandee(ligne) - (Number(ligne.quantite_totale_base) || 0) : null;
     if (ecart > 0) {
       return (
         <span className="rc-ecart rc-ecart--manque">
-          −{ecart} <small>{uniteLabel}</small>
+          {ligne && ligne.quantite_base > 1
+            ? <>−{enUnites(ecartBase, ligne)}</>
+            : <>−{ecart} <small>{uniteLabel}</small></>}
         </span>
       );
     }
     if (ecart < 0) {
       return (
         <span className="rc-ecart rc-ecart--surplus">
-          +{Math.abs(ecart)} <small>{uniteLabel}</small>
+          {ligne && ligne.quantite_base > 1
+            ? <>+{enUnites(-ecartBase, ligne)}</>
+            : <>+{Math.abs(ecart)} <small>{uniteLabel}</small></>}
         </span>
       );
     }
@@ -1069,28 +1121,45 @@ const Receptions = () => {
                     </td>
                     <td className="c-qte">
                       <div className="rc-qty">
-                        <strong>{ligne.quantite_commandee}</strong>
-                        <span>{uniteLabel}</span>
+                        {ligne.quantite_base > 1 && !Number.isInteger(Number(ligne.quantite_commandee)) ? (
+                          <strong>{enUnites(baseCommandee(ligne), ligne)}</strong>
+                        ) : (
+                          <>
+                            <strong>{ligne.quantite_commandee}</strong>
+                            <span>{uniteLabel}</span>
+                          </>
+                        )}
                         {ligne.quantite_deja_recue > 0 && (
                           <small>déjà reçu : {ligne.quantite_deja_recue}</small>
                         )}
                       </div>
                     </td>
                     <td className="c-recu">
-                      <div className={`rc-input-group ${!estValide ? 'is-invalid' : ''}`}>
-                        <input
-                          type="number"
-                          value={ligne.quantite_recue || ''}
-                          onChange={(e) => handleQuantiteRecueChange(index, e.target.value)}
-                          min="0"
-                          step="1"
+                      {ligne.quantite_base > 1 ? (
+                        <StockInputWithSelector
+                          name={`recu-${index}`}
+                          value={ligne.quantite_totale_base || ''}
+                          onChange={(e) => handleRecuBaseChange(index, e.target.value)}
+                          unitesVente={[{ id_unite_vente: ligne.id_unite_vente || 'achat', nom: uniteLabel, quantite_base: ligne.quantite_base }]}
+                          uniteBase={{ nom: ligne.unite_nom }}
                           disabled={saving}
-                          placeholder="0"
                         />
-                        <span>{uniteLabel}</span>
-                      </div>
+                      ) : (
+                        <div className={`rc-input-group ${!estValide ? 'is-invalid' : ''}`}>
+                          <input
+                            type="number"
+                            value={ligne.quantite_recue || ''}
+                            onChange={(e) => handleQuantiteRecueChange(index, e.target.value)}
+                            min="0"
+                            step="1"
+                            disabled={saving}
+                            placeholder="0"
+                          />
+                          <span>{uniteLabel}</span>
+                        </div>
+                      )}
                     </td>
-                    <td className="c-ecart">{renderEcart(ligne.ecart, uniteLabel)}</td>
+                    <td className="c-ecart">{renderEcart(ligne.ecart, uniteLabel, ligne)}</td>
                     <td className="c-prix">
                       <div className="rc-input-group">
                         <input

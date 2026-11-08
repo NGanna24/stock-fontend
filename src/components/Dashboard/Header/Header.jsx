@@ -37,7 +37,7 @@ const ROLE_LABELS = {
 };
 
 // Pages hors menu latéral
-const EXTRA_TITLES = { "/profile": "Mon profil", "/settings": "Paramètres" };
+const EXTRA_TITLES = { "/mon-profil": "Mon profil", "/parametres": "Paramètres" };
 
 // Description de chaque famille de résultats de recherche
 const SEARCH_SECTIONS = [
@@ -460,7 +460,7 @@ const Header = () => {
             {darkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
 
-          <button className="hd-btn hd-btn--settings" onClick={() => go("/settings")} title="Paramètres" aria-label="Paramètres">
+          <button className="hd-btn hd-btn--settings" onClick={() => go("/parametres")} title="Paramètres" aria-label="Paramètres">
             <Settings size={20} />
           </button>
 
@@ -491,8 +491,8 @@ const Header = () => {
                   </div>
                 </div>
                 <div className="hd-menu-body">
-                  <button className="hd-menu-item" role="menuitem" onClick={() => go("/profile")}><User size={17} /><span>Mon profil</span></button>
-                  <button className="hd-menu-item" role="menuitem" onClick={() => go("/settings")}><Settings size={17} /><span>Paramètres</span></button>
+                  <button className="hd-menu-item" role="menuitem" onClick={() => go("/mon-profil")}><User size={17} /><span>Mon profil</span></button>
+                  <button className="hd-menu-item" role="menuitem" onClick={() => go("/parametres")}><Settings size={17} /><span>Paramètres</span></button>
                   <button className="hd-menu-item" role="menuitem" onClick={() => go("/dashboard")}><LayoutDashboard size={17} /><span>Tableau de bord</span></button>
                   <button className="hd-menu-item" role="menuitem" onClick={() => go("/alertes")}>
                     <TriangleAlert size={17} /><span>Alertes de stock</span>

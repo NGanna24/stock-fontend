@@ -87,6 +87,13 @@ export const MENU_CONFIG = [
       { id: "paiements", title: "Paiements", icon: CreditCard, path: "/paiements" },
     ],
   },
+  {
+    section: "Réglages",
+    icon: Settings,
+    items: [
+      { id: "parametres", title: "Paramètres", icon: Settings, path: "/parametres" },
+    ],
+  },
 ];
 
 // Trouve l'entrée de menu correspondant à l'URL (la plus précise l'emporte,
@@ -136,6 +143,15 @@ const Sidebar = () => {
   const userSlug = user?.slug || "";
   const userRole = user?.role || "caissier";
   const userName = user?.fullname || "Utilisateur";
+
+  // La page Paramètres peut réduire / ouvrir le menu
+  useEffect(() => {
+    const onPref = (e) => {
+      if (e.detail?.cle === STORAGE_KEY) setCollapsedPref(e.detail.valeur === "1" || e.detail.valeur === 1 || e.detail.valeur === true);
+    };
+    window.addEventListener("miyo:preferences", onPref);
+    return () => window.removeEventListener("miyo:preferences", onPref);
+  }, []);
 
   // Sur petit écran la barre devient un rail d'icônes (comme avant)
   useEffect(() => {

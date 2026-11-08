@@ -4,6 +4,7 @@ import Sidebar from "../components/Dashboard/Sidebar/Sidebar";
 import Header from "../components/Dashboard/Header/Header";
 import HorsLigne from "../components/HorsLigne/HorsLigne";
 import VerrouSession from "../components/Session/VerrouSession";
+import RappelAbonnement from "../components/Abonnement/RappelAbonnement";
 import "./DashboardLayout.css";
 
 const DashboardLayout = () => {
@@ -14,6 +15,7 @@ const DashboardLayout = () => {
         <Header />
         <HorsLigne />
         <VerrouSession />
+        <RappelAbonnement />
         <main className="dashboard-content">
           <Outlet /> {/* Remplacer {children} par Outlet */}
         </main>
@@ -22,4 +24,4 @@ const DashboardLayout = () => {
   );
 };
 
-export default DashboardLayout;
+export default DashboardLayout;

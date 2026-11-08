@@ -39,6 +39,7 @@ import AssistantAchat from "./pages/AssistantAchat/AssistantAchat";
 import Inventaires from "./pages/Inventaires/Inventaires";
 import InventaireDetail from "./pages/Inventaires/InventaireDetail";
 import MonProfil from "./pages/Profil/MonProfil";
+import Parametres from "./pages/Parametres/Parametres";
 import SuperAdminLayout from "./layouts/SuperAdminLayout";
 import SuperAdminDashboard from "./pages/SuperAdmin/Dashboard/SuperAdminDashboard";
 import Magasins from "./pages/SuperAdmin/Magasins/Magasins";
@@ -46,6 +47,7 @@ import MagasinDetail from "./pages/SuperAdmin/Magasins/MagasinDetail";
 import Utilisateurs from "./pages/SuperAdmin/Utilisateurs/Utilisateurs";
 import UtilisateurDetail from "./pages/SuperAdmin/Utilisateurs/UtilisateurDetail";
 import Carte from "./pages/SuperAdmin/Carte/Carte";
+import Abonnements from "./pages/SuperAdmin/Abonnements/Abonnements";
 import { SuperAdminAuthProvider } from "./context/SuperAdminAuthContext";
 import SuperAdminLogin from "./pages/SuperAdmin/Auth/SuperAdminLogin";
 import SuperAdminRegister from "./pages/SuperAdmin/Auth/SuperAdminRegister";
@@ -138,6 +140,9 @@ function AppContent() {
     {/* Carte globale */}
     <Route path="carte" element={<Carte />} />
 
+    {/* Abonnements */}
+    <Route path="abonnements" element={<Abonnements />} />
+
     {/* Placeholders */}
     <Route path="activite"      element={<div style={{ padding: 28 }}>Activité</div>} />
     <Route path="alertes"       element={<div style={{ padding: 28 }}>Alertes</div>} />
@@ -185,6 +190,8 @@ function AppContent() {
                     path="mon-profil"
                     element={<MonProfil />}  
                     />
+                    {/* Paramètres : ouverts à tous les rôles (réglages de l'ordinateur) */}
+                    <Route path="parametres" element={<Parametres />} />
                     <Route index element={<Dashboard />} />
 
                     {/* ---------- Toujours accessible (connecté) ---------- */}

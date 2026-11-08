@@ -28,6 +28,17 @@ if (!axios.__miyoSuperAdminInterceptor) {
     });
 }
 
+// Raison affichée sur la page de connexion après une déconnexion automatique
+export const KEY_RAISON_SA = "miyo:superadmin-raison";
+
+// Une réponse 401 d'une route super-admin (hors connexion) = session terminée
+const estSessionSuperAdminFinie = (err) => {
+    const url = String(err?.config?.url || "");
+    return err?.response?.status === 401
+        && SUPER_ADMIN_URL.test(url)
+        && !/\/super-admin\/auth\/(login|register)/.test(url);
+};
+
 const SuperAdminAuthContext = createContext(null);
 
 export const SuperAdminAuthProvider = ({ children }) => {
@@ -56,6 +67,30 @@ export const SuperAdminAuthProvider = ({ children }) => {
         setSuperAdmin(null);
         setIsAuth(false);
     }, []);
+
+    // ---------- Session expirée : retour à la page de connexion ----------
+    useEffect(() => {
+        const id = axios.interceptors.response.use(
+            (r) => r,
+            (err) => {
+                if (estSessionSuperAdminFinie(err) && localStorage.getItem(KEY_TOKEN)) {
+                    const msg = err.response?.data?.message;
+                    sessionStorage.setItem(
+                        KEY_RAISON_SA,
+                        /expir/i.test(msg || "")
+                            ? "Votre session a expiré. Reconnectez-vous pour continuer."
+                            : "Votre session n'est plus valide. Reconnectez-vous pour continuer."
+                    );
+                    clearSession();
+                    if (!/\/super-admin\/login$/.test(window.location.pathname)) {
+                        window.location.assign("/super-admin/login");
+                    }
+                }
+                return Promise.reject(err);
+            }
+        );
+        return () => axios.interceptors.response.eject(id);
+    }, [clearSession]);
 
     // ---------- Initialisation au démarrage ----------
     useEffect(() => {

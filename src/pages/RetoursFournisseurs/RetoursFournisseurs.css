@@ -35,3 +35,9 @@
 @media (max-width: 640px) {
   .vt .rfo-hide-sm { display: none; }
 }
+
+/* Saisie du retour en cartons + pièces */
+.vt .rfo-qte-cell { min-width: 170px; }
+.vt .rfo-qte-cell .siu { align-items: stretch; }
+.vt .rfo-trop .siu-ligne { border-color: var(--miyo-danger, #DC2626); }
+.vt .rfo-trop-texte { margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--miyo-danger, #DC2626); text-align: left; }

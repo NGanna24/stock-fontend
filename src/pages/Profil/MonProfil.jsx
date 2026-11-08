@@ -9,7 +9,7 @@ import {
 import axios from "axios";
 import API_URL from "../../config/api";
 import { useUser } from "../../context/AuthContext";
-import { remplacerJeton, DELAI_VERROU_MIN } from "../../securite/session";
+import { remplacerJeton, delaiVerrouMin } from "../../securite/session";
 import "./MonProfil.css";
 
 // ==================== ÉTAT INITIAL ====================
@@ -117,6 +117,20 @@ const MonProfil = () => {
     setTouched((prev) => ({ ...prev, [e.target.name]: true }));
   };
 
+  // Un employé n'a pas d'email : son compte est géré par le patron
+  const estEmploye = (profile?.type || user?.type) === "employe";
+  const sections = useMemo(
+    () =>
+      estEmploye
+        ? SECTIONS.map((s) =>
+            s.id === "contact"
+              ? { ...s, hint: "Téléphone", fields: ["telephone"] }
+              : s
+          )
+        : SECTIONS,
+    [estEmploye]
+  );
+
   // ==================== DÉTECTION MODIFICATIONS ====================
   const isDirty = useMemo(() => {
     return JSON.stringify(formData) !== JSON.stringify(initialData);
@@ -124,13 +138,13 @@ const MonProfil = () => {
 
   // ==================== COMPLÉTION ====================
   const globalProgress = useMemo(() => {
-    const allFields = SECTIONS.flatMap((s) => s.fields);
+    const allFields = sections.flatMap((s) => s.fields);
     const filled = allFields.filter((f) => {
       const val = formData[f];
       return val !== null && val !== undefined && String(val).trim() !== "";
     }).length;
     return Math.round((filled / allFields.length) * 100);
-  }, [formData]);
+  }, [formData, sections]);
 
   const getSectionProgress = (section) => {
     const filled = section.fields.filter((f) => {
@@ -186,7 +200,10 @@ const MonProfil = () => {
     setSuccessMessage("");
 
     try {
-      const res = await axios.put(API_URL.AUTH.UPDATE_PROFILE, formData, {
+      const envoi = estEmploye
+        ? { fullname: formData.fullname, telephone: formData.telephone }
+        : formData;
+      const res = await axios.put(API_URL.AUTH.UPDATE_PROFILE, envoi, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -327,7 +344,7 @@ const MonProfil = () => {
                   {profile.telephone}
                 </span>
               )}
-              {profile?.email ? (
+              {estEmploye ? null : profile?.email ? (
                 <span className="mp-hero-meta-item">
                   <Mail size={13} />
                   {profile.email}
@@ -352,7 +369,7 @@ const MonProfil = () => {
         </div>
 
         {/* Alerte email manquant */}
-        {!profile?.email && (
+        {!estEmploye && !profile?.email && (
           <div className="mp-hero-alert">
             <AlertCircle size={16} />
             <div>
@@ -369,7 +386,7 @@ const MonProfil = () => {
       <div className="mp-layout">
         {/* SIDEBAR */}
         <nav className="mp-sidebar" aria-label="Sections">
-          {SECTIONS.map((section) => {
+          {sections.map((section) => {
             const progress = getSectionProgress(section);
             const isDone = progress.percent === 100;
             const isPartial = progress.percent > 0 && !isDone;
@@ -416,7 +433,7 @@ const MonProfil = () => {
                 <p className="mp-section-desc">Votre nom complet</p>
               </div>
               <span className="mp-section-counter">
-                {getSectionProgress(SECTIONS[0]).filled}/{SECTIONS[0].fields.length}
+                {getSectionProgress(sections[0]).filled}/{sections[0].fields.length}
               </span>
             </div>
 
@@ -465,10 +482,10 @@ const MonProfil = () => {
               </div>
               <div className="mp-section-title-group">
                 <h3 className="mp-section-title">Contact</h3>
-                <p className="mp-section-desc">Téléphone et email</p>
+                <p className="mp-section-desc">{estEmploye ? "Votre numéro de téléphone" : "Téléphone et email"}</p>
               </div>
               <span className="mp-section-counter">
-                {getSectionProgress(SECTIONS[1]).filled}/{SECTIONS[1].fields.length}
+                {getSectionProgress(sections[1]).filled}/{sections[1].fields.length}
               </span>
             </div>
 
@@ -498,6 +515,7 @@ const MonProfil = () => {
                   )}
                 </div>
 
+                {!estEmploye && (
                 <div className="mp-field">
                   <label htmlFor="email">
                     Email
@@ -530,6 +548,7 @@ const MonProfil = () => {
                     </span>
                   )}
                 </div>
+                )}
               </div>
             </div>
           </section>
@@ -543,7 +562,7 @@ const MonProfil = () => {
               <div className="mp-section-title-group">
                 <h3 className="mp-section-title">Sécurité de la connexion</h3>
                 <p className="mp-section-desc">
-                  L'écran se verrouille après {DELAI_VERROU_MIN} minutes sans activité. Après 5 codes incorrects, le compte est bloqué 15 minutes.
+                  L'écran se verrouille après {delaiVerrouMin()} minutes sans activité (réglable dans Paramètres). Après 5 codes incorrects, le compte est bloqué 15 minutes.
                 </p>
               </div>
             </div>
@@ -604,4 +623,4 @@ const MonProfil = () => {
   );
 };
 
-export default MonProfil;
+export default MonProfil;

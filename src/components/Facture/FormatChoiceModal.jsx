@@ -1,5 +1,6 @@
 // components/Facture/FormatChoiceModal.jsx
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { formatFacture } from '../../config/preferences';
 import { Receipt, FileText, Download, Printer, Loader, X } from 'lucide-react';
 import FacturePDFService from '../../services/facturePDFService';
 import ApercuImpression from '../Impression/ApercuImpression';
@@ -9,6 +10,17 @@ const FormatChoiceModal = ({ isOpen, factureData, action = 'print', onClose, onD
   const [loading, setLoading] = useState(null); // 'ticket' | 'a4' | null
   const [error, setError] = useState(null);
   const [apercu, setApercu] = useState(null); // 'ticket' | 'a4' | null
+  // Format choisi dans Paramètres : on saute la question
+  const auto = useRef(false);
+
+  useEffect(() => {
+    if (!isOpen || !factureData) { auto.current = false; return; }
+    const pref = formatFacture();
+    if (pref === 'demander' || auto.current) return;
+    auto.current = true;
+    handleChoice(pref);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, factureData]);
 
   if (!isOpen || !factureData) return null;
 
@@ -59,7 +71,7 @@ const FormatChoiceModal = ({ isOpen, factureData, action = 'print', onClose, onD
         getBlob={() => FacturePDFService.getBlob(factureData, apercu)}
         fileName={FacturePDFService.fileNameFor(factureData, apercu)}
         printOptions={ticket ? (taille) => FacturePDFService.optionsTicketElectron(taille) : undefined}
-        onClose={() => setApercu(null)}
+        onClose={() => { setApercu(null); if (auto.current) onClose?.(); }}
         onPrinted={(res) => { if (!res?.fallback) onDone?.(apercu); }}
       />
     );

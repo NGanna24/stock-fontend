@@ -7,9 +7,11 @@
 //   - empreinte locale du code, pour déverrouiller sans internet (mode hors ligne).
 import axios from 'axios';
 import API_URL from '../config/api';
+import { delaiVerrouMin, DELAI_VERROU_DEFAUT } from '../config/preferences';
 
-/** Minutes sans activité avant verrouillage de l'écran. */
-export const DELAI_VERROU_MIN = 15;
+/** Minutes sans activité avant verrouillage de l'écran (valeur par défaut ; réglable dans Paramètres). */
+export const DELAI_VERROU_MIN = DELAI_VERROU_DEFAUT;
+export { delaiVerrouMin };
 const RENOUVELER_APRES_MIN = 60;      // on prolonge le jeton s'il a plus d'une heure…
 const VERIF_RENOUVELLEMENT_MS = 5 * 60 * 1000; // …vérifié toutes les 5 minutes
 
@@ -28,7 +30,7 @@ export const verrouiller = () => { try { localStorage.setItem(CLE_VERROU, '1'); 
 export const deverrouiller = () => { localStorage.removeItem(CLE_VERROU); noterActivite(); };
 export const inactifDepuisTrop = () => {
   const d = derniereActivite();
-  return d > 0 && Date.now() - d > DELAI_VERROU_MIN * 60 * 1000;
+  return d > 0 && Date.now() - d > delaiVerrouMin() * 60 * 1000;
 };
 
 /** Pourquoi on est revenu à l'écran de connexion (lu une fois par la page de connexion). */
@@ -137,7 +139,8 @@ const estSessionExpiree = (err) => {
   if (!r || r.status !== 401) return false;
   const url = String(err.config?.url || '');
   if (/\/utilisateur\/(login|verifier-code|register)|\/super-admin|\/api\/admin\//.test(url)) return false;
-  return r.data?.code === 'SESSION_EXPIREE' || /session (expirée|fermée)|token (invalide|d'authentification)/i.test(r.data?.message || '');
+  return r.data?.code === 'SESSION_EXPIREE'
+    || /session (expirée|fermée)|token (invalide|expiré|d'authentification)|non authentifié|(utilisateur|employé) introuvable/i.test(r.data?.message || '');
 };
 
 export function installerSession() {

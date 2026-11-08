@@ -6,7 +6,7 @@ import { useSuperAdmin } from "../../../context/SuperAdminAuthContext";
 import {
   ChevronDown, PanelLeftClose, PanelLeftOpen, LogOut,
   LayoutDashboard, Users, Store, Activity, BarChart3, MapPin,
-  Shield, AlertTriangle, Settings, FileText, CreditCard, Lock
+  Shield, AlertTriangle, Settings, FileText, CreditCard, Lock, Wallet
 } from "lucide-react";
 import ConfirmModal from "../../ConfirmModal/ConfirmModal";
 import "./Sidebar.css";
@@ -36,6 +36,7 @@ export const SUPER_ADMIN_MENU = [
     section: "Plateforme",
     icon: BarChart3,
     items: [
+      { id: "sa-abonnements", title: "Abonnements",     icon: Wallet,      path: "/abonnements" },
       { id: "sa-stats",      title: "Statistiques",     icon: BarChart3,   path: "/statistiques" },
       { id: "sa-revenus",    title: "Revenus",          icon: CreditCard,  path: "/revenus" },
       { id: "sa-rapports",   title: "Rapports",         icon: FileText,    path: "/rapports" },
@@ -307,4 +308,4 @@ const SuperAdminSidebar = () => {
   );
 };
 
-export default SuperAdminSidebar;
+export default SuperAdminSidebar;
