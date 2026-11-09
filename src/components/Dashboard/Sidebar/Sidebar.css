@@ -47,16 +47,6 @@
 }
 .sb *, .sb *::before, .sb *::after { box-sizing: border-box; }
 
-/* Bandeau décoratif haut (identité Miyo) */
-.sb::before {
-  content: "";
-  display: block;
-  height: 4px;
-  flex-shrink: 0;
-  background: linear-gradient(90deg,
-    var(--signal) 0%,
-    var(--signal-deep) 100%);
-}
 .sb.is-collapsed { width: 76px; }
 
 .sb :focus-visible {

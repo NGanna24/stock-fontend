@@ -202,7 +202,6 @@ const styles = StyleSheet.create({
     padding: 10,
     backgroundColor: '#f8fafc',
     borderRadius: 4,
-    borderLeftWidth: 3,
   },
   notesLabel: {
     fontSize: 9,
