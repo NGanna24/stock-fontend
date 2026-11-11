@@ -54,6 +54,7 @@ export default function BonTransfert({ transfert, onClose, onError }) {
             <ApercuImpression
                 titre="Bon de transfert"
                 sousTitre={t.numero_transfert}
+                typeDocument="bon_transfert"
                 getBlob={genererPdf}
                 fileName={`Bon_${t.numero_transfert || 'transfert'}.pdf`}
                 onClose={() => setApercu(false)}

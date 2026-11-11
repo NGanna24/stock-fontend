@@ -2,6 +2,9 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer';
 import { libelleMode } from '../../config/modesPaiement';
+import { etatPaiement, modeleFacture } from '../../config/documents';
+import { FactureModerne, FactureEpure, FactureCompact } from './FactureModeles';
+import CachetSignature from '../Documents/CachetSignature';
 
 // ============================================================
 // FONTS
@@ -417,7 +420,16 @@ const styles = StyleSheet.create({
 // ============================================================
 // COMPOSANT
 // ============================================================
-const FacturePDF = ({ data }) => {
+// Modèle choisi dans Paramètres (ou forcé pour l'aperçu des modèles)
+const AUTRES_MODELES = { moderne: FactureModerne, epure: FactureEpure, compact: FactureCompact };
+
+const FacturePDF = ({ data, modele }) => {
+    const Autre = AUTRES_MODELES[modele || modeleFacture()];
+    if (Autre) return <Autre data={data} />;
+    return <FactureClassique data={data} />;
+};
+
+const FactureClassique = ({ data }) => {
     const {
         numero_facture,
         date_facture,
@@ -674,7 +686,7 @@ const FacturePDF = ({ data }) => {
                             </Text>
                         )}
                         {resteAPayerCalcule <= 0 && montantTotalNum > 0 && (
-                            <Text style={[styles.totalDueNote, { color: '#10b981' }]}>
+                            <Text style={[styles.totalDueNote, { color: COLORS.dark }]}>
                                 Facture entièrement payée
                             </Text>
                         )}
@@ -720,6 +732,7 @@ const FacturePDF = ({ data }) => {
                     </View>
 
                     <View style={styles.signatureBlock}>
+                        <CachetSignature type="facture" paiement={etatPaiement(montantTotalNum, montantPayeCalcule)} />
                         <View style={styles.signatureLine} />
                         <Text style={styles.signatureName}>{getNomMagasin()}</Text>
                         <Text style={styles.signatureRole}>Signature autorisée</Text>
@@ -806,4 +819,4 @@ const FacturePDF = ({ data }) => {
     );
 };
 
-export default FacturePDF;
+export default FacturePDF;

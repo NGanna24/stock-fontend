@@ -290,6 +290,10 @@
 }
 
 /* Avatar */
+.mp-hero-photo { flex-shrink: 0; }
+.mp-hero-photo .vt-photo { flex-direction: column; align-items: center; gap: 10px; }
+.mp-hero-photo .vt-photo-actions { flex-direction: row; }
+
 .mp-hero-avatar {
   width: 84px;
   height: 84px;

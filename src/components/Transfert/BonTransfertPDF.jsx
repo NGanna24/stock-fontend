@@ -2,6 +2,7 @@
 // Bon de transfert en PDF (A4) : même pipeline que les factures (aperçu + impression Electron).
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import CachetSignature from '../Documents/CachetSignature';
 import { fmtNum, fmtDate, libelleQuantite, libelleEquivalent } from './TrModal';
 
 const C = { ink: '#0f172a', muted: '#475569', line: '#94a3b8', soft: '#f1f5f9' };
@@ -106,6 +107,7 @@ export default function BonTransfertPDF({ transfert: t }) {
                     <View style={s.sign}>
                         <Text style={s.signTxt}>Le gérant de l'entrepôt (remise)</Text>
                         <Text style={s.signTxt}>Nom, date et signature :</Text>
+                        <CachetSignature type="bon_transfert" style={{ justifyContent: 'flex-start', marginTop: 4 }} />
                     </View>
                     <View style={s.sign}>
                         <Text style={s.signTxt}>Le chauffeur (réception)</Text>

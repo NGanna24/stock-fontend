@@ -68,6 +68,7 @@ const FormatChoiceModal = ({ isOpen, factureData, action = 'print', onClose, onD
         titre={ticket ? 'Ticket' : 'Facture A4'}
         sousTitre={factureData.numero_facture}
         etroit={ticket}
+        typeDocument={ticket ? 'ticket' : 'facture'}
         getBlob={() => FacturePDFService.getBlob(factureData, apercu)}
         fileName={FacturePDFService.fileNameFor(factureData, apercu)}
         printOptions={ticket ? (taille) => FacturePDFService.optionsTicketElectron(taille) : undefined}

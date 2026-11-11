@@ -12,6 +12,10 @@ import EmployeService from "../../services/employeService";
 import { useUser } from "../../context/AuthContext";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
 import CountrySelect, { COUNTRIES } from "../../components/CountrySelect";
+import PhotoProfil from "../../components/UI/PhotoProfil";
+import { preparerPhoto } from "../../components/UI/Avatar";
+import API_URL, { urlFichier } from "../../config/api";
+import axios from "axios";
 import "./Employes.css";
 
 /* ============================================================
@@ -30,12 +34,61 @@ const ROLES_LABELS = {
   magasinier: "Magasinier",
 };
 
+// Fiche de l'employé (facultatif). Le salaire n'est vu et modifié que par le patron.
+const FICHE_VIDE = {
+  date_naissance: "", date_embauche: "", adresse: "", quartier: "",
+  piece_type: "", piece_numero: "", contact_urgence_nom: "", contact_urgence_tel: "",
+  salaire: "", notes: "",
+};
+
+const PIECES = [
+  { value: "cni", label: "Carte nationale d'identité" },
+  { value: "passeport", label: "Passeport" },
+  { value: "permis", label: "Permis de conduire" },
+  { value: "attestation", label: "Attestation d'identité" },
+  { value: "carte_consulaire", label: "Carte consulaire" },
+  { value: "autre", label: "Autre pièce" },
+];
+const libellePiece = (v) => PIECES.find((p) => p.value === v)?.label || v;
+
 const EMPTY_FORM = {
   fullname: "",
   countryCode: "CI",
   phoneLocal: "",
   password: "",
   roleName: "caissier",
+  ...FICHE_VIDE,
+};
+
+const ficheDepuis = (e = {}) =>
+  Object.fromEntries(Object.keys(FICHE_VIDE).map((k) => [k, e[k] == null ? "" : String(e[k])]));
+
+// Âge ou ancienneté lisible : « 31 ans », « 2 ans et 3 mois », « 5 mois »
+const duree = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  if (isNaN(d)) return "";
+  const now = new Date();
+  let mois = (now.getFullYear() - d.getFullYear()) * 12 + (now.getMonth() - d.getMonth());
+  if (now.getDate() < d.getDate()) mois -= 1;
+  if (mois < 0) return "";
+  const ans = Math.floor(mois / 12), reste = mois % 12;
+  if (ans === 0) return reste === 0 ? "moins d'un mois" : `${reste} mois`;
+  return reste ? `${ans} an${ans > 1 ? "s" : ""} et ${reste} mois` : `${ans} an${ans > 1 ? "s" : ""}`;
+};
+const dateCourte = (iso) => (iso ? new Date(iso + "T00:00:00").toLocaleDateString("fr-FR") : "");
+const montant = (n) => `${Math.round(Number(n) || 0).toLocaleString("fr-FR").replace(/\u202f|\u00a0/g, " ")} FCFA`;
+
+/* Pastille : photo de l'employé ou son initiale */
+const PastilleEmp = ({ e, className = "em-avatar" }) => {
+  const [echec, setEchec] = useState(false);
+  const src = urlFichier(e?.photo_url);
+  useEffect(() => setEchec(false), [src]);
+  return (
+    <span className={className}>
+      {src && !echec ? <img src={src} alt="" onError={() => setEchec(true)} /> : (e?.fullname?.charAt(0).toUpperCase() || "?")}
+    </span>
+  );
 };
 
 const ITEMS_PER_PAGE = 10;
@@ -187,6 +240,10 @@ const Employes = () => {
   // ---------- Formulaire ----------
   const [formData, setFormData] = useState(EMPTY_FORM);
   const [showPassword, setShowPassword] = useState(false);
+  const [photoEdition, setPhotoEdition] = useState(null);   // photo de l'employé modifié
+  const [photoAttente, setPhotoAttente] = useState(null);   // photo choisie à la création (envoyée après)
+  const [chargementFiche, setChargementFiche] = useState(false);
+  const estPatronConnecte = user?.type !== "employe";
 
   const isAdmin = !!user && user.role === "admin";
 
@@ -336,6 +393,8 @@ const Employes = () => {
     // Pays proposé : celui du numéro du patron (ex. +226 → Burkina Faso)
     const paysPatron = parsePhoneNumber(user?.telephone || "").country || EMPTY_FORM.countryCode;
     setFormData({ ...EMPTY_FORM, countryCode: paysPatron });
+    setPhotoAttente(null);
+    setPhotoEdition(null);
     setFormError("");
     setShowPassword(false);
     setShowModal(true);
@@ -350,11 +409,25 @@ const Employes = () => {
       phoneLocal: local,
       password: "",
       roleName: employe.role_nom,
+      ...ficheDepuis(employe),
     });
+    setPhotoEdition(employe.photo_url || null);
+    setPhotoAttente(null);
     setFormError("");
     setShowPassword(false);
     setShowModal(true);
     setMenu(null);
+    // La liste ne contient pas toute la fiche : on la complète
+    setChargementFiche(true);
+    EmployeService.getById(token, employe.id_employe)
+      .then((r) => {
+        if (r?.success && r.employe) {
+          setFormData((p) => ({ ...p, ...ficheDepuis(r.employe) }));
+          setPhotoEdition(r.employe.photo_url || null);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setChargementFiche(false));
   };
 
   const closeForm = () => {
@@ -383,6 +456,26 @@ const Employes = () => {
     setFormData((p) => ({ ...p, [name]: value }));
   };
 
+  const fichePourEnvoi = () => {
+    const f = {};
+    for (const k of Object.keys(FICHE_VIDE)) {
+      if (k === "salaire" && !estPatronConnecte) continue;
+      f[k] = (formData[k] ?? "").trim();
+    }
+    return f;
+  };
+
+  const choisirPhotoAttente = async (ev) => {
+    const fichier = ev.target.files?.[0];
+    ev.target.value = "";
+    if (!fichier) return;
+    try {
+      const pret = await preparerPhoto(fichier);
+      if (photoAttente?.apercu) URL.revokeObjectURL(photoAttente.apercu);
+      setPhotoAttente({ fichier: pret, apercu: URL.createObjectURL(pret) });
+    } catch (e) { setFormError(e.message); }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSaving(true);
@@ -395,6 +488,7 @@ const Employes = () => {
           fullname: formData.fullname,
           telephone: fullPhone,
           roleName: formData.roleName,
+          ...fichePourEnvoi(),
         };
         if (formData.password) payload.password = formData.password;
         res = await EmployeService.update(token, editingId, payload);
@@ -409,7 +503,19 @@ const Employes = () => {
           telephone: fullPhone,
           password: formData.password,
           roleName: formData.roleName,
+          ...fichePourEnvoi(),
         });
+        // Photo choisie avant la création : envoyée maintenant
+        const nouvelId = res?.employe?.id;
+        if (res?.success && nouvelId && photoAttente) {
+          try {
+            const fd = new FormData();
+            fd.append("photo", photoAttente.fichier);
+            await axios.post(API_URL.EMPLOYE.PHOTO(nouvelId), fd, { headers: { Authorization: `Bearer ${token}` } });
+          } catch (e) {
+            showNotification("Employé créé, mais la photo n'a pas pu être enregistrée", "error");
+          }
+        }
       }
       if (res.success) {
         showNotification(editingId ? "Employé modifié" : "Employé créé", "success");
@@ -432,6 +538,11 @@ const Employes = () => {
   const handleView = (employe) => {
     setDetailEmploye(employe);
     setShowDetailModal(true);
+    EmployeService.getById(token, employe.id_employe)
+      .then((r) => {
+        if (r?.success && r.employe) setDetailEmploye((d) => (d && d.id_employe === employe.id_employe ? { ...d, ...r.employe } : d));
+      })
+      .catch(() => {});
   };
 
   /* ============================================================
@@ -630,7 +741,7 @@ const Employes = () => {
                 <td className="col-num">{firstIdx + i + 1}</td>
                 <td>
                   <div className="em-emp-cell">
-                    <span className="em-avatar">{e.fullname?.charAt(0).toUpperCase() || "?"}</span>
+                    <PastilleEmp e={e} />
                     <div>
                       <div className="em-name">{e.fullname}</div>
                       <div className="em-slug">@{e.slug}</div>
@@ -676,7 +787,7 @@ const Employes = () => {
                   onChange={() => toggleSelect(e.id_employe)}
                   aria-label={`Sélectionner ${e.fullname}`}
                 />
-                <span className="em-avatar em-avatar--sm">{e.fullname?.charAt(0).toUpperCase() || "?"}</span>
+                <PastilleEmp e={e} className="em-avatar em-avatar--sm" />
                 <span className="em-ticket-more" onClick={(ev) => ev.stopPropagation()}>{renderMore(e)}</span>
               </div>
               <p className="em-ticket-name">{e.fullname}</p>
@@ -880,6 +991,37 @@ const Employes = () => {
                   <div className="em-alert" role="alert"><AlertCircle size={16} />{formError}</div>
                 )}
 
+                {/* Photo */}
+                <div className="em-field">
+                  <span className="em-field-label">Photo</span>
+                  {editingId ? (
+                    <PhotoProfil
+                      nom={formData.fullname}
+                      photo={photoEdition}
+                      taille={64}
+                      url={API_URL.EMPLOYE.PHOTO(editingId)}
+                      onChange={(photo_url) => {
+                        setPhotoEdition(photo_url);
+                        setEmployes((liste) => liste.map((x) => (x.id_employe === editingId ? { ...x, photo_url } : x)));
+                      }}
+                      onMessage={(texte, type) => (type === "error" ? setFormError(texte) : showNotification(texte, "success"))}
+                    />
+                  ) : (
+                    <div className="em-photo-attente">
+                      <span className="em-avatar em-avatar--xl">
+                        {photoAttente ? <img src={photoAttente.apercu} alt="" /> : (formData.fullname?.charAt(0).toUpperCase() || <User size={22} />)}
+                      </span>
+                      <label className="em-btn em-btn--ghost em-btn--sm">
+                        {photoAttente ? "Changer la photo" : "Ajouter une photo"}
+                        <input type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={choisirPhotoAttente} disabled={saving} />
+                      </label>
+                      {photoAttente && (
+                        <button type="button" className="em-btn em-btn--ghost em-btn--sm" onClick={() => setPhotoAttente(null)} disabled={saving}>Retirer</button>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Nom */}
                 <div className="em-field">
                   <label htmlFor="fullname">Nom complet *</label>
@@ -982,6 +1124,61 @@ const Employes = () => {
                     ))}
                   </div>
                 </div>
+
+                {/* Fiche de l'employé */}
+                <fieldset className="em-fiche" disabled={saving}>
+                  <legend>
+                    Fiche de l'employé <span className="em-muted">(facultatif)</span>
+                    {chargementFiche && <Loader size={14} className="em-spin" />}
+                  </legend>
+                  <div className="em-fiche-grille">
+                    <label className="em-fiche-champ">
+                      <span>Date de naissance</span>
+                      <input type="date" name="date_naissance" className="em-input em-input--simple" value={formData.date_naissance} onChange={handleFormChange} max={getTodayISO()} />
+                    </label>
+                    <label className="em-fiche-champ">
+                      <span>Date d'embauche</span>
+                      <input type="date" name="date_embauche" className="em-input em-input--simple" value={formData.date_embauche} onChange={handleFormChange} />
+                    </label>
+                    <label className="em-fiche-champ">
+                      <span>Quartier</span>
+                      <input type="text" name="quartier" className="em-input em-input--simple" value={formData.quartier} onChange={handleFormChange} maxLength={100} placeholder="Ex : Yopougon" />
+                    </label>
+                    <label className="em-fiche-champ">
+                      <span>Adresse</span>
+                      <input type="text" name="adresse" className="em-input em-input--simple" value={formData.adresse} onChange={handleFormChange} maxLength={255} placeholder="Rue, repère…" />
+                    </label>
+                    <label className="em-fiche-champ">
+                      <span>Pièce d'identité</span>
+                      <select name="piece_type" className="em-input em-input--simple" value={formData.piece_type} onChange={handleFormChange}>
+                        <option value="">Non renseignée</option>
+                        {PIECES.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
+                      </select>
+                    </label>
+                    <label className="em-fiche-champ">
+                      <span>Numéro de la pièce</span>
+                      <input type="text" name="piece_numero" className="em-input em-input--simple" value={formData.piece_numero} onChange={handleFormChange} maxLength={60} />
+                    </label>
+                    <label className="em-fiche-champ">
+                      <span>Personne à prévenir</span>
+                      <input type="text" name="contact_urgence_nom" className="em-input em-input--simple" value={formData.contact_urgence_nom} onChange={handleFormChange} maxLength={120} placeholder="Nom et lien (ex : Awa, sœur)" />
+                    </label>
+                    <label className="em-fiche-champ">
+                      <span>Son téléphone</span>
+                      <input type="tel" name="contact_urgence_tel" className="em-input em-input--simple" value={formData.contact_urgence_tel} onChange={handleFormChange} maxLength={20} />
+                    </label>
+                    {estPatronConnecte && (
+                      <label className="em-fiche-champ">
+                        <span>Salaire mensuel (FCFA) <small className="em-muted">visible par vous seul</small></span>
+                        <input type="text" inputMode="numeric" name="salaire" className="em-input em-input--simple" value={formData.salaire} onChange={handleFormChange} maxLength={16} placeholder="Ex : 75000" />
+                      </label>
+                    )}
+                    <label className="em-fiche-champ em-fiche-champ--large">
+                      <span>Notes</span>
+                      <textarea name="notes" className="em-input em-input--simple em-textarea" rows={3} value={formData.notes} onChange={handleFormChange} maxLength={2000} />
+                    </label>
+                  </div>
+                </fieldset>
               </div>
 
               <footer className="em-sheet-foot">
@@ -1005,7 +1202,7 @@ const Employes = () => {
           <div className="em-detail" onClick={(e) => e.stopPropagation()}>
             <header className="em-sheet-head">
               <div className="em-sheet-title">
-                <span className="em-avatar em-avatar--lg">{detailEmploye.fullname?.charAt(0).toUpperCase() || "?"}</span>
+                <PastilleEmp e={detailEmploye} className="em-avatar em-avatar--lg" />
                 <div>
                   <h2>{detailEmploye.fullname}</h2>
                   <p><Hash size={13} /> #{detailEmploye.id_employe}</p>
@@ -1040,11 +1237,46 @@ const Employes = () => {
                 <section>
                   <h4><Calendar size={15} /> Historique</h4>
                   <dl>
-                    <div><dt>Date de création</dt><dd>{formatDate(detailEmploye.date_creation)}</dd></div>
+                    <div><dt>Date d'embauche</dt><dd>{detailEmploye.date_embauche ? `${dateCourte(detailEmploye.date_embauche)} (${duree(detailEmploye.date_embauche) || "à venir"})` : "-"}</dd></div>
+                    <div><dt>Compte créé le</dt><dd>{formatDate(detailEmploye.date_creation)}</dd></div>
                     <div><dt>Dernière connexion</dt><dd>{formatDateTime(detailEmploye.derniere_connexion)}</dd></div>
                   </dl>
                 </section>
+                <section>
+                  <h4><User size={15} /> Identité</h4>
+                  <dl>
+                    <div><dt>Date de naissance</dt><dd>{detailEmploye.date_naissance ? `${dateCourte(detailEmploye.date_naissance)} (${duree(detailEmploye.date_naissance)})` : "-"}</dd></div>
+                    <div><dt>Pièce d'identité</dt><dd>{detailEmploye.piece_type ? `${libellePiece(detailEmploye.piece_type)}${detailEmploye.piece_numero ? ` n° ${detailEmploye.piece_numero}` : ""}` : (detailEmploye.piece_numero || "-")}</dd></div>
+                    <div><dt>Quartier</dt><dd>{detailEmploye.quartier || "-"}</dd></div>
+                    <div><dt>Adresse</dt><dd>{detailEmploye.adresse || "-"}</dd></div>
+                  </dl>
+                </section>
               </div>
+
+              <div className="em-detail-cols" style={{ marginTop: 22 }}>
+                <section>
+                  <h4><AlertTriangle size={15} /> En cas d'urgence</h4>
+                  <dl>
+                    <div><dt>Personne à prévenir</dt><dd>{detailEmploye.contact_urgence_nom || "-"}</dd></div>
+                    <div><dt>Téléphone</dt><dd>{detailEmploye.contact_urgence_tel || "-"}</dd></div>
+                  </dl>
+                </section>
+                {estPatronConnecte && (
+                  <section>
+                    <h4><Briefcase size={15} /> Rémunération</h4>
+                    <dl>
+                      <div><dt>Salaire mensuel</dt><dd>{detailEmploye.salaire != null ? montant(detailEmploye.salaire) : "-"}</dd></div>
+                    </dl>
+                  </section>
+                )}
+              </div>
+
+              {detailEmploye.notes && (
+                <section className="em-detail-notes">
+                  <h4><Info size={15} /> Notes</h4>
+                  <p>{detailEmploye.notes}</p>
+                </section>
+              )}
             </div>
 
             <div className="em-sheet-foot">

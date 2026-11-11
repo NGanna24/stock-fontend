@@ -13,6 +13,7 @@ import {
   BookOpenCheck,
 } from "lucide-react";
 import ConfirmModal from "../../ConfirmModal/ConfirmModal";
+import Avatar from '../../UI/Avatar';
 import "./Sidebar.css";
 
 // ============================================================
@@ -340,7 +341,9 @@ const Sidebar = () => {
 
         <div className="sb-foot">
           <div className="sb-user" title={collapsed ? userName : undefined}>
-            <span className="sb-user-tile">{initials}</span>
+            {user?.photo_url
+              ? <Avatar nom={userName} photo={user.photo_url} taille={38} carre className="sb-user-tile sb-user-tile--photo" />
+              : <span className="sb-user-tile">{initials}</span>}
             {!collapsed && (
               <span className="sb-user-text">
                 <strong>{userName}</strong>

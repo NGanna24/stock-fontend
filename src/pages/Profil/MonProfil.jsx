@@ -10,6 +10,7 @@ import axios from "axios";
 import API_URL from "../../config/api";
 import { useUser } from "../../context/AuthContext";
 import { remplacerJeton, delaiVerrouMin } from "../../securite/session";
+import PhotoProfil from "../../components/UI/PhotoProfil";
 import "./MonProfil.css";
 
 // ==================== ÉTAT INITIAL ====================
@@ -324,12 +325,20 @@ const MonProfil = () => {
       {/* HERO */}
       <section className="mp-hero">
         <div className="mp-hero-layout">
-          <div className="mp-hero-avatar">
-            {profile?.fullname ? (
-              <span>{profile.fullname.charAt(0).toUpperCase()}</span>
-            ) : (
-              <User size={32} />
-            )}
+          <div className="mp-hero-photo">
+            <PhotoProfil
+              nom={profile?.fullname}
+              photo={profile?.photo_url}
+              url={API_URL.EMPLOYE.MA_PHOTO}
+              onChange={(photo_url) => {
+                setProfile((p) => ({ ...p, photo_url }));
+                updateUser({ photo_url });
+              }}
+              onMessage={(texte, type) => {
+                if (type === 'success') { setError(null); setSuccessMessage(texte); setTimeout(() => setSuccessMessage(''), 3000); }
+                else setError(texte);
+              }}
+            />
           </div>
           <div className="mp-hero-info">
             <h2 className="mp-hero-name">{profile?.fullname || "Utilisateur"}</h2>
@@ -623,4 +632,4 @@ const MonProfil = () => {
   );
 };
 
-export default MonProfil;
+export default MonProfil;

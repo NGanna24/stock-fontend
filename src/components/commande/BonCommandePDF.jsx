@@ -1,6 +1,7 @@
 // components/CommandeAchat/BonCommandePDF.jsx
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer';
+import CachetSignature from '../Documents/CachetSignature';
 
 // ============================================================
 // FONTS
@@ -705,6 +706,7 @@ const BonCommandePDF = ({ data }) => {
                     </View>
 
                     <View style={styles.signatureBlock}>
+                        <CachetSignature type="bon_commande" />
                         <View style={styles.signatureLine} />
                         <Text style={styles.signatureName}>{getNomMagasin()}</Text>
                         <Text style={styles.signatureRole}>

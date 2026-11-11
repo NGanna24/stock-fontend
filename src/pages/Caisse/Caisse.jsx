@@ -732,6 +732,7 @@ export default function Caisse() {
           titre="Z de caisse"
           sousTitre={`Session n° ${zAImprimer.id_session} · ${dateHeure(zAImprimer.date_cloture)}`}
           etroit
+          typeDocument="rapport_caisse"
           getBlob={() => pdf(React.createElement(RapportCaissePDF, { data: { session: zAImprimer, magasin } })).toBlob()}
           fileName={`Z_caisse_${zAImprimer.id_session}.pdf`}
           printOptions={(taille) => FacturePDFService.optionsTicketElectron(taille)}

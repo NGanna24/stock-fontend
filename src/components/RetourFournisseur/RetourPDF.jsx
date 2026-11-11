@@ -3,6 +3,7 @@ import React from 'react';
 import {
     Document, Page, Text, View, StyleSheet, Font, Image
 } from '@react-pdf/renderer';
+import CachetSignature from '../Documents/CachetSignature';
 
 // ============================================================
 // FONTS
@@ -706,6 +707,7 @@ const RetourPDF = ({ data }) => {
                     </View>
 
                     <View style={styles.signatureBlock}>
+                        <CachetSignature type="retour_fournisseur" />
                         <View style={styles.signatureLine} />
                         <Text style={styles.signatureName}>{getNomMagasin()}</Text>
                         <Text style={styles.signatureRole}>

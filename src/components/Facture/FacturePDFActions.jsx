@@ -76,6 +76,7 @@ const FacturePDFActions = ({ factureData, onClose }) => {
                 <ApercuImpression
                     titre="Facture"
                     sousTitre={factureData?.numero_facture}
+                    typeDocument="facture"
                     getBlob={() => FacturePDFService.getBlob(factureData, 'a4')}
                     fileName={FacturePDFService.fileNameFor(factureData, 'a4')}
                     onClose={() => setApercu(false)}

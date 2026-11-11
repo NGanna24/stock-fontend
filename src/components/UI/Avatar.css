@@ -1,0 +1,22 @@
+/* components/UI/Avatar.css */
+.vt-avatar {
+  display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  border-radius: 50%; overflow: hidden;
+  background: var(--signal, #C2410C); color: #fff;
+  font-weight: 700; letter-spacing: 0.02em; line-height: 1;
+}
+.vt-avatar--carre { border-radius: var(--radius, 10px); }
+.vt-avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Photo modifiable */
+.vt-photo { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.vt-photo-cadre { position: relative; padding: 0; border: 0; background: none; cursor: pointer; border-radius: 50%; }
+.vt-photo-cadre:disabled { cursor: progress; }
+.vt-photo-cadre:focus-visible { outline: 2px solid var(--signal, #C2410C); outline-offset: 3px; }
+.vt-photo-badge {
+  position: absolute; right: -2px; bottom: -2px; width: 28px; height: 28px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--surface, #fff); color: var(--ink, #1c1917);
+  border: 1px solid var(--line, #e7e5e4); box-shadow: 0 1px 3px rgba(0, 0, 0, .12);
+}
+.vt-photo .vt-btn--danger-ghost { color: var(--bad); }
+.vt-photo-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }

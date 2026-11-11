@@ -2,6 +2,7 @@
 // Relevé de compte client (A4) : solde au début, ventes (débit), paiements (crédit), solde après chaque opération.
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import CachetSignature from '../Documents/CachetSignature';
 import { libelleMode } from '../../config/modesPaiement';
 
 const montant = (v) => {
@@ -94,6 +95,9 @@ export default function RelevePDF({ data, magasin }) {
           </View>
         ))}
         {lignes.length === 0 ? <View style={s.tRow}><Text style={s.petit}>Aucune opération sur la période.</Text></View> : null}
+        <View wrap={false} style={{ marginTop: 16, alignItems: 'flex-end' }}>
+          <CachetSignature type="releve_client" />
+        </View>
 
         <View style={s.pied} fixed>
           <Text>Montants en FCFA · ventes annulées non incluses</Text>

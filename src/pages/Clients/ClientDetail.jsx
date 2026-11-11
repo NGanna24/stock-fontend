@@ -134,6 +134,7 @@ function ModalReleve({ token, client, magasin, onClose }) {
       <ApercuImpression
         titre="Relevé de compte"
         sousTitre={client.nom}
+        typeDocument="releve_client"
         getBlob={() => pdf(React.createElement(RelevePDF, { data: releve, magasin })).toBlob()}
         fileName={`releve_${String(client.nom).replace(/[^\w-]+/g, '_')}.pdf`}
         onClose={() => setApercu(false)}

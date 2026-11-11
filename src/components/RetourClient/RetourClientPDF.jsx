@@ -1,6 +1,7 @@
 // components/RetourClient/RetourClientPDF.jsx
 import React from 'react';
 import { Page, Text, View, Document, StyleSheet } from '@react-pdf/renderer';
+import CachetSignature from '../Documents/CachetSignature';
 
 // ============================================================
 // STYLES PDF
@@ -497,6 +498,10 @@ const RetourClientPDF = ({ data }) => {
             <Text style={styles.notesText}>{data.notes}</Text>
           </View>
         )}
+
+        <View wrap={false} style={{ marginTop: 16, alignItems: 'flex-end' }}>
+          <CachetSignature type="retour_client" />
+        </View>
 
         {/* ============================================================ */}
         {/* FOOTER                                                       */}

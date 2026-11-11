@@ -2,6 +2,7 @@
 // « Z de caisse » : rapport de clôture imprimable sur ticket 80 mm (même style que le ticket de vente).
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import CachetSignature from '../Documents/CachetSignature';
 import { libelleMode } from '../../config/modesPaiement';
 
 const TICKET_WIDTH = 226.77; // 80 mm en points
@@ -118,6 +119,7 @@ export default function RapportCaissePDF({ data }) {
         <Text style={s.sep}>{SEP}</Text>
         <View style={s.sign}><Text style={s.small}>Caissier</Text><Text style={s.small}>Responsable</Text></View>
         <View style={[s.sign, { marginTop: 18 }]}><Text style={s.small}>..........</Text><Text style={s.small}>..........</Text></View>
+        <CachetSignature type="rapport_caisse" petit style={{ marginTop: 6 }} />
         <Text style={[s.center, s.small, { marginTop: 8 }]}>Imprimé le {dh(new Date())}</Text>
       </Page>
     </Document>

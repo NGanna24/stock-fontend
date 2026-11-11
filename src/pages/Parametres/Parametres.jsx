@@ -10,7 +10,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Printer, Lock, Bell, Monitor, UserCog, Info, RefreshCw, ChevronRight, Loader,
-  User, Store, Users, CreditCard, History, Check, FileText, Receipt, HelpCircle, Wallet,
+  User, Store, Users, CreditCard, History, Check, FileText, Receipt, HelpCircle, Wallet, Stamp, LayoutTemplate,
 } from 'lucide-react';
 import { Page, PageHead, useToast, Toast, fcfa } from '../../components/UI/Vt';
 import { useUser } from '../../context/AuthContext';
@@ -25,6 +25,8 @@ import {
 } from '../../config/preferences';
 import { VERSION_LOGICIEL } from '../../config/version';
 import MoyensPaiement from '../../components/Abonnement/MoyensPaiement';
+import CachetsSignature from '../../components/Parametres/CachetsSignature';
+import ModeleFacture from '../../components/Parametres/ModeleFacture';
 import { CATALOGUE_MODES, chargerModesPaiement, definirModesPaiement } from '../../config/modesPaiement';
 import axios from 'axios';
 import API_URL from '../../config/api';
@@ -42,6 +44,8 @@ const SECTIONS = [
   { id: 'appareil', label: 'Cet appareil', icon: Info },
   { id: 'abonnement', label: 'Abonnement', icon: Wallet, patron: true },
   { id: 'modes', label: 'Modes de paiement', icon: CreditCard, patron: true },
+  { id: 'cachets', label: 'Cachets et signature', icon: Stamp, patron: true },
+  { id: 'modele', label: 'Modèle de facture', icon: LayoutTemplate, patron: true },
 ];
 
 const ROLES = { admin: 'Administrateur', manager: 'Manager', caissier: 'Caissier', magasinier: 'Magasinier' };
@@ -504,6 +508,20 @@ export default function Parametres() {
                   {modesEnvoi ? 'Enregistrement…' : 'Enregistrer les modes de paiement'}
                 </button>
               </div>
+            </Section>
+          )}
+
+          {/* ---------- 9. Cachets et signature (patron) ---------- */}
+          {estPatron && (
+            <Section id="cachets" numero={9} titre="Cachets et signature" sous="Les cachets posés sur vos factures et autres documents" icon={Stamp}>
+              <CachetsSignature afficher={afficherToast} />
+            </Section>
+          )}
+
+          {/* ---------- 10. Modèle de facture (patron) ---------- */}
+          {estPatron && (
+            <Section id="modele" numero={10} titre="Modèle de facture" sous="La présentation de vos factures A4" icon={LayoutTemplate}>
+              <ModeleFacture afficher={afficherToast} />
             </Section>
           )}
         </div>

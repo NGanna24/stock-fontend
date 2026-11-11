@@ -1,6 +1,8 @@
 // components/Facture/FactureTicketPDF.jsx
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
+import CachetSignature from '../Documents/CachetSignature';
+import { cachetPour, etatPaiement } from '../../config/documents';
 import { libelleMode } from '../../config/modesPaiement';
 
 // ============================================================
@@ -200,6 +202,9 @@ const FactureTicketPDF = ({ data }) => {
   const nbPaiements = (paiements || []).length > 0 ? 2 : 0;
   const mentionsLegales =
     magasin?.numero_rccm || magasin?.numero_nif ? 20 : 0;
+  const paiementTicket = etatPaiement(montantTotalNum, montantPaye);
+  const marque = cachetPour('ticket', { paiement: paiementTicket });
+  const hauteurCachet = marque.cachet || marque.signature ? 72 : 0;
 
   const estimatedHeight =
     30 +                                 // padding haut
@@ -212,6 +217,7 @@ const FactureTicketPDF = ({ data }) => {
     20 +                                 // séparateur
     30 +                                 // total
     nbPaiements * 14 +                   // paiements + rendu
+    hauteurCachet +                      // cachet / signature
     20 +                                 // séparateur
     30 +                                 // merci + date
     mentionsLegales +                    // mentions légales
@@ -320,6 +326,8 @@ const FactureTicketPDF = ({ data }) => {
         )}
 
         <Text style={styles.sep}>{SEP}</Text>
+
+        <CachetSignature type="ticket" paiement={paiementTicket} petit style={{ marginBottom: 6 }} />
 
         {/* -------- Pied -------- */}
         <Text style={styles.thanks}>MERCI DE VOTRE VISITE !</Text>

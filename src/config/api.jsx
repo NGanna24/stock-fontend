@@ -78,6 +78,8 @@ export const API_URL = {
         UPDATE: (id) => `${BASE_URL}/api/employes/${id}`,
         TOGGLE: (id) => `${BASE_URL}/api/employes/${id}/actif`,
         DELETE: (id) => `${BASE_URL}/api/employes/${id}`,
+        PHOTO: (id) => `${BASE_URL}/api/employes/${id}/photo`,
+        MA_PHOTO: `${BASE_URL}/api/utilisateur/photo`,
         ROLES: `${BASE_URL}/api/utilisateur/roles`,
     },
 
@@ -612,6 +614,14 @@ TRANSFERT: {
         UN: (id) => `${BASE_URL}/api/emplacements-magasin/${id}`,
     },
 
+    // Cachets, signature et modèle de facture
+    DOCUMENTS_REGLAGES: {
+        TOUT: `${BASE_URL}/api/documents-reglages`,
+        CACHETS: `${BASE_URL}/api/documents-reglages/cachets`,
+        CACHET: (id) => `${BASE_URL}/api/documents-reglages/cachets/${id}`,
+        SIGNATURE: `${BASE_URL}/api/documents-reglages/signature`,
+    },
+
     // Comptes fournisseurs : achats, versements, bonus, plafond, rapprochements (hors stock)
     COMPTES_FOURNISSEURS: {
         LISTE: `${BASE_URL}/api/comptes-fournisseurs`,
@@ -633,4 +643,7 @@ TRANSFERT: {
     },
 };
 
-export default API_URL;
+// Adresse complète d'un fichier du serveur (photo de profil, logo…)
+export const urlFichier = (u) => (!u ? null : /^(https?:|data:|blob:)/.test(u) ? u : `${BASE_URL}${u}`);
+
+export default API_URL;

@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Download, ExternalLink, Loader, Printer, X } from 'lucide-react';
 import FacturePDFService from '../../services/facturePDFService';
+import { chargerReglagesDocuments, definirCachetPonctuel, reglagesDocuments } from '../../config/documents';
 import './ApercuImpression.css';
 
 /**
@@ -22,6 +23,7 @@ import './ApercuImpression.css';
  * @param {() => void} onClose
  * @param {(msg: string) => void} onError   (facultatif)
  * @param {(res: object) => void} onPrinted (facultatif)
+ * @param {string}   typeDocument  type pour le cachet (facture, ticket, bon_transfert…) : affiche le choix du cachet
  */
 export default function ApercuImpression({
     titre = 'Aperçu avant impression',
@@ -33,6 +35,7 @@ export default function ApercuImpression({
     onClose,
     onError,
     onPrinted,
+    typeDocument,
 }) {
     const [blob, setBlob] = useState(null);
     const [url, setUrl] = useState(null);
@@ -45,6 +48,10 @@ export default function ApercuImpression({
     const [rendu, setRendu] = useState('attente'); // 'attente' | 'ok' | 'echec'
     const taillePageRef = useRef(null); // taille de la 1re page du PDF, en points
     const electron = FacturePDFService.isElectron();
+    // Cachet pour cette impression seulement ('regle' = selon les réglages)
+    const [cachetChoisi, setCachetChoisi] = useState('regle');
+    const [cachets, setCachets] = useState(() => reglagesDocuments().cachets || []);
+    useEffect(() => () => { if (typeDocument) definirCachetPonctuel(typeDocument, undefined); }, [typeDocument]);
 
     // Génération du PDF
     const getBlobRef = useRef(getBlob);
@@ -55,6 +62,9 @@ export default function ApercuImpression({
         setBlob(null); setUrl(null); setErreur('');
         (async () => {
             try {
+                const r = await chargerReglagesDocuments();
+                if (!annule) setCachets(r?.cachets || []);
+                if (typeDocument) definirCachetPonctuel(typeDocument, cachetChoisi);
                 const b = await getBlobRef.current();
                 if (annule) return;
                 objectUrl = URL.createObjectURL(b);
@@ -69,7 +79,8 @@ export default function ApercuImpression({
             annule = true;
             if (objectUrl) URL.revokeObjectURL(objectUrl);
         };
-    }, []);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [cachetChoisi]);
 
     // Rendu de l'aperçu (pdf.js → canvas)
     useEffect(() => {
@@ -242,6 +253,17 @@ export default function ApercuImpression({
                                             {p.displayName}{p.isDefault ? ' (par défaut)' : ''}
                                         </option>
                                     ))}
+                                </select>
+                            </label>
+                        )}
+
+                        {typeDocument && cachets.length > 0 && (
+                            <label className="apimp-field">
+                                <span>Cachet sur ce document</span>
+                                <select value={cachetChoisi} onChange={(e) => setCachetChoisi(e.target.value)} disabled={!!action || !url}>
+                                    <option value="regle">Selon les réglages</option>
+                                    {cachets.map((c, i) => <option key={c.id_cachet} value={String(c.id_cachet)}>{i + 1}. {c.nom}</option>)}
+                                    <option value="aucun">Aucun cachet</option>
                                 </select>
                             </label>
                         )}
