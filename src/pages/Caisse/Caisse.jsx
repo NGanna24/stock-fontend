@@ -18,6 +18,7 @@ import FacturePDFService from '../../services/facturePDFService';
 import ApercuImpression from '../../components/Impression/ApercuImpression';
 import RapportCaissePDF, { COUPURES } from '../../components/Caisse/RapportCaissePDF';
 import { useUser } from '../../context/AuthContext';
+import { libelleMode } from '../../config/modesPaiement';
 import '../Ventes/Ventes.css';
 import './Caisse.css';
 
@@ -53,8 +54,7 @@ const toNum = (v) => {
 const DECIMAL_RE = /^\d*[.,]?\d*$/;
 const ENTIER_RE = /^\d*$/;
 
-const MODES = { especes: 'Espèces', carte: 'Carte', virement: 'Virement', cheque: 'Chèque', autre: 'Mobile money / autre', mobile_money: 'Mobile money' };
-const modeLabel = (m) => MODES[m] || m || '-';
+const modeLabel = libelleMode;
 
 const ecartInfo = (e) => {
   const v = Number(e) || 0;

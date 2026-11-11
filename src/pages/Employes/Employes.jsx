@@ -333,7 +333,9 @@ const Employes = () => {
      ============================================================ */
   const openCreateModal = () => {
     setEditingId(null);
-    setFormData(EMPTY_FORM);
+    // Pays proposé : celui du numéro du patron (ex. +226 → Burkina Faso)
+    const paysPatron = parsePhoneNumber(user?.telephone || "").country || EMPTY_FORM.countryCode;
+    setFormData({ ...EMPTY_FORM, countryCode: paysPatron });
     setFormError("");
     setShowPassword(false);
     setShowModal(true);
@@ -365,6 +367,16 @@ const Employes = () => {
   const handleFormChange = (e) => {
     const { name, value } = e.target;
     if (name === "phoneLocal") {
+      // Numéro collé avec son indicatif (+226…, 00226…) : on choisit le pays tout seul
+      const brut = value.trim();
+      if (/^(\+|00)/.test(brut)) {
+        const complet = "+" + brut.replace(/^00/, "").replace(/\D/g, "");
+        const { country, local } = parsePhoneNumber(complet);
+        if (COUNTRIES.some((c) => complet.startsWith(c.dial))) {
+          setFormData((p) => ({ ...p, countryCode: country, phoneLocal: local }));
+          return;
+        }
+      }
       setFormData((p) => ({ ...p, phoneLocal: value.replace(/[^\d\s\-]/g, "") }));
       return;
     }

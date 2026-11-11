@@ -862,3 +862,7 @@
     transition: none !important;
   }
 }
+/* Paiements mobiles (Wave, Orange Money, MTN MoMo, Moov Money) */
+.pm-stage--mobile { --tone: var(--sky); }
+.pm-tone-mobile   { --tone: var(--sky); }
+.pm-tag--mobile   { --bg: var(--sky-tint, #E0F2FE); --c: var(--sky-deep, #075985); --dot: var(--sky); }

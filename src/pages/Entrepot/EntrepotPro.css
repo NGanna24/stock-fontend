@@ -403,3 +403,11 @@ button.ep2-alerte:hover { border-color: var(--signal); background: var(--paper);
 .ep2-inv-badge.is-ok { background: var(--ent-soft, #dcfce7); border-color: transparent; color: var(--ent-deep, #166534); }
 .ep2-inv-badge.is-plus { background: var(--ent-soft, #dcfce7); border-color: transparent; color: var(--ent-deep, #166534); }
 .ep2-inv-badge.is-moins { background: var(--signal-tint); border-color: transparent; color: var(--signal-deep); }
+/* ---------- Listes d'emplacements de l'entrepôt ---------- */
+.ep2-listes { display: flex; flex-direction: column; gap: 14px; }
+.ep2-listes-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.ep2-listes-head > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ep2-listes-head strong { font-size: 15px; color: var(--ink); }
+.ep2-listes-head span { font-size: 13px; color: var(--ink-3); }
+.ep2-listes .vt.em { background: transparent; }
+.ep-hint-emp { margin: 8px 0 0; font-size: 12px; color: var(--ink-3); }

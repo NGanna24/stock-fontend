@@ -1,0 +1,14 @@
+/* components/Emplacement/ChoixEmplacement.css */
+.ce-grille { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+.ce-champ { min-width: 0; }
+.ce-ajout { display: flex; gap: 4px; align-items: center; }
+.ce-ajout input { flex: 1; min-width: 0; }
+.ce-btn {
+  flex: none; width: 34px; height: 34px; display: grid; place-items: center; cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); color: var(--ink-2);
+}
+.ce-btn:hover:not(:disabled) { background: var(--sunken); color: var(--ink); }
+.ce-btn:disabled { opacity: 0.5; cursor: default; }
+.ce-erreur { margin: 8px 0 0; font-size: 12.5px; color: var(--bad, #B91C1C); }
+.ce-aide { margin: 8px 0 0; font-size: 12.5px; color: var(--ink-3); }
+@media (max-width: 760px) { .ce-grille { grid-template-columns: 1fr; } }

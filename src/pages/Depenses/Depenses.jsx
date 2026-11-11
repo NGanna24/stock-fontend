@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import DepenseService from '../../services/depenseService';
 import { useUser } from '../../context/AuthContext';
+import { CATALOGUE_MODES, infoMode, libelleMode, useModesPaiement, useModeValide } from '../../config/modesPaiement';
 import '../Ventes/Ventes.css';
 import './Depenses.css';
 
@@ -85,14 +86,9 @@ const bornesPeriode = (id, perso) => {
 // ============================================================
 // MODES DE PAIEMENT (valeurs de la colonne existante)
 // ============================================================
-const MODES = [
-    { value: 'especes', label: 'Espèces', Icon: Coins },
-    { value: 'autre', label: 'Mobile money', Icon: Smartphone, hint: 'Orange Money, Wave, MTN… (précisez dans la référence)' },
-    { value: 'virement', label: 'Virement', Icon: Building },
-    { value: 'cheque', label: 'Chèque', Icon: FileText },
-    { value: 'carte', label: 'Carte', Icon: CreditCard },
-];
-const modeLabel = (v) => MODES.find((m) => m.value === v)?.label || v || '-';
+// Tous les modes connus (filtres) ; la fenêtre de saisie ne propose que ceux de la boutique
+const MODES = CATALOGUE_MODES;
+const modeLabel = libelleMode;
 
 // ============================================================
 // COULEURS DE CATÉGORIES (stables par id)
@@ -173,6 +169,7 @@ const DEPENSE_VIDE = {
 };
 
 function ModalDepense({ token, depense, categories, onClose, onSaved }) {
+    const MODES = useModesPaiement();
     const edition = !!depense?.id_depense;
     const [form, setForm] = useState(() => (edition
         ? {
@@ -187,6 +184,7 @@ function ModalDepense({ token, depense, categories, onClose, onSaved }) {
         : { ...DEPENSE_VIDE, date_depense: aujourdhui() }));
     const [saving, setSaving] = useState(false);
     const [erreur, setErreur] = useState(null);
+    useModeValide(MODES, form.mode_paiement, (v) => setForm((f) => ({ ...f, mode_paiement: v })), !edition);
 
     const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setErreur(null); };
 

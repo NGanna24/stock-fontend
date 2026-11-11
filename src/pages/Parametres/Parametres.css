@@ -225,3 +225,13 @@
   .pr-seg { flex-wrap: wrap; }
 }
 .pr-abo-titre { margin-top: 16px; }
+
+/* Modes de paiement de la boutique */
+.pr-modes { list-style: none; margin: 12px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.pr-mode { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--miyo-border, #E2E8F0); border-radius: 10px; background: var(--miyo-surface, #fff); }
+.pr-mode.is-on { background: #FFF7F1; border-color: #FCD9C2; }
+.pr-mode-num { width: 18px; text-align: center; font-size: 12px; color: var(--miyo-text-tertiary, #94A3B8); font-variant-numeric: tabular-nums; }
+.pr-mode-ic { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: color-mix(in srgb, var(--c) 14%, white); color: var(--c); flex: none; }
+.pr-mode-nom { flex: 1; font-weight: 600; font-size: 14px; color: var(--miyo-text, #0F172A); }
+.pr-actions { display: flex; justify-content: flex-end; margin-top: 14px; }
+@media (max-width: 760px) { .pr-modes { grid-template-columns: 1fr; } }

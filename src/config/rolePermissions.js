@@ -7,9 +7,9 @@ export const ROLE_PERMISSIONS = {
         // Ventes & clients
         'clients', 'ventes', 'commandes-clients', 'caisse', 'factures', 'recettes', 'retours-clients', 'relances',
         // Catalogue & stock
-        'produits', 'categories', 'marques', 'modeles', 'unites', 'mouvements', 'inventaires',
+        'produits', 'categories', 'marques', 'modeles', 'unites', 'mouvements', 'inventaires', 'emplacements',
         // Approvisionnement
-        'fournisseurs', 'commandes-achat', 'receptions', 'retours-fournisseurs', 'depenses', 'transferts', 'dettes-fournisseurs',
+        'fournisseurs', 'commandes-achat', 'receptions', 'retours-fournisseurs', 'depenses', 'transferts', 'dettes-fournisseurs', 'comptes-fournisseurs',
         // Rapports
         'rapport-ventes', 'rapport-achats', 'rapport-stocks', 'benefices',
         // Principal
@@ -31,7 +31,7 @@ export const ROLE_PERMISSIONS = {
     magasinier: [ 
         'dashboard', 'alertes',
         // Catalogue & stock
-        'produits', 'categories', 'marques', 'modeles', 'unites', 'mouvements', 'inventaires',
+        'produits', 'categories', 'marques', 'modeles', 'unites', 'mouvements', 'inventaires', 'emplacements',
         // Approvisionnement
         'fournisseurs', 'commandes-achat', 'receptions', 'retours-fournisseurs',
         // Réglages de l'ordinateur
@@ -45,4 +45,4 @@ export const ROLE_PERMISSIONS = {
 export const hasAccess = (role, itemId) => {
     const perms = ROLE_PERMISSIONS[role] || [];
     return perms.includes('*') || perms.includes(itemId);
-};
+};

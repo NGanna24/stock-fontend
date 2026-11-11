@@ -17,6 +17,7 @@ import {
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from 'recharts';
 import RecetteService from '../../services/recetteService';
 import { useUser } from '../../context/AuthContext';
+import { CATALOGUE_MODES, infoMode, libelleMode, useModesPaiement, useModeValide } from '../../config/modesPaiement';
 import '../Ventes/Ventes.css';
 import './Recettes.css';
 
@@ -41,14 +42,9 @@ const toNum = (v) => (v === '' || v == null ? NaN : parseFloat(String(v).replace
 const DECIMAL_RE = /^\d*[.,]?\d*$/;
 const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 
-const MODES = [
-  { value: 'especes', label: 'Espèces', Icon: Banknote, c: '#16a34a' },
-  { value: 'carte', label: 'Carte', Icon: CreditCard, c: '#2563eb' },
-  { value: 'virement', label: 'Virement', Icon: Building2, c: '#7c3aed' },
-  { value: 'cheque', label: 'Chèque', Icon: FileText, c: '#d97706' },
-  { value: 'autre', label: 'Autre / Mobile money', court: 'Autre', Icon: Wallet, c: '#64748b' },
-];
-const modeInfo = (v) => MODES.find((m) => m.value === v) || MODES[4];
+// Tous les modes connus (filtres) ; la fenêtre d'encaissement ne propose que ceux de la boutique
+const MODES = CATALOGUE_MODES;
+const modeInfo = infoMode;
 
 const PERIODES = [
   { id: 'jour', label: "Aujourd'hui" },
@@ -129,12 +125,14 @@ const ModalHead = ({ id, title, sub, onClose, disabled }) => (
 // MODAL : ENCAISSER UNE FACTURE
 // ============================================================
 function ModalEncaisser({ token, onClose, onEncaisse }) {
+  const MODES = useModesPaiement();
   const [factures, setFactures] = useState(null);
   const [erreur, setErreur] = useState(null);
   const [recherche, setRecherche] = useState('');
   const [choisie, setChoisie] = useState(null);
   const [montant, setMontant] = useState('');
   const [mode, setMode] = useState('especes');
+  useModeValide(MODES, mode, setMode);
   const [date, setDate] = useState(aujourdhui());
   const [reference, setReference] = useState('');
   const [note, setNote] = useState('');

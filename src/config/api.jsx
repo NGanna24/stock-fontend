@@ -602,6 +602,35 @@ TRANSFERT: {
     ABONNEMENT: {
         MOI: `${BASE_URL}/api/abonnement`,
     },
+
+    // Modes de paiement acceptés par la boutique (Paramètres)
+    MODES_PAIEMENT: `${BASE_URL}/api/modes-paiement`,
+
+    // Emplacements de la boutique : emplacement > rayon > étagère
+    EMPLACEMENTS: {
+        LISTE: `${BASE_URL}/api/emplacements-magasin`,
+        UN: (id) => `${BASE_URL}/api/emplacements-magasin/${id}`,
+    },
+
+    // Comptes fournisseurs : achats, versements, bonus, plafond, rapprochements (hors stock)
+    COMPTES_FOURNISSEURS: {
+        LISTE: `${BASE_URL}/api/comptes-fournisseurs`,
+        UN: (id) => `${BASE_URL}/api/comptes-fournisseurs/${id}`,
+        OPERATIONS: (id) => `${BASE_URL}/api/comptes-fournisseurs/${id}/operations`,
+        ACHATS: (id) => `${BASE_URL}/api/comptes-fournisseurs/${id}/achats`,
+        VERSEMENTS: (id) => `${BASE_URL}/api/comptes-fournisseurs/${id}/versements`,
+        BONUS: (id) => `${BASE_URL}/api/comptes-fournisseurs/${id}/bonus`,
+        UTILISER_BONUS: (id) => `${BASE_URL}/api/comptes-fournisseurs/${id}/bonus/utiliser`,
+        AJUSTEMENTS: (id) => `${BASE_URL}/api/comptes-fournisseurs/${id}/ajustements`,
+        PLAFOND: (id) => `${BASE_URL}/api/comptes-fournisseurs/${id}/plafond`,
+        RAPPROCHEMENTS: (id) => `${BASE_URL}/api/comptes-fournisseurs/${id}/rapprochements`,
+        RESOUDRE: (idR) => `${BASE_URL}/api/comptes-fournisseurs/rapprochements/${idR}/resoudre`,
+        ANNULER: (idOp) => `${BASE_URL}/api/comptes-fournisseurs/operations/${idOp}/annuler`,
+        JUSTIFICATIF: (idOp) => `${BASE_URL}/api/comptes-fournisseurs/operations/${idOp}/justificatif`,
+        JUSTIFICATIF_VERSEMENT: (idP) => `${BASE_URL}/api/comptes-fournisseurs/versements/${idP}/justificatif`,
+        ANNULER_VERSEMENT: (idP) => `${BASE_URL}/api/comptes-fournisseurs/versements/${idP}/annuler`,
+        COMMANDES: (id) => `${BASE_URL}/api/comptes-fournisseurs/${id}/commandes`,
+    },
 };
 
 export default API_URL;

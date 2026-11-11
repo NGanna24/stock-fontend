@@ -5,7 +5,7 @@ import {
     Info, Banknote, Layers, Box, Trash2, Save, ChevronRight,
     Tag, Building, MapPin, Search, Package, AlertTriangle,
     XCircle, RefreshCw, Edit, Send, LogIn, Copy,
-    ArrowDown, ArrowUp, ChevronLeft, ChevronDown, Crown, Users, ClipboardCheck,
+    ArrowDown, ArrowUp, ChevronLeft, ChevronDown, Crown, Users, ClipboardCheck, Settings,
 } from 'lucide-react';
 import EntrepotService from '../../services/entrepotService';
 import ProduitEntrepotService from '../../services/produitEntrepotService';
@@ -26,6 +26,10 @@ import InventaireEntrepot from '../../components/Entrepot/InventaireEntrepot';
 import TransfertStockService from '../../services/transfertStockService';
 import ModalRejoindre from '../../components/Entrepot/ModalRejoindre';
 import { useUser } from '../../context/AuthContext';
+import ChoixEmplacement from '../../components/Emplacement/ChoixEmplacement';
+import { GestionEmplacements } from '../Emplacements/Emplacements';
+import '../Ventes/Ventes.css';
+import '../Emplacements/Emplacements.css';
 import { useDisableNumberScroll } from '../../hooks/useDisableNumberScroll';
 import { createPortal } from 'react-dom';
 import './Entrepot.css';
@@ -39,6 +43,7 @@ const INITIAL_FORM_DATA = {
     id_modele: "", id_unite: "", prix_achat: "", prix_vente: "",
     quantite_stock: "", quantite_minimale: "", quantite_maximale: "",
     emplacement: "", rayon: "", etagere: "",
+    id_emplacement: "", emplacement_change: false,
 };
 
 const num = (v) => Number(v || 0);
@@ -370,6 +375,7 @@ function ModalAddProduit({ token, entrepotId, produit, onClose, onAdded, onError
             emplacement: produit.emplacement || "",
             rayon: produit.rayon || "",
             etagere: produit.etagere || "",
+            id_emplacement: produit.id_emplacement || "", emplacement_change: false,
         });
         setCreatedProduitId(getPid(produit) || null);
 
@@ -481,6 +487,10 @@ function ModalAddProduit({ token, entrepotId, produit, onClose, onAdded, onError
         emplacement: formData.emplacement?.trim() || "",
         rayon: formData.rayon?.trim() || "",
         etagere: formData.etagere?.trim() || "",
+        // Envoyé seulement s'il a été choisi dans les listes (sinon l'ancien texte reste tel quel)
+        ...(formData.emplacement_change || formData.id_emplacement
+            ? { id_emplacement: formData.id_emplacement || null }
+            : {}),
     });
 
     /* ---- Validation étape 1 ---- */
@@ -874,14 +884,18 @@ function ModalAddProduit({ token, entrepotId, produit, onClose, onAdded, onError
                                             </div>
                                         ))}
                                     </div>
-                                    <div className="ep-grid3">
-                                        <div className="ep-field"><label className="ep-lbl">Emplacement</label>
-                                            <input className="ep-input" type="text" name="emplacement" value={formData.emplacement} onChange={handleInputChange} placeholder="Ex : A1" disabled={saving} maxLength={50} /></div>
-                                        <div className="ep-field"><label className="ep-lbl">Rayon</label>
-                                            <input className="ep-input" type="text" name="rayon" value={formData.rayon} onChange={handleInputChange} placeholder="Ex : R3" disabled={saving} maxLength={50} /></div>
-                                        <div className="ep-field"><label className="ep-lbl">Étagère</label>
-                                            <input className="ep-input" type="text" name="etagere" value={formData.etagere} onChange={handleInputChange} placeholder="Ex : E2" disabled={saving} maxLength={50} /></div>
-                                    </div>
+                                    <ChoixEmplacement
+                                        idEntrepot={entrepotId}
+                                        value={formData.id_emplacement}
+                                        disabled={saving}
+                                        classeChamp="ep-input"
+                                        classeLabel="ep-lbl"
+                                        classeChampBloc="ep-field"
+                                        onChange={(id, noms) => setFormData((prev) => ({
+                                            ...prev, ...noms, id_emplacement: id || "", emplacement_change: true,
+                                        }))}
+                                    />
+                                    <p className="ep-hint-emp">Les listes de cet entrepôt se gèrent dans l'onglet Emplacements, bouton « Gérer les listes ».</p>
                                 </section>
                             </>
                         )}
@@ -1197,11 +1211,12 @@ export default function Entrepot() {
     const handleTransfertCreated = useCallback((res) => {
         setProduitToTransfer(null);
         const applique = res?.data?.statut === 'valide';
+        // Le serveur précise si c'est au propriétaire (vous) de valider le transfert
         showToast(
             'success',
-            applique
+            res?.message || (applique
                 ? 'Transfert effectué : votre catalogue a été mis à jour'
-                : "Demande envoyée : le propriétaire de l'entrepôt doit l'approuver"
+                : "Demande envoyée : le propriétaire de l'entrepôt doit l'approuver")
         );
         if (applique) loadProduits(); // le stock de l'entrepôt a baissé
         refreshTransfertsCount();
@@ -1512,8 +1527,8 @@ export default function Entrepot() {
                         onClick={() => setVue('produits')}>
                     <Package size={16} /> Stock <span className="ep2-pill">{stats.total}</span>
                 </button>
-                <button role="tab" aria-selected={vue === 'plan'}
-                        className={`ep2-tab ${vue === 'plan' ? 'is-active' : ''}`}
+                <button role="tab" aria-selected={vue === 'plan' || vue === 'listes'}
+                        className={`ep2-tab ${vue === 'plan' || vue === 'listes' ? 'is-active' : ''}`}
                         onClick={() => setVue('plan')}>
                     <Layers size={16} /> Emplacements <span className="ep2-pill">{zonesCount}</span>
                 </button>
@@ -1582,6 +1597,27 @@ export default function Entrepot() {
                 />
             )}
 
+            {vue === 'listes' && (
+                <section className="ep2-listes" aria-label="Listes d'emplacements de l'entrepôt">
+                    <div className="ep2-listes-head">
+                        <div>
+                            <strong>Listes d'emplacements de {entrepotActif.nom}</strong>
+                            <span>Emplacement, puis rayon, puis étagère. Elles sont proposées dans la fiche produit de cet entrepôt.</span>
+                        </div>
+                        <button className="ep2-btn" onClick={() => { setVue('plan'); loadProduits(); }}>
+                            <Layers size={15} /> Voir le plan du stock
+                        </button>
+                    </div>
+                    <div className="vt em">
+                        <GestionEmplacements
+                            key={entrepotActif.id_entrepot}
+                            idEntrepot={entrepotActif.id_entrepot}
+                            afficher={(message, type) => showToast(type === 'success' ? 'success' : 'error', message)}
+                        />
+                    </div>
+                </section>
+            )}
+
             {(vue === 'produits' || vue === 'plan') && (<>
             {/* Barre d'outils */}
             <div className="ep2-toolbar">
@@ -1604,6 +1640,11 @@ export default function Entrepot() {
                         </button>
                     ))}
                 </div>
+                {vue === 'plan' && (
+                    <button className="ep2-btn" onClick={() => setVue('listes')}>
+                        <Settings size={15} /> Gérer les listes
+                    </button>
+                )}
                 <button className="ep2-icon-btn" onClick={loadProduits} disabled={loadingProduits}
                         title="Rafraîchir" aria-label="Rafraîchir">
                     <RefreshCw size={16} className={loadingProduits ? 'ep-spin' : ''} />
@@ -1785,4 +1826,4 @@ export default function Entrepot() {
             )}
         </div>
     );
-}
+}

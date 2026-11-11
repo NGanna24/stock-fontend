@@ -1,6 +1,7 @@
 // components/Facture/FacturePDF.jsx
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer';
+import { libelleMode } from '../../config/modesPaiement';
 
 // ============================================================
 // FONTS
@@ -480,15 +481,7 @@ const FacturePDF = ({ data }) => {
     // ============================================================
     // HELPERS FACTURE
     // ============================================================
-    const getModePaiementLabel = (mode) =>
-        ({
-            especes: 'Espèces',
-            carte: 'Carte',
-            virement: 'Virement',
-            cheque: 'Chèque',
-            mobile_money: 'Mobile Money',
-            autre: 'Autre',
-        }[mode] || mode || '-');
+    const getModePaiementLabel = (mode) => libelleMode(mode);
 
     const formatDate = (d, formatted) => formatted || formatDateFR(d);
 
@@ -813,4 +806,4 @@ const FacturePDF = ({ data }) => {
     );
 };
 
-export default FacturePDF;
+export default FacturePDF;

@@ -104,7 +104,7 @@
   animation: ep-toast-in .22s ease-out;
 }
 .ep-toast span { flex: 1; }
-.ep-toast--success { background: var(--moss-deep); }
+.ep-toast--success { background: #2B2118; }
 .ep-toast--error   { background: var(--oxide-deep); }
 @keyframes ep-toast-in {
   from { transform: translateX(24px); opacity: 0; }
@@ -1068,12 +1068,12 @@
   color: #fff;
 }
 .ep-steps li.is-done {
-  color: var(--moss-deep);
-  border-color: var(--moss);
-  background: var(--ok-soft);
+  color: var(--signal);
+  border-color: var(--signal);
+  background: var(--paper);
 }
 .ep-steps li.is-done span {
-  background: var(--moss);
+  background: var(--signal);
   color: #fff;
 }
 
@@ -1417,4 +1417,4 @@ button.ep2-kpi:hover { border-color: #94a3b8; }
 .ep2-state strong { color: #0f172a; font-size: 16px; }
 
 @media (max-width: 900px) { .ep2-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 520px) { .ep2-page { padding: 14px 12px 40px; } .ep2-kpis { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .ep2-page { padding: 14px 12px 40px; } .ep2-kpis { grid-template-columns: 1fr; } }

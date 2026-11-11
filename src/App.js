@@ -37,6 +37,8 @@ import Employes from "./pages/Employes/Employes";
 import ProtectedRouteByRole from "./components/ProtectedRouteByRole";
 import AssistantAchat from "./pages/AssistantAchat/AssistantAchat";
 import Inventaires from "./pages/Inventaires/Inventaires";
+import Emplacements from "./pages/Emplacements/Emplacements";
+import ComptesFournisseurs from "./pages/ComptesFournisseurs/ComptesFournisseurs";
 import InventaireDetail from "./pages/Inventaires/InventaireDetail";
 import MonProfil from "./pages/Profil/MonProfil";
 import Parametres from "./pages/Parametres/Parametres";
@@ -58,7 +60,6 @@ import Depenses from "./pages/Depenses/Depenses";
 import Caisse from "./pages/Caisse/Caisse";
 import Journal from "./pages/Journal/Journal";
 import Relances from "./pages/Relances/Relances";
-import DettesFournisseurs from "./pages/DettesFournisseurs/DettesFournisseurs";
 
 // ==================== COMPOSANTS UTILITAIRES ====================
 
@@ -341,6 +342,14 @@ function AppContent() {
                         }
                     />
                     <Route
+                        path="emplacements"
+                        element={
+                            <ProtectedRouteByRole itemId="emplacements">
+                                <Emplacements />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
                         path="inventaires"
                         element={
                             <ProtectedRouteByRole itemId="inventaires">
@@ -375,13 +384,15 @@ function AppContent() {
                         }
                     />
                     <Route
-                        path="dettes-fournisseurs"
+                        path="comptes-fournisseurs"
                         element={
-                            <ProtectedRouteByRole itemId="dettes-fournisseurs">
-                                <DettesFournisseurs />
+                            <ProtectedRouteByRole itemId="comptes-fournisseurs">
+                                <ComptesFournisseurs />
                             </ProtectedRouteByRole>
                         }
                     />
+                    {/* Dettes fournisseurs est maintenant l'onglet « Commandes » des comptes fournisseurs */}
+                    <Route path="dettes-fournisseurs" element={<Navigate to="../comptes-fournisseurs" replace />} />
                     <Route
                         path="receptions"
                         element={

@@ -18,6 +18,7 @@ import SelectSearch from "../../components/SelectSearch/SelectSearch";
 import StockSelector from "../../components/StockSelector/StockSelector";
 import StockInputWithSelector from "../../components/StockSelector/StockInputWithSelector";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
+import ChoixEmplacement from "../../components/Emplacement/ChoixEmplacement";
 import "./Produits.css";
 import { useDisableNumberScroll } from "../../hooks/useDisableNumberScroll";
 /* ============================================================
@@ -27,6 +28,7 @@ const INITIAL_FORM_DATA = {
   nom: "", description: "", id_fournisseur: "", id_categorie: "", id_marque: "",
   id_modele: "", id_unite: "", prix_achat: "", prix_vente: "", quantite_stock: "",
   quantite_minimale: "", quantite_maximale: "", emplacement: "", rayon: "", etagere: "",
+  id_emplacement_magasin: "", emplacement_change: false,
 };
 
 const INITIAL_FILTERS = {
@@ -431,6 +433,7 @@ const Produits = () => {
       quantite_stock: produit.quantite_stock ?? "", quantite_minimale: produit.quantite_minimale ?? "",
       quantite_maximale: produit.quantite_maximale ?? "", emplacement: produit.emplacement || "",
       rayon: produit.rayon || "", etagere: produit.etagere || "",
+      id_emplacement_magasin: produit.id_emplacement_magasin || "", emplacement_change: false,
     });
     try {
       const res = await UniteVenteService.getByProduit(token, produit.id_produit);
@@ -470,8 +473,10 @@ const Produits = () => {
     };
   };
 
-  const buildBase = () => ({
-    ...formData,
+  const buildBase = () => {
+    const { id_emplacement_magasin, emplacement_change, ...reste } = formData;
+    return {
+    ...reste,
     nom: formData.nom.trim(),
     description: formData.description?.trim() || "",
     prix_achat: parseFloat(formData.prix_achat) || 0,
@@ -481,7 +486,8 @@ const Produits = () => {
     id_marque: formData.id_marque || null,
     id_modele: formData.id_modele || null,
     id_unite: formData.id_unite || null,
-  });
+    };
+  };
 
   const stockFields = () => ({
     quantite_stock: parseFloat(formData.quantite_stock) || 0,
@@ -490,6 +496,10 @@ const Produits = () => {
     emplacement: formData.emplacement?.trim() || "",
     rayon: formData.rayon?.trim() || "",
     etagere: formData.etagere?.trim() || "",
+    // Envoyé seulement s'il a été choisi dans les listes (sinon on garde l'ancien texte tel quel)
+    ...(formData.emplacement_change || formData.id_emplacement_magasin
+      ? { id_emplacement_magasin: formData.id_emplacement_magasin || null }
+      : {}),
   });
 
   // Étape 1 : fiche produit
@@ -1168,14 +1178,15 @@ const renderTable = () => (
 
                     <section className="pr-block">
                       <h3><MapPin size={15} /> Emplacement en magasin</h3>
-                      <div className="pr-grid3">
-                        <div className="pr-field"><label className="pr-lbl" htmlFor="pr-emp">Emplacement</label>
-                          <input id="pr-emp" className="pr-input" type="text" name="emplacement" value={formData.emplacement} onChange={handleInputChange} placeholder="Ex : A1" disabled={saving} maxLength={50} /></div>
-                        <div className="pr-field"><label className="pr-lbl" htmlFor="pr-ray">Rayon</label>
-                          <input id="pr-ray" className="pr-input" type="text" name="rayon" value={formData.rayon} onChange={handleInputChange} placeholder="Ex : R3" disabled={saving} maxLength={50} /></div>
-                        <div className="pr-field"><label className="pr-lbl" htmlFor="pr-eta">Étagère</label>
-                          <input id="pr-eta" className="pr-input" type="text" name="etagere" value={formData.etagere} onChange={handleInputChange} placeholder="Ex : E2" disabled={saving} maxLength={50} /></div>
-                      </div>
+                      <ChoixEmplacement
+                        value={formData.id_emplacement_magasin}
+                        disabled={saving}
+                        peutAjouter={!(user?.type === "employe" && String(user?.role || "").toLowerCase() === "caissier")}
+                        onChange={(id, noms) => setFormData((prev) => ({
+                          ...prev, ...noms, id_emplacement_magasin: id || "", emplacement_change: true,
+                        }))}
+                      />
+                      <p className="pr-hint-emp">Les listes se gèrent dans Catalogue &amp; Stock &gt; Emplacements.</p>
                     </section>
                   </>
                 )}

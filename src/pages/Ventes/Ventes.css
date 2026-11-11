@@ -1351,7 +1351,7 @@
   z-index: 1200;
   display: flex; align-items: center; gap: 12px;
   min-width: 280px; max-width: 420px;
-  padding: 10px 8px 10px 0;
+  padding: 10px 8px 10px 14px;
   overflow: hidden;
   background: var(--ink);
   color: var(--miyo-text-inverse);
@@ -1360,14 +1360,14 @@
   box-shadow: var(--shadow-xl);
   animation: vt-fade 0.15s ease-out;
 }
+/* Petit point d'état (pas de bande sur le côté) */
 .vt-toast-bar {
-  align-self: stretch;
-  width: 4px;
+  width: 8px; height: 8px;
   flex-shrink: 0;
   background: var(--ink-3);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  border-radius: 50%;
 }
-.vt-toast[data-type="success"] .vt-toast-bar { background: var(--ok); }
+.vt-toast[data-type="success"] .vt-toast-bar { background: var(--miyo-text-inverse); }
 .vt-toast[data-type="error"]   .vt-toast-bar { background: var(--bad); }
 .vt-toast[data-type="info"]    .vt-toast-bar { background: var(--signal); }
 .vt-toast-msg {

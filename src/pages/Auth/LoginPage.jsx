@@ -26,7 +26,17 @@ function LoginPage() {
         password: ''
     });
 
-    const [country, setCountry] = useState('CI');
+    // Pays du dernier numéro utilisé sur cet ordinateur (ex. Burkina Faso)
+    const [country, setCountryEtat] = useState(() => {
+        try {
+            const p = localStorage.getItem('miyo:pays-connexion');
+            return p && COUNTRIES.some(c => c.code === p) ? p : 'CI';
+        } catch { return 'CI'; }
+    });
+    const setCountry = (code) => {
+        setCountryEtat(code);
+        try { localStorage.setItem('miyo:pays-connexion', code); } catch { /* stockage indisponible */ }
+    };
     const [showPassword, setShowPassword] = useState(false);
 
     const [monkeyState, setMonkeyState] = useState('idle');
@@ -88,6 +98,17 @@ function LoginPage() {
         const { name, value } = e.target;
 
         if (name === 'telephone') {
+            // Numéro collé avec son indicatif (+226…, 00226…) : on choisit le pays tout seul
+            const brut = value.trim();
+            if (/^(\+|00)/.test(brut)) {
+                const complet = '+' + brut.replace(/^00/, '').replace(/\D/g, '');
+                const pays = [...COUNTRIES].sort((a, b) => b.dial.length - a.dial.length).find(c => complet.startsWith(c.dial));
+                if (pays) {
+                    setCountry(pays.code);
+                    setCredentials(prev => ({ ...prev, telephone: complet.slice(pays.dial.length) }));
+                    return;
+                }
+            }
             const cleaned = value.replace(/[^\d\s\-]/g, '');
             setCredentials(prev => ({ ...prev, telephone: cleaned }));
         } else {
@@ -289,4 +310,4 @@ function LoginPage() {
     );
 }
 
-export default LoginPage;
+export default LoginPage;

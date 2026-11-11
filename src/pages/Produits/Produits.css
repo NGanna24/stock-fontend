@@ -933,7 +933,7 @@
   color: var(--miyo-text-inverse);
 }
 .pr-steps li.is-done { color: #fff; }
-.pr-steps li.is-done span { background: var(--moss); color: var(--miyo-text-inverse); }
+.pr-steps li.is-done span { background: var(--signal); color: var(--miyo-text-inverse); }
 .pr-detail-status { display: flex; align-items: center; gap: 10px; }
 
 .pr-sheet-body {
@@ -1355,4 +1355,4 @@
 /* Curseur texte normal (pas de curseur "spin") */
 .pr-input[type="number"] {
   cursor: text;
-}
+}.pr-hint-emp { margin: 8px 0 0; font-size: 12px; color: var(--ink-3); }

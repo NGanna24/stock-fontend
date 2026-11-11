@@ -2,6 +2,7 @@
 // Relevé de compte client (A4) : solde au début, ventes (débit), paiements (crédit), solde après chaque opération.
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { libelleMode } from '../../config/modesPaiement';
 
 const montant = (v) => {
   const n = Number(v) || 0;
@@ -9,7 +10,7 @@ const montant = (v) => {
   return `${n < 0 ? '-' : ''}${s}`;
 };
 const dateFR = (s) => (s ? String(s).slice(0, 10).split('-').reverse().join('/') : '');
-const MODES = { especes: 'Espèces', carte: 'Carte', virement: 'Virement', cheque: 'Chèque', autre: 'Autre' };
+const MODES = new Proxy({}, { get: (_, code) => (typeof code === 'string' && code ? libelleMode(code) : undefined) });
 
 const s = StyleSheet.create({
   page: { padding: 36, fontSize: 9.5, fontFamily: 'Helvetica', color: '#111827' },

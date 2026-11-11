@@ -22,6 +22,7 @@ import {
   unitesVente as unitesVenteHL, stockRestant as stockRestantHL, creerVente as creerVenteHL,
   ajouterPaiement as ajouterPaiementHL,
 } from '../../offline/horsLigne';
+import { CATALOGUE_MODES, infoMode, libelleMode, useModesPaiement, useModeValide } from '../../config/modesPaiement';
 
 import "./Ventes.css";
 
@@ -127,12 +128,7 @@ const STATUTS = [
   { value: "annulee", label: "Annulée" },
 ];
 
-const MODES_PAIEMENT = [
-  { value: "especes", label: "Espèces", Icon: Coins },
-  { value: "carte", label: "Carte", Icon: CreditCard },
-  { value: "virement", label: "Virement", Icon: Building },
-  { value: "cheque", label: "Chèque", Icon: FileText },
-];
+// Modes de paiement : ceux choisis par la boutique dans Paramètres (useModesPaiement)
 
 // ============================================================
 // VERROU DE SCROLL
@@ -430,6 +426,7 @@ const RowMenu = ({ commande, canPrint, canDelete, onPrint, onDelete }) => {
 // COMPOSANT PRINCIPAL
 // ============================================================
 const Ventes = () => {
+  const MODES_PAIEMENT = useModesPaiement();
   const { user, isAuthenticated } = useUser();
   const token = localStorage.getItem("token");
 
@@ -523,6 +520,7 @@ const Ventes = () => {
 
   // ---------- Paiement ----------
   const [paiementData, setPaiementData] = useState({ mode_paiement: "especes", montant: "" });
+  useModeValide(MODES_PAIEMENT, paiementData.mode_paiement, (v) => setPaiementData((p) => ({ ...p, mode_paiement: v })));
 
   const canManage = !!user && ["admin", "manager", "caissier"].includes(user.role);
   const peutRembourser = !!user && ["admin", "manager"].includes(user.role);

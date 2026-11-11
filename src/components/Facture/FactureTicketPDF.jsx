@@ -1,6 +1,7 @@
 // components/Facture/FactureTicketPDF.jsx
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
+import { libelleMode } from '../../config/modesPaiement';
 
 // ============================================================
 // CONFIG
@@ -174,14 +175,9 @@ const FactureTicketPDF = ({ data }) => {
     .filter(Boolean)
     .join(', ');
 
-  const modeLabel =
-    {
-      especes: 'ESPECES',
-      carte: 'CARTE',
-      virement: 'VIREMENT',
-      cheque: 'CHEQUE',
-      mobile_money: 'MOBILE MONEY',
-    }[mode_paiement] || (mode_paiement || '').toUpperCase();
+  const modeLabel = mode_paiement
+    ? libelleMode(mode_paiement).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    : '';
 
   // ============================================================
   // ✅ Calcul de la hauteur dynamique du ticket
@@ -347,4 +343,4 @@ const FactureTicketPDF = ({ data }) => {
   );
 };
 
-export default FactureTicketPDF;
+export default FactureTicketPDF;

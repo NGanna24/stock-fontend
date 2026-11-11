@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import JournalService from '../../services/journalService';
 import { useUser } from '../../context/AuthContext';
+import { libelleMode } from '../../config/modesPaiement';
 import '../Ventes/Ventes.css';
 import './Journal.css';
 
@@ -100,9 +101,7 @@ const CHAMPS = {
   lignes: 'Lignes', id_categorie_depense: 'Catégorie', id_fournisseur: 'Fournisseur', id_produit: 'Produit',
 };
 const nomChamp = (k) => CHAMPS[k] || (k.replace(/_/g, ' ').replace(/^id /, 'N° ').replace(/^./, (c) => c.toUpperCase()));
-const MODES_PAIEMENT = {
-  especes: 'Espèces', mobile_money: 'Mobile money', virement: 'Virement', cheque: 'Chèque', carte: 'Carte', autre: 'Autre',
-};
+const MODES_PAIEMENT = new Proxy({}, { get: (_, code) => (typeof code === 'string' ? libelleMode(code) : undefined) });
 const CHAMPS_MONTANT = /^(montant|fond_initial|prix|total|remise|solde|montant_compte)/;
 const valeurChamp = (v, k = '') => {
   if (v === null || v === undefined || v === '') return '-';

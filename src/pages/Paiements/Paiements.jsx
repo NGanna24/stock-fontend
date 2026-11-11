@@ -10,18 +10,22 @@ import {
 import PaiementService from "../../services/paiementService";
 import { useUser } from "../../context/AuthContext";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
+import { CATALOGUE_MODES, infoMode } from '../../config/modesPaiement';
 import "./Paiements.css";
 
 /* ============================================================
    CONSTANTES & UTILITAIRES
    ============================================================ */
-const MODES = {
-  especes: { label: "Espèces", plural: "Espèces", tone: "cash", icon: Coins },
-  carte: { label: "Carte bancaire", plural: "Cartes", tone: "card", icon: CreditCard },
-  virement: { label: "Virement", plural: "Virements", tone: "transfer", icon: Building },
-  cheque: { label: "Chèque", plural: "Chèques", tone: "check", icon: FileText },
-  autre: { label: "Autre", plural: "Autres", tone: "other", icon: Wallet },
-};
+// Libellés et couleurs de tous les modes connus (Wave, Orange Money…)
+const TONS = { especes: "cash", carte: "card", virement: "transfer", cheque: "check" };
+const PLURIELS = { especes: "Espèces", carte: "Cartes", virement: "Virements", cheque: "Chèques" };
+const MODES = Object.fromEntries(
+  [...CATALOGUE_MODES.map((m) => m.value), "mobile_money", "autre"].map((v) => {
+    const m = infoMode(v);
+    const famille = TONS[v] || (["wave", "orange_money", "mtn_momo", "moov_money", "mobile_money"].includes(v) ? "mobile" : "other");
+    return [v, { label: m.label, plural: PLURIELS[v] || m.label, tone: famille, icon: m.Icon }];
+  })
+);
 
 const PERIODES = [
   { value: "all", label: "Toutes les périodes" },
@@ -344,20 +348,12 @@ const Paiements = () => {
       totalMontant,
       today: todayList.length,
       montantJour,
-      especes: sumByMode("especes"),
-      carte: sumByMode("carte"),
-      virement: sumByMode("virement"),
-      cheque: sumByMode("cheque"),
-      autre: sumByMode("autre"),
+      ...Object.fromEntries(Object.keys(MODES).map((m) => [m, sumByMode(m)])),
       montantMoyen,
       tauxEspeces,
-      parMode: {
-        especes: paiements.filter((p) => p.mode_paiement === "especes").length,
-        carte: paiements.filter((p) => p.mode_paiement === "carte").length,
-        virement: paiements.filter((p) => p.mode_paiement === "virement").length,
-        cheque: paiements.filter((p) => p.mode_paiement === "cheque").length,
-        autre: paiements.filter((p) => p.mode_paiement === "autre").length,
-      },
+      parMode: Object.fromEntries(
+        Object.keys(MODES).map((m) => [m, paiements.filter((p) => p.mode_paiement === m).length])
+      ),
     };
   }, [paiements]);
 
@@ -414,7 +410,7 @@ const Paiements = () => {
 
   const stages = [
     { key: "", label: "Tous", count: computedStats.total, tone: "all" },
-    ...Object.keys(MODES).map((k) => ({
+    ...Object.keys(MODES).filter((k) => k === "especes" || computedStats.parMode[k] > 0).map((k) => ({
       key: k,
       label: MODES[k].plural,
       count: computedStats.parMode[k],

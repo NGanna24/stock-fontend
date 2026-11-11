@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import DetteFournisseurService from '../../services/detteFournisseurService';
 import { useUser } from '../../context/AuthContext';
+import { CATALOGUE_MODES, infoMode, libelleMode, useModesPaiement, useModeValide } from '../../config/modesPaiement';
 import '../Ventes/Ventes.css';
 import './DettesFournisseurs.css';
 
@@ -41,15 +42,8 @@ const toNum = (v) => {
 const DECIMAL_RE = /^\d*[.,]?\d*$/;
 const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
-const MODES = [
-  { value: 'especes', label: 'Espèces', Icon: Coins },
-  { value: 'mobile_money', label: 'Mobile money', Icon: Smartphone },
-  { value: 'virement', label: 'Virement', Icon: Building },
-  { value: 'cheque', label: 'Chèque', Icon: FileText },
-  { value: 'carte', label: 'Carte', Icon: CreditCard },
-  { value: 'autre', label: 'Autre', Icon: MoreHorizontal },
-];
-const modeLabel = (v) => MODES.find((m) => m.value === v)?.label || v || '-';
+// La fenêtre de paiement ne propose que les modes de la boutique
+const modeLabel = libelleMode;
 
 const SoldeTag = ({ f }) => {
   if (f.reste_a_payer > 0.009) return <span className="df-solde" data-s="du">{fm(f.reste_a_payer)}</span>;
@@ -109,12 +103,14 @@ const ModalHead = ({ id, title, sub, onClose, disabled, children }) => (
 // MODAL : PAYER UN FOURNISSEUR
 // ============================================================
 function ModalPaiement({ token, fournisseur, commandes, commandeInitiale, onClose, onPaye }) {
+  const MODES = useModesPaiement();
   const dues = commandes.filter((c) => c.reste > 0.009);
   const [cible, setCible] = useState(commandeInitiale ? String(commandeInitiale) : 'auto');
   const commande = dues.find((c) => String(c.id_commande_achat) === cible);
   const plafond = commande ? commande.reste : fournisseur.reste_a_payer;
   const [montant, setMontant] = useState('');
   const [mode, setMode] = useState('especes');
+  useModeValide(MODES, mode, setMode);
   const [date, setDate] = useState(aujourdhui());
   const [reference, setReference] = useState('');
   const [note, setNote] = useState('');

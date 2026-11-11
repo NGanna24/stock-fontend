@@ -25,6 +25,9 @@ import {
 } from '../../config/preferences';
 import { VERSION_LOGICIEL } from '../../config/version';
 import MoyensPaiement from '../../components/Abonnement/MoyensPaiement';
+import { CATALOGUE_MODES, chargerModesPaiement, definirModesPaiement } from '../../config/modesPaiement';
+import axios from 'axios';
+import API_URL from '../../config/api';
 import { chargerAbonnement, dateAbonnement, phraseEcheance } from '../../services/abonnementService';
 import './Parametres.css';
 
@@ -38,6 +41,7 @@ const SECTIONS = [
   { id: 'compte', label: 'Compte et magasin', icon: UserCog },
   { id: 'appareil', label: 'Cet appareil', icon: Info },
   { id: 'abonnement', label: 'Abonnement', icon: Wallet, patron: true },
+  { id: 'modes', label: 'Modes de paiement', icon: CreditCard, patron: true },
 ];
 
 const ROLES = { admin: 'Administrateur', manager: 'Manager', caissier: 'Caissier', magasinier: 'Magasinier' };
@@ -105,6 +109,33 @@ export default function Parametres() {
       .catch(() => setErreurAbonnement(true));
   }, [estPatron]);
   const sections = SECTIONS.filter((s) => !s.patron || estPatron);
+
+  // ---------- Modes de paiement de la boutique (patron) ----------
+  const [modesChoisis, setModesChoisis] = useState(null);
+  const [modesEnvoi, setModesEnvoi] = useState(false);
+  useEffect(() => {
+    if (!estPatron) return;
+    chargerModesPaiement(true).then((l) => setModesChoisis(l.map((m) => m.value)));
+  }, [estPatron]);
+  const basculerMode = (code, oui) =>
+    setModesChoisis((liste) => (oui ? [...liste, code] : liste.filter((c) => c !== code)));
+  const enregistrerModes = async () => {
+    if (!modesChoisis?.length) { afficherToast('Choisissez au moins un mode de paiement', 'error'); return; }
+    setModesEnvoi(true);
+    try {
+      const token = localStorage.getItem('token');
+      // L'ordre suit la liste affichée
+      const ordre = CATALOGUE_MODES.map((m) => m.value).filter((v) => modesChoisis.includes(v));
+      const r = await axios.put(API_URL.MODES_PAIEMENT, { actifs: ordre }, { headers: { Authorization: `Bearer ${token}` } });
+      definirModesPaiement(r.data.actifs);
+      setModesChoisis(r.data.actifs);
+      afficherToast('Modes de paiement enregistrés', 'success');
+    } catch (e) {
+      afficherToast(e.response?.data?.message || "Enregistrement impossible", 'error');
+    } finally {
+      setModesEnvoi(false);
+    }
+  };
 
   // ---------- Cet appareil ----------
   const [versionOrdi, setVersionOrdi] = useState(null);
@@ -439,6 +470,40 @@ export default function Parametres() {
                   </>
                 );
               })()}
+            </Section>
+          )}
+
+          {/* ---------- 8. Modes de paiement (patron) ---------- */}
+          {estPatron && (
+            <Section id="modes" numero={8} titre="Modes de paiement" sous="Les moyens de paiement acceptés dans votre boutique" icon={CreditCard}>
+              <p className="pr-ligne-aide">
+                Seuls les modes cochés sont proposés à l'encaissement, dans les dépenses et pour payer les fournisseurs, sur l'ordinateur et sur le téléphone.
+                Seules les espèces comptent dans le tiroir-caisse.
+              </p>
+              {!modesChoisis ? (
+                <p className="pr-ligne-aide"><Loader size={14} className="vt-spin" /> Chargement…</p>
+              ) : (
+                <ol className="pr-modes">
+                  {CATALOGUE_MODES.map((m, i) => (
+                    <li key={m.value} className={`pr-mode ${modesChoisis.includes(m.value) ? 'is-on' : ''}`}>
+                      <span className="pr-mode-num">{i + 1}</span>
+                      <span className="pr-mode-ic" style={{ '--c': m.c }} aria-hidden="true"><m.Icon size={16} /></span>
+                      <span className="pr-mode-nom">{m.label}</span>
+                      <Interrupteur
+                        id={`mode-${m.value}`}
+                        checked={modesChoisis.includes(m.value)}
+                        onChange={(oui) => basculerMode(m.value, oui)}
+                        label={`Accepter ${m.label}`}
+                      />
+                    </li>
+                  ))}
+                </ol>
+              )}
+              <div className="pr-actions">
+                <button type="button" className="vt-btn vt-btn--primary" onClick={enregistrerModes} disabled={modesEnvoi || !modesChoisis}>
+                  {modesEnvoi ? 'Enregistrement…' : 'Enregistrer les modes de paiement'}
+                </button>
+              </div>
             </Section>
           )}
         </div>

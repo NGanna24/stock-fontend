@@ -13,6 +13,7 @@ import CommandeVenteService from "../../services/commandeVenteService";
 import MagasinService from "../../services/magasinService";
 import { useUser } from "../../context/AuthContext";
 import FormatChoiceModal from "../../components/Facture/FormatChoiceModal";
+import { CATALOGUE_MODES, infoMode, libelleMode, useModesPaiement, useModeValide } from '../../config/modesPaiement';
 import "../Ventes/Ventes.css";
 import "./Factures.css";
 
@@ -84,13 +85,8 @@ const LIBELLES_STATUT = {
   annulee: "Annulée",
 };
 
-const MODES_PAIEMENT = [
-  { value: "especes", label: "Espèces", Icon: Coins },
-  { value: "carte", label: "Carte", Icon: CreditCard },
-  { value: "virement", label: "Virement", Icon: Building },
-  { value: "cheque", label: "Chèque", Icon: FileText },
-];
-const modeLabel = (v) => MODES_PAIEMENT.find((m) => m.value === v)?.label || (v === "mobile_money" ? "Mobile money" : v || "-");
+// Modes de paiement : ceux choisis par la boutique dans Paramètres (useModesPaiement)
+const modeLabel = libelleMode;
 
 const mapLignes = (lignes) =>
   (lignes || []).map((l) => {
@@ -239,6 +235,7 @@ const RowMenu = ({ facture, onPrint, onDownload }) => {
 const PAR_PAGE = 10;
 
 const Factures = () => {
+  const MODES_PAIEMENT = useModesPaiement();
   const { user, isAuthenticated } = useUser();
   const token = localStorage.getItem("token");
   const canManage = !!user && ["admin", "manager", "caissier"].includes(user.role);
@@ -268,6 +265,7 @@ const Factures = () => {
   const [justePayee, setJustePayee] = useState(false);
   const [aEncaisser, setAEncaisser] = useState(null);  // facture à encaisser
   const [paiement, setPaiement] = useState({ montant: "", mode_paiement: "especes" });
+  useModeValide(MODES_PAIEMENT, paiement.mode_paiement, (v) => setPaiement((p) => ({ ...p, mode_paiement: v })));
   const [saving, setSaving] = useState(false);
   const [erreurPaiement, setErreurPaiement] = useState(null);
   const [formatChoice, setFormatChoice] = useState(null); // { action: 'print'|'download', data }

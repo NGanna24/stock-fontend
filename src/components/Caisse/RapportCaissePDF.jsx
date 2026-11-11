@@ -2,6 +2,7 @@
 // « Z de caisse » : rapport de clôture imprimable sur ticket 80 mm (même style que le ticket de vente).
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import { libelleMode } from '../../config/modesPaiement';
 
 const TICKET_WIDTH = 226.77; // 80 mm en points
 
@@ -14,7 +15,7 @@ const dh = (d) => {
   const p = (n) => String(n).padStart(2, '0');
   return `${p(x.getDate())}/${p(x.getMonth() + 1)}/${x.getFullYear()} ${p(x.getHours())}:${p(x.getMinutes())}`;
 };
-const MODES = { especes: 'ESPECES', carte: 'CARTE', virement: 'VIREMENT', cheque: 'CHEQUE', autre: 'MOBILE/AUTRE', mobile_money: 'MOBILE MONEY' };
+const MODES = new Proxy({}, { get: (_, code) => (typeof code === 'string' && code ? libelleMode(code).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') : undefined) });
 const SEP = '--------------------------------';
 
 // Billets puis pièces (clés envoyées par la page Caisse)

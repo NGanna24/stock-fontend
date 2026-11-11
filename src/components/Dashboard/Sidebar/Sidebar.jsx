@@ -8,7 +8,9 @@ import {
   ChevronDown, LayoutDashboard, Package, Boxes, Tag, ShoppingBasket, Truck,
   PackageCheck, ShoppingCart, FileText, Users, RotateCcw, Warehouse, LayoutTemplate,
   ClipboardList, Layers, AlertTriangle, CreditCard, BarChart3, TrendingUp, Banknote,
-  Settings, PanelLeftClose, PanelLeftOpen, LogOut, Store, Ruler, Bot, User, Wallet, Calculator, HandCoins, History, BellRing,
+  Settings, PanelLeftClose, PanelLeftOpen, LogOut, Store, Ruler, Bot, User, Wallet, Calculator, History, BellRing,
+  MapPin,
+  BookOpenCheck,
 } from "lucide-react";
 import ConfirmModal from "../../ConfirmModal/ConfirmModal";
 import "./Sidebar.css";
@@ -50,6 +52,7 @@ export const MENU_CONFIG = [
       { id: "unites", title: "Unités", icon: Ruler, path: "/unites" },
       { id: "mouvements", title: "Mouvements", icon: ClipboardList, path: "/mouvements" },
       { id: "inventaires", title: "Inventaires", icon: Layers, path: "/inventaires" },
+      { id: "emplacements", title: "Emplacements", icon: MapPin, path: "/emplacements" },
     ],
   },
   {
@@ -59,7 +62,7 @@ export const MENU_CONFIG = [
       { id: "fournisseurs", title: "Fournisseurs", icon: Truck, path: "/fournisseurs" },
       { id: "commandes-achat", title: "Commandes fournisseurs", icon: ShoppingBasket, path: "/commandes-achat" },
       { id: "receptions", title: "Réceptions", icon: PackageCheck, path: "/receptions" },
-      { id: "dettes-fournisseurs", title: "Dettes fournisseurs", icon: HandCoins, path: "/dettes-fournisseurs" },
+      { id: "comptes-fournisseurs", title: "Comptes fournisseurs", icon: BookOpenCheck, path: "/comptes-fournisseurs" },
       { id: "retours-fournisseurs", title: "Retours fournisseurs", icon: RotateCcw, path: "/retours-fournisseurs" },
       { id: "transferts", title: "Transferts", icon: Truck, path: "/transferts" },
       {id:'entrepot', title:'Entrepôt', icon: Warehouse, path:'/entrepot'},
