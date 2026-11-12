@@ -1,9 +1,10 @@
 // components/Entrepot/ApercuEntrepot.jsx
-// Aperçu de l'entrepôt : valeur du stock, entrées / sorties, alertes, activité, équipe.
+// Aperçu de l'entrepôt, dans l'ordre d'usage : 1. ce qu'il y a à faire, 2. l'état du stock,
+// 3. l'activité de la période, 4. les détails (produits les plus sortis, derniers mouvements, équipe).
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     Loader, AlertCircle, RefreshCw, ArrowDownCircle, ArrowUpCircle, Banknote, AlertTriangle,
-    XCircle, Send, ShoppingCart, Users, Crown, Layers, TrendingUp, ChevronRight,
+    XCircle, Send, ShoppingCart, Users, Crown, Layers, TrendingUp, ChevronRight, Package, CheckCircle,
 } from 'lucide-react';
 import MouvementEntrepotService from '../../services/mouvementEntrepotService';
 import { MouvementLigneCompacte } from './MouvementsEntrepot';
@@ -89,73 +90,98 @@ export default function ApercuEntrepot({ token, entrepotId, onGo, onError }) {
         { cle: 'nr', n: stock.nb_non_ranges, lib: 'produit(s) non rangé(s)', icone: Layers, ton: 'info', go: () => onGo('plan') },
     ];
 
+    const aFaire = alertes.filter((a) => a.n > 0);
+
     return (
         <div className={`ep2-apercu ${loading ? 'is-loading' : ''}`}>
-            <div className="ep2-apercu-bar">
-                <div className="ep2-seg" role="group" aria-label="Période">
-                    {[[7, '7 jours'], [30, '30 jours'], [90, '90 jours']].map(([j, l]) => (
-                        <button key={j} className={jours === j ? 'is-on' : ''} onClick={() => setJours(j)}>{l}</button>
-                    ))}
+            {/* 1. À faire */}
+            <section className="ep2-panel">
+                <div className="ep2-panel-head">
+                    <h3>À faire</h3>
+                    <button className="ep2-icon-btn" onClick={charger} disabled={loading} aria-label="Rafraîchir" title="Rafraîchir">
+                        <RefreshCw size={16} className={loading ? 'ep-spin' : ''} />
+                    </button>
                 </div>
-                <button className="ep2-icon-btn" onClick={charger} disabled={loading} aria-label="Rafraîchir" title="Rafraîchir">
-                    <RefreshCw size={16} className={loading ? 'ep-spin' : ''} />
-                </button>
-            </div>
+                {aFaire.length === 0 ? (
+                    <p className="ep2-calme"><CheckCircle size={18} /> Rien à traiter pour le moment.</p>
+                ) : (
+                    <ol className="ep2-alertes">
+                        {aFaire.map((a, i) => {
+                            const Ic = a.icone;
+                            const corps = (
+                                <>
+                                    <span className="ep2-alerte-num">{i + 1}</span>
+                                    <Ic size={18} />
+                                    <b>{a.n}</b>
+                                    <span>{a.lib}{a.sous ? ` · ${a.sous}` : ''}</span>
+                                    {a.go && <ChevronRight size={16} className="ep2-alerte-go" />}
+                                </>
+                            );
+                            return (
+                                <li key={a.cle}>
+                                    {a.go
+                                        ? <button className={`ep2-alerte ep2-alerte--${a.ton}`} onClick={a.go}>{corps}</button>
+                                        : <div className={`ep2-alerte ep2-alerte--${a.ton}`}>{corps}</div>}
+                                </li>
+                            );
+                        })}
+                    </ol>
+                )}
+            </section>
 
+            {/* 2. État du stock (chaque chiffre ouvre la liste correspondante) */}
             <div className="ep2-cards">
+                <button type="button" className="ep2-card ep2-card--clic" onClick={() => onGo('produits', 'all')}>
+                    <h3><Package size={16} /> Références</h3>
+                    <div className="ep2-big">{fmt(stock.nb_produits)}</div>
+                    <div className="ep2-card-sub">{stock.nb_emplacements} emplacement{stock.nb_emplacements > 1 ? 's' : ''}{stock.nb_non_ranges ? ` · ${stock.nb_non_ranges} non rangé(s)` : ''}</div>
+                </button>
+                <button type="button" className={`ep2-card ep2-card--clic ${stock.nb_stock_bas ? 'ep2-card--alerte' : ''}`} onClick={() => onGo('produits', 'low')}>
+                    <h3><AlertTriangle size={16} /> Stock bas</h3>
+                    <div className="ep2-big">{fmt(stock.nb_stock_bas)}</div>
+                    <div className="ep2-card-sub">à commander bientôt</div>
+                </button>
+                <button type="button" className={`ep2-card ep2-card--clic ${stock.nb_ruptures ? 'ep2-card--danger' : ''}`} onClick={() => onGo('produits', 'out')}>
+                    <h3><XCircle size={16} /> Ruptures</h3>
+                    <div className="ep2-big">{fmt(stock.nb_ruptures)}</div>
+                    <div className="ep2-card-sub">plus rien en stock</div>
+                </button>
                 <section className="ep2-card">
                     <h3><Banknote size={16} /> Valeur du stock</h3>
                     <div className="ep2-big">{fmt(stock.valeur_achat)} <small>FCFA</small></div>
-                    <div className="ep2-card-sub">au prix d'achat · {stock.nb_produits} référence(s)</div>
                     <dl className="ep2-kv">
-                        <div><dt>Valeur de vente</dt><dd>{fmt(stock.valeur_vente)} FCFA</dd></div>
-                        <div><dt>Marge potentielle</dt><dd>{fmt(stock.marge_potentielle)} FCFA</dd></div>
+                        <div><dt>Au prix de vente</dt><dd>{fmt(stock.valeur_vente)} FCFA</dd></div>
+                        <div><dt>Marge possible</dt><dd>{fmt(stock.marge_potentielle)} FCFA</dd></div>
                     </dl>
-                </section>
-
-                <section className="ep2-card ep2-card--in">
-                    <h3><ArrowDownCircle size={16} /> Entrées · {jours} jours</h3>
-                    <div className="ep2-big">{periode.nb_entrees} <small>opération(s)</small></div>
-                    <div className="ep2-card-sub">{fmt(periode.valeur_entrees)} FCFA reçus</div>
-                    <button className="ep2-linkbtn" onClick={() => onGo('mouvements', 'entrees')}>Voir les entrées <ChevronRight size={14} /></button>
-                </section>
-
-                <section className="ep2-card ep2-card--out">
-                    <h3><ArrowUpCircle size={16} /> Sorties · {jours} jours</h3>
-                    <div className="ep2-big">{periode.nb_sorties} <small>opération(s)</small></div>
-                    <div className="ep2-card-sub">{fmt(periode.valeur_sorties)} FCFA sortis</div>
-                    <button className="ep2-linkbtn" onClick={() => onGo('mouvements', 'sorties')}>Voir les sorties <ChevronRight size={14} /></button>
-                </section>
-
-                <section className="ep2-card">
-                    <h3><TrendingUp size={16} /> Solde · {jours} jours</h3>
-                    <div className={`ep2-big ${solde < 0 ? 'neg' : 'pos'}`}>{solde > 0 ? '+' : ''}{fmt(solde)} <small>FCFA</small></div>
-                    <div className="ep2-card-sub">entrées moins sorties, en valeur d'achat</div>
                 </section>
             </div>
 
+            {/* 3. Activité de la période */}
             <section className="ep2-panel">
-                <h3>À surveiller</h3>
-                <ul className="ep2-alertes">
-                    {alertes.map((a) => {
-                        const Ic = a.icone;
-                        const corps = (
-                            <>
-                                <Ic size={18} />
-                                <b>{a.n}</b>
-                                <span>{a.lib}{a.sous ? ` · ${a.sous}` : ''}</span>
-                                {a.go && <ChevronRight size={16} className="ep2-alerte-go" />}
-                            </>
-                        );
-                        return (
-                            <li key={a.cle}>
-                                {a.go && a.n > 0
-                                    ? <button className={`ep2-alerte ep2-alerte--${a.ton}`} onClick={a.go}>{corps}</button>
-                                    : <div className={`ep2-alerte ${a.n > 0 ? `ep2-alerte--${a.ton}` : 'is-calme'}`}>{corps}</div>}
-                            </li>
-                        );
-                    })}
-                </ul>
+                <div className="ep2-panel-head">
+                    <h3>Activité</h3>
+                    <div className="ep2-seg" role="group" aria-label="Période">
+                        {[[7, '7 jours'], [30, '30 jours'], [90, '90 jours']].map(([j, l]) => (
+                            <button key={j} className={jours === j ? 'is-on' : ''} aria-pressed={jours === j} onClick={() => setJours(j)}>{l}</button>
+                        ))}
+                    </div>
+                </div>
+                <div className="ep2-totaux3">
+                    <button type="button" className="ep2-total ep2-total--in" onClick={() => onGo('mouvements', 'entrees')}>
+                        <ArrowDownCircle size={20} />
+                        <span><b>{periode.nb_entrees}</b> entrée(s)<small>{fmt(periode.valeur_entrees)} FCFA reçus</small></span>
+                        <ChevronRight size={16} className="ep2-alerte-go" />
+                    </button>
+                    <button type="button" className="ep2-total ep2-total--out" onClick={() => onGo('mouvements', 'sorties')}>
+                        <ArrowUpCircle size={20} />
+                        <span><b>{periode.nb_sorties}</b> sortie(s)<small>{fmt(periode.valeur_sorties)} FCFA sortis</small></span>
+                        <ChevronRight size={16} className="ep2-alerte-go" />
+                    </button>
+                    <div className="ep2-total">
+                        <TrendingUp size={20} />
+                        <span><b>{solde > 0 ? '+' : ''}{fmt(solde)} FCFA</b> de solde<small>entrées moins sorties, en valeur d'achat</small></span>
+                    </div>
+                </div>
             </section>
 
             <div className="ep2-duo">

@@ -5,7 +5,8 @@ import {
     Info, Banknote, Layers, Box, Trash2, Save, ChevronRight,
     Tag, Building, MapPin, Search, Package, AlertTriangle,
     XCircle, RefreshCw, Edit, Send, LogIn, Copy,
-    ArrowDown, ArrowUp, ChevronLeft, ChevronDown, Crown, Users, ClipboardCheck, Settings,
+    ArrowDown, ArrowUp, ChevronLeft, Crown, Users, ClipboardCheck, Settings,
+    MoreHorizontal,
 } from 'lucide-react';
 import EntrepotService from '../../services/entrepotService';
 import ProduitEntrepotService from '../../services/produitEntrepotService';
@@ -178,6 +179,13 @@ function EmplacementTag({ p, sansZone }) {
             ))}
         </span>
     );
+}
+
+/** Emplacement en texte : « Zone Nord › Allée 2 › Niveau 1 » (sans la zone si elle est déjà choisie) */
+function EmplacementTexte({ p, sansZone }) {
+    const segs = [!sansZone && p.emplacement, p.rayon, p.etagere].filter(Boolean);
+    if (segs.length === 0) return <span className="ex-nonrange">Non rangé</span>;
+    return <span className="ex-chemin">{segs.join(' › ')}</span>;
 }
 
 /* ============================================================
@@ -963,12 +971,32 @@ export default function Entrepot() {
     const [deleting, setDeleting] = useState(false);
 
     /* ---------- Transferts vers les magasins ---------- */
-    const [vue, setVue] = useState('apercu'); // 'apercu' | 'produits' | 'plan' | 'mouvements' | 'inventaire' | 'transferts'
+    const [menuPlus, setMenuPlus] = useState(false);       // menu « Plus » de l'en-tête
+    const menuPlusRef = useRef(null);
+    useEffect(() => {
+        if (!menuPlus) return undefined;
+        const fermer = (e) => { if (menuPlusRef.current && !menuPlusRef.current.contains(e.target)) setMenuPlus(false); };
+        const echap = (e) => { if (e.key === 'Escape') setMenuPlus(false); };
+        document.addEventListener('mousedown', fermer);
+        document.addEventListener('keydown', echap);
+        return () => { document.removeEventListener('mousedown', fermer); document.removeEventListener('keydown', echap); };
+    }, [menuPlus]);
+    const [vue, setVue] = useState('produits');
+    // Explorateur : dossier choisi à gauche (null = tout l'entrepôt, '' = non rangé)
+    const [dossierZone, setDossierZone] = useState(null);
+    const [dossierRayon, setDossierRayon] = useState(null);
     const [typeMouvement, setTypeMouvement] = useState('');
 
     // Navigation depuis l'aperçu : onglet + filtre éventuel
+    const ouvrirDossier = (zone, rayon = null, filtre = 'all') => {
+        setDossierZone(zone);
+        setDossierRayon(rayon);
+        setStockFilter(filtre);
+        setSearchQuery('');
+    };
     const allerVers = (cible, filtre) => {
-        if (cible === 'produits') setStockFilter(filtre || 'all');
+        if (cible === 'produits') { ouvrirDossier(null, null, filtre || 'all'); setVue('produits'); return; }
+        if (cible === 'plan') { ouvrirDossier('', null); setVue('produits'); return; } // produits non rangés
         if (cible === 'mouvements') setTypeMouvement(filtre || '');
         setVue(cible);
     };
@@ -1045,6 +1073,10 @@ export default function Entrepot() {
     const produitsFiltres = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
         return produits.filter((p) => {
+            if (!q && dossierZone !== null) {
+                if (String(p.emplacement || '').trim() !== dossierZone) return false;
+                if (dossierRayon !== null && String(p.rayon || '').trim() !== dossierRayon) return false;
+            }
             if (stockFilter !== 'all') {
                 const state = stockState(p).key;
                 if (stockFilter === 'low' && state !== 'low') return false;
@@ -1067,7 +1099,7 @@ export default function Entrepot() {
                 .toLowerCase();
             return haystack.includes(q);
         });
-    }, [produits, searchQuery, stockFilter]);
+    }, [produits, searchQuery, stockFilter, dossierZone, dossierRayon]);
 
     /* ---------- Tri + pagination ---------- */
     const produitsTries = useMemo(() => {
@@ -1081,7 +1113,8 @@ export default function Entrepot() {
         return liste;
     }, [produitsFiltres, tri]);
 
-    useEffect(() => { setPageProduits(1); }, [searchQuery, stockFilter, tri, entrepotActif?.id_entrepot]);
+    useEffect(() => { setPageProduits(1); }, [searchQuery, stockFilter, tri, dossierZone, dossierRayon, entrepotActif?.id_entrepot]);
+    useEffect(() => { setDossierZone(null); setDossierRayon(null); }, [entrepotActif?.id_entrepot]);
 
     const nbPagesProduits = Math.max(1, Math.ceil(produitsTries.length / PRODUITS_PAR_PAGE));
     const pageProduitsCourante = Math.min(pageProduits, nbPagesProduits);
@@ -1093,22 +1126,28 @@ export default function Entrepot() {
     const trierPar = (col) =>
         setTri((prev) => (prev.col === col ? { col, asc: !prev.asc } : { col, asc: col === 'nom' }));
 
-    const [zonesFermees, setZonesFermees] = useState({});
-    const zones = useMemo(() => {
+    const arbre = useMemo(() => {
         const cmp = (a, b) => String(a || '').localeCompare(String(b || ''), 'fr', { numeric: true, sensitivity: 'base' });
         const map = new Map();
-        for (const p of produitsTries) {
-            const k = String(p.emplacement || '').trim();
-            if (!map.has(k)) map.set(k, []);
-            map.get(k).push(p);
+        let nonRanges = 0;
+        for (const p of produits) {
+            const z = String(p.emplacement || '').trim();
+            if (!z) { nonRanges += 1; continue; }
+            if (!map.has(z)) map.set(z, { nom: z, n: 0, bas: 0, out: 0, rayons: new Map() });
+            const e = map.get(z);
+            e.n += 1;
+            const st = stockState(p).key;
+            if (st === 'low') e.bas += 1;
+            if (st === 'out') e.out += 1;
+            const ry = String(p.rayon || '').trim();
+            if (ry) e.rayons.set(ry, (e.rayons.get(ry) || 0) + 1);
         }
-        const arr = [...map.entries()].map(([nom, rows]) => ({
-            nom,
-            rows: rows.sort((a, b) => cmp(a.rayon, b.rayon) || cmp(a.etagere, b.etagere) || cmp(a.nom, b.nom)),
-        }));
-        arr.sort((a, b) => (a.nom === '' ? 1 : b.nom === '' ? -1 : cmp(a.nom, b.nom)));
-        return arr;
-    }, [produitsTries]);
+        const zonesArbre = [...map.values()]
+            .map((e) => ({ ...e, rayons: [...e.rayons.entries()].sort((a, b) => cmp(a[0], b[0])) }))
+            .sort((a, b) => cmp(a.nom, b.nom));
+        return { zones: zonesArbre, nonRanges };
+    }, [produits]);
+
     const zonesCount = useMemo(
         () => new Set(produits.map((p) => String(p.emplacement || '').trim()).filter(Boolean)).size,
         [produits]
@@ -1287,24 +1326,23 @@ export default function Entrepot() {
                 </th>
                 <th className="ep2-num">N°</th>
                 <th>
-                    {mode === 'stock' ? (
+                    {mode !== 'plan' ? (
                         <button className={`ep2-sort ${tri.col === 'nom' ? 'is-on' : ''}`} onClick={() => trierPar('nom')}>
                             Produit {tri.col === 'nom' && (tri.asc ? <ArrowUp size={13} /> : <ArrowDown size={13} />)}
                         </button>
                     ) : 'Produit'}
                 </th>
-                <th>{mode === 'stock' ? 'Emplacement' : 'Rayon · Étagère'}</th>
+                <th>{mode === 'ex' ? 'Où' : mode === 'stock' ? 'Emplacement' : 'Rayon · Étagère'}</th>
                 <th>
-                    {mode === 'stock' ? (
+                    {mode !== 'plan' ? (
                         <button className={`ep2-sort ${tri.col === 'stock' ? 'is-on' : ''}`} onClick={() => trierPar('stock')}>
-                            Stock en unités de vente {tri.col === 'stock' && (tri.asc ? <ArrowUp size={13} /> : <ArrowDown size={13} />)}
+                            Stock {tri.col === 'stock' && (tri.asc ? <ArrowUp size={13} /> : <ArrowDown size={13} />)}
                         </button>
-                    ) : 'Stock en unités de vente'}
+                    ) : 'Stock'}
                 </th>
-                <th>Unités de vente</th>
-                <th>État</th>
-                <th className="r">
-                    {mode === 'stock' ? (
+                {mode !== 'ex' && <th>Unités de vente</th>}
+                <th className="r ep2-col-prix">
+                    {mode !== 'plan' ? (
                         <button className={`ep2-sort ${tri.col === 'prix_vente' ? 'is-on' : ''}`} onClick={() => trierPar('prix_vente')}>
                             Prix de vente {tri.col === 'prix_vente' && (tri.asc ? <ArrowUp size={13} /> : <ArrowDown size={13} />)}
                         </button>
@@ -1343,9 +1381,11 @@ export default function Entrepot() {
                     </div>
                 </td>
                 <td>
-                    {mode === 'stock'
-                        ? <EmplacementTag p={p} />
-                        : <EmplacementTag p={p} sansZone />}
+                    {mode === 'ex'
+                        ? <EmplacementTexte p={p} sansZone={dossierZone !== null && dossierZone !== '' && !searchQuery.trim()} />
+                        : mode === 'stock'
+                            ? <EmplacementTag p={p} />
+                            : <EmplacementTag p={p} sansZone />}
                 </td>
                 <td className="ep2-stock">
                     <div className="ep2-qty" title={decomposerQuantite(p, p.quantite_stock).texte}>
@@ -1364,7 +1404,11 @@ export default function Entrepot() {
                             {num(p.quantite_maximale) > 0 && ` · max ${decomposerQuantite(p, p.quantite_maximale).texte}`}</div>
                     )}
                     <LevelBar produit={p} />
+                    {(st.key === 'low' || st.key === 'out') && (
+                        <span className={`ep2-badge ep2-badge--${st.key} ep2-badge--stock`}><StIcon size={13} /> {st.label}</span>
+                    )}
                 </td>
+{mode !== 'ex' && (
                 <td>
                     <div className="ep2-chips">
                         {uv.length === 0 && <span className="ep2-chip"><b>{p.unite_nom || 'Unité'}</b></span>}
@@ -1378,12 +1422,13 @@ export default function Entrepot() {
                         ))}
                     </div>
                 </td>
-                <td>
-                    <span className={`ep2-badge ep2-badge--${st.key}`}><StIcon size={13} /> {st.label}</span>
-                </td>
+                )}
                 <td className="r ep2-price">
                     <b>{formatPrice(prix.vente)}</b> <span className="ep2-per">/ {prix.nom}</span>
                     <div className="ep2-psub">achat {formatPrice(prix.achat)}</div>
+                    {mode === 'ex' && uv.filter((u) => num(u.quantite_base) > 1).map((u) => (
+                        <div key={u.id_unite_vente || u.nom} className="ep2-psub">{u.nom} ×{num(u.quantite_base)} · {formatPrice(u.prix_vente || num(p.prix_vente) * num(u.quantite_base))}</div>
+                    ))}
                 </td>
                 <td className="r">
                     <div className="ep2-row-actions">
@@ -1473,64 +1518,51 @@ export default function Entrepot() {
                                 ))}
                             </select>
                         )}
-                        <button className="ep2-btn ep2-btn--ghost" onClick={() => setShowRejoindre(true)}
-                                title="Rejoindre un autre entrepôt avec un code d'accès">
-                            <LogIn size={15} /> Rejoindre
-                        </button>
-                        <button className="ep2-btn ep2-btn--ghost" onClick={() => setShowCreate(true)} title="Créer un nouvel entrepôt">
-                            <Plus size={15} /> Nouvel entrepôt
-                        </button>
                         <button className="ep2-btn ep2-btn--primary" onClick={handleOpenAdd}>
                             <Plus size={15} /> Ajouter un produit
                         </button>
-                    </div>
-                </div>
-
-                {/* Indicateurs : Stock bas et Ruptures filtrent la liste */}
-                <div className="ep2-kpis">
-                    <div className="ep2-kpi">
-                        <span className="ep2-kpi-label"><Package size={15} /> Références</span>
-                        <strong>{stats.total}</strong>
-                    </div>
-                    <button
-                        type="button"
-                        className={`ep2-kpi ep2-kpi--low ${stockFilter === 'low' ? 'is-on' : ''}`}
-                        onClick={() => { if (vue !== 'produits' && vue !== 'plan') setVue('produits'); setStockFilter(stockFilter === 'low' ? 'all' : 'low'); }}
-                    >
-                        <span className="ep2-kpi-label"><AlertTriangle size={15} /> Stock bas</span>
-                        <strong>{stats.low}</strong>
-                    </button>
-                    <button
-                        type="button"
-                        className={`ep2-kpi ep2-kpi--out ${stockFilter === 'out' ? 'is-on' : ''}`}
-                        onClick={() => { if (vue !== 'produits' && vue !== 'plan') setVue('produits'); setStockFilter(stockFilter === 'out' ? 'all' : 'out'); }}
-                    >
-                        <span className="ep2-kpi-label"><XCircle size={15} /> Ruptures</span>
-                        <strong>{stats.out}</strong>
-                    </button>
-                    <div className="ep2-kpi">
-                        <span className="ep2-kpi-label"><Banknote size={15} /> Valeur au prix d'achat</span>
-                        <strong>{formatPrice(stats.valeur)} <small>FCFA</small></strong>
+                        <div className="ep2-plus-actions" ref={menuPlusRef}>
+                            <button
+                                type="button"
+                                className="ep2-icon-btn"
+                                aria-haspopup="menu"
+                                aria-expanded={menuPlus}
+                                aria-label="Plus d'actions"
+                                title="Plus d'actions"
+                                onClick={() => setMenuPlus((v) => !v)}
+                            >
+                                <MoreHorizontal size={18} />
+                            </button>
+                            {menuPlus && (
+                                <div className="ep2-plus-menu" role="menu">
+                                    <button role="menuitem" onClick={() => { setMenuPlus(false); setVue('listes'); }}>
+                                        <Settings size={15} /> Gérer les emplacements
+                                    </button>
+                                    <button role="menuitem" onClick={() => { setMenuPlus(false); setShowRejoindre(true); }}>
+                                        <LogIn size={15} /> Rejoindre un entrepôt
+                                    </button>
+                                    <button role="menuitem" onClick={() => { setMenuPlus(false); setShowCreate(true); }}>
+                                        <Plus size={15} /> Créer un entrepôt
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             </header>
 
             {/* Onglets */}
             <div className="ep2-tabs" role="tablist">
-                <button role="tab" aria-selected={vue === 'apercu'}
-                        className={`ep2-tab ${vue === 'apercu' ? 'is-active' : ''}`}
-                        onClick={() => setVue('apercu')}>
-                    <Info size={16} /> Aperçu
-                </button>
-                <button role="tab" aria-selected={vue === 'produits'}
-                        className={`ep2-tab ${vue === 'produits' ? 'is-active' : ''}`}
+                <button role="tab" aria-selected={vue === 'produits' || vue === 'listes'}
+                        className={`ep2-tab ${vue === 'produits' || vue === 'listes' ? 'is-active' : ''}`}
                         onClick={() => setVue('produits')}>
                     <Package size={16} /> Stock <span className="ep2-pill">{stats.total}</span>
                 </button>
-                <button role="tab" aria-selected={vue === 'plan' || vue === 'listes'}
-                        className={`ep2-tab ${vue === 'plan' || vue === 'listes' ? 'is-active' : ''}`}
-                        onClick={() => setVue('plan')}>
-                    <Layers size={16} /> Emplacements <span className="ep2-pill">{zonesCount}</span>
+                <button role="tab" aria-selected={vue === 'transferts'}
+                        className={`ep2-tab ${vue === 'transferts' ? 'is-active' : ''}`}
+                        onClick={() => setVue('transferts')}>
+                    <Send size={16} /> Transferts
+                    {transfertsInfo.count > 0 && <span className="ep2-pill ep2-pill--alert" title="Demandes en attente">{transfertsInfo.count}</span>}
                 </button>
                 <button role="tab" aria-selected={vue === 'mouvements'}
                         className={`ep2-tab ${vue === 'mouvements' ? 'is-active' : ''}`}
@@ -1542,11 +1574,10 @@ export default function Entrepot() {
                         onClick={() => setVue('inventaire')}>
                     <ClipboardCheck size={16} /> Inventaire
                 </button>
-                <button role="tab" aria-selected={vue === 'transferts'}
-                        className={`ep2-tab ${vue === 'transferts' ? 'is-active' : ''}`}
-                        onClick={() => setVue('transferts')}>
-                    <Send size={16} /> Transferts
-                    {transfertsInfo.count > 0 && <span className="ep2-pill ep2-pill--alert">{transfertsInfo.count}</span>}
+                <button role="tab" aria-selected={vue === 'apercu'}
+                        className={`ep2-tab ${vue === 'apercu' ? 'is-active' : ''}`}
+                        onClick={() => setVue('apercu')}>
+                    <Info size={16} /> Aperçu
                 </button>
             </div>
 
@@ -1604,8 +1635,8 @@ export default function Entrepot() {
                             <strong>Listes d'emplacements de {entrepotActif.nom}</strong>
                             <span>Emplacement, puis rayon, puis étagère. Elles sont proposées dans la fiche produit de cet entrepôt.</span>
                         </div>
-                        <button className="ep2-btn" onClick={() => { setVue('plan'); loadProduits(); }}>
-                            <Layers size={15} /> Voir le plan du stock
+                        <button className="ep2-btn" onClick={() => { setVue('produits'); loadProduits(); }}>
+                            <ChevronLeft size={15} /> Retour au stock
                         </button>
                     </div>
                     <div className="vt em">
@@ -1618,126 +1649,182 @@ export default function Entrepot() {
                 </section>
             )}
 
-            {(vue === 'produits' || vue === 'plan') && (<>
-            {/* Barre d'outils */}
-            <div className="ep2-toolbar">
-                <div className="ep2-search">
-                    <Search size={16} />
-                    <input
-                        type="text"
-                        placeholder="Rechercher un produit, une marque, un emplacement…"
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    {searchQuery && (
-                        <button onClick={() => setSearchQuery('')} aria-label="Effacer la recherche"><X size={14} /></button>
-                    )}
-                </div>
-                <div className="ep2-seg" role="group" aria-label="Filtrer par état du stock">
-                    {[['all', 'Tous'], ['low', 'Stock bas'], ['out', 'Ruptures']].map(([key, label]) => (
-                        <button key={key} className={stockFilter === key ? 'is-on' : ''} onClick={() => setStockFilter(key)}>
-                            {label}
-                        </button>
-                    ))}
-                </div>
-                {vue === 'plan' && (
-                    <button className="ep2-btn" onClick={() => setVue('listes')}>
-                        <Settings size={15} /> Gérer les listes
+            {vue === 'produits' && (() => {
+                const recherche = searchQuery.trim() !== '';
+                const zoneActive = dossierZone !== null && dossierZone !== '' ? arbre.zones.find((z) => z.nom === dossierZone) : null;
+                const titre = recherche
+                    ? `Résultats pour « ${searchQuery.trim()} »`
+                    : stockFilter === 'low' ? 'Stock bas'
+                    : stockFilter === 'out' ? 'Ruptures'
+                    : dossierZone === null ? "Tout l'entrepôt"
+                    : dossierZone === '' ? 'Non rangé'
+                    : dossierRayon !== null ? `${dossierZone} › ${dossierRayon}` : dossierZone;
+                const nbBas = produitsTries.filter((p) => stockState(p).key === 'low').length;
+                const nbOut = produitsTries.filter((p) => stockState(p).key === 'out').length;
+                const dossier = (actif, onClick, contenu, extra = '') => (
+                    <button type="button" className={`ex-dossier ${actif ? 'is-on' : ''} ${extra}`} aria-current={actif ? 'true' : undefined} onClick={onClick}>
+                        {contenu}
                     </button>
-                )}
-                <button className="ep2-icon-btn" onClick={loadProduits} disabled={loadingProduits}
-                        title="Rafraîchir" aria-label="Rafraîchir">
-                    <RefreshCw size={16} className={loadingProduits ? 'ep-spin' : ''} />
-                </button>
-            </div>
+                );
+                const toutActif = !recherche && dossierZone === null && stockFilter === 'all';
+                return (
+                    <div className="ex">
+                        {/* Arbre des emplacements */}
+                        <nav className="ex-arbre" aria-label="Emplacements de l'entrepôt">
+                            {dossier(toutActif, () => ouvrirDossier(null), (<>
+                                <Warehouse size={16} /><span className="ex-nom">Tout l'entrepôt</span><span className="ex-n">{stats.total}</span>
+                            </>))}
 
-            {/* Liste */}
-            {loadingProduits ? (
-                <div className="ep2-state"><Loader className="ep-spin" size={24} /> Chargement des produits…</div>
-            ) : errorProduits ? (
-                <div className="ep2-state">
-                    <AlertCircle size={36} />
-                    <strong>Chargement impossible</strong>
-                    <span>{errorProduits}</span>
-                    <button className="ep2-btn" onClick={loadProduits}><RefreshCw size={15} /> Réessayer</button>
-                </div>
-            ) : produitsTries.length === 0 ? (
-                <div className="ep2-state">
-                    <Box size={40} />
-                    <strong>{produits.length === 0 ? 'Aucun produit dans cet entrepôt' : 'Aucun résultat'}</strong>
-                    <span>
-                        {produits.length === 0
-                            ? 'Ajoutez votre premier produit pour démarrer la gestion du stock.'
-                            : 'Modifiez votre recherche ou vos filtres.'}
-                    </span>
-                    {produits.length === 0 ? (
-                        <button className="ep2-btn ep2-btn--dark" onClick={handleOpenAdd}>
-                            <Plus size={15} /> Ajouter un produit
-                        </button>
-                    ) : (
-                        <button className="ep2-btn" onClick={() => { setSearchQuery(''); setStockFilter('all'); }}>
-                            Réinitialiser les filtres
-                        </button>
-                    )}
-                </div>
-            ) : vue === 'plan' ? (
-                <div className="ep2-zones">
-                    {zones.map((z, zi) => {
-                        const cle = z.nom || '__sans__';
-                        const ferme = !!zonesFermees[cle];
-                        const nbRupt = z.rows.filter((p) => stockState(p).key === 'out').length;
-                        const nbBas = z.rows.filter((p) => stockState(p).key === 'low').length;
-                        return (
-                            <section className="ep2-zone" key={cle}>
-                                <button
-                                    type="button"
-                                    className="ep2-zone-head"
-                                    aria-expanded={!ferme}
-                                    onClick={() => setZonesFermees((prev) => ({ ...prev, [cle]: !prev[cle] }))}
-                                >
-                                    <span className={`ep2-plaque ${z.nom ? '' : 'is-none'}`}>{z.nom ? initialesZone(z.nom) : '?'}</span>
-                                    <span className="ep2-zone-name">{z.nom || 'Non rangé'}</span>
-                                    <span className="ep2-zone-count">
-                                        {z.rows.length} produit{z.rows.length > 1 ? 's' : ''}
-                                        {nbBas > 0 && <span className="ep2-zone-warn is-low">{nbBas} bas</span>}
-                                        {nbRupt > 0 && <span className="ep2-zone-warn is-out">{nbRupt} rupture{nbRupt > 1 ? 's' : ''}</span>}
-                                    </span>
-                                    <ChevronDown size={18} className={`ep2-zone-chev ${ferme ? 'is-closed' : ''}`} />
-                                </button>
-                                {!ferme && renderTable(z.rows, 0, 'plan', `t-${zi}`)}
-                            </section>
-                        );
-                    })}
-                    <div className="ep2-pager"><span>{produitsTries.length} produit{produitsTries.length > 1 ? 's' : ''} dans {zones.length} emplacement{zones.length > 1 ? 's' : ''}</span></div>
-                </div>
-            ) : (
-                <>
-                    {renderTable(produitsPage, (pageProduitsCourante - 1) * PRODUITS_PAR_PAGE, 'stock', 'stock')}
+                            <div className="ex-titre">Emplacements</div>
+                            {arbre.zones.length === 0 && arbre.nonRanges === 0 && (
+                                <p className="ex-vide">Aucun emplacement pour le moment.</p>
+                            )}
+                            <ol className="ex-liste">
+                                {arbre.zones.map((z) => {
+                                    const zoneOn = !recherche && stockFilter === 'all' && dossierZone === z.nom;
+                                    return (
+                                        <li key={z.nom}>
+                                            {dossier(zoneOn && dossierRayon === null, () => ouvrirDossier(z.nom), (<>
+                                                <span className="ex-plaque">{initialesZone(z.nom)}</span>
+                                                <span className="ex-nom">{z.nom}</span>
+                                                {z.out > 0 && <span className="ex-pastille is-out" title={`${z.out} en rupture`}>{z.out}</span>}
+                                                {z.bas > 0 && <span className="ex-pastille is-low" title={`${z.bas} en stock bas`}>{z.bas}</span>}
+                                                <span className="ex-n">{z.n}</span>
+                                            </>))}
+                                            {zoneOn && z.rayons.length > 0 && (
+                                                <ol className="ex-sous">
+                                                    {z.rayons.map(([ry, n]) => (
+                                                        <li key={ry}>
+                                                            {dossier(dossierRayon === ry, () => ouvrirDossier(z.nom, ry), (<>
+                                                                <span className="ex-nom">{ry}</span><span className="ex-n">{n}</span>
+                                                            </>))}
+                                                        </li>
+                                                    ))}
+                                                </ol>
+                                            )}
+                                        </li>
+                                    );
+                                })}
+                            </ol>
+                            {arbre.nonRanges > 0 && dossier(!recherche && stockFilter === 'all' && dossierZone === '', () => ouvrirDossier(''), (<>
+                                <Box size={16} /><span className="ex-nom">Non rangé</span><span className="ex-pastille is-low">{arbre.nonRanges}</span>
+                            </>))}
 
-                    <div className="ep2-pager">
-                        <span>
-                            {(pageProduitsCourante - 1) * PRODUITS_PAR_PAGE + 1}–
-                            {Math.min(pageProduitsCourante * PRODUITS_PAR_PAGE, produitsTries.length)} sur {produitsTries.length}
-                            {produitsTries.length !== produits.length && ` (${produits.length} au total)`}
-                        </span>
-                        {nbPagesProduits > 1 && (
-                            <div className="ep2-pager-nav">
-                                <button className="ep2-icon-btn" onClick={() => setPageProduits(pageProduitsCourante - 1)}
-                                        disabled={pageProduitsCourante <= 1} aria-label="Page précédente">
-                                    <ChevronLeft size={16} />
-                                </button>
-                                <span>Page {pageProduitsCourante} / {nbPagesProduits}</span>
-                                <button className="ep2-icon-btn" onClick={() => setPageProduits(pageProduitsCourante + 1)}
-                                        disabled={pageProduitsCourante >= nbPagesProduits} aria-label="Page suivante">
-                                    <ChevronRight size={16} />
+                            <div className="ex-titre">À surveiller</div>
+                            {dossier(!recherche && stockFilter === 'low', () => ouvrirDossier(null, null, 'low'), (<>
+                                <AlertTriangle size={16} /><span className="ex-nom">Stock bas</span>
+                                {stats.low > 0 ? <span className="ex-pastille is-low">{stats.low}</span> : <span className="ex-n">0</span>}
+                            </>))}
+                            {dossier(!recherche && stockFilter === 'out', () => ouvrirDossier(null, null, 'out'), (<>
+                                <XCircle size={16} /><span className="ex-nom">Ruptures</span>
+                                {stats.out > 0 ? <span className="ex-pastille is-out">{stats.out}</span> : <span className="ex-n">0</span>}
+                            </>))}
+
+                            <button type="button" className="ex-gerer" onClick={() => setVue('listes')}>
+                                <Settings size={15} /> Gérer les emplacements
+                            </button>
+                        </nav>
+
+                        {/* Contenu du dossier */}
+                        <section className="ex-contenu" aria-label={titre}>
+                            <div className="ex-tete">
+                                <div className="ex-tete-titre">
+                                    {!recherche && dossierRayon !== null && (
+                                        <button type="button" className="ex-retour" onClick={() => ouvrirDossier(dossierZone)} aria-label={`Revenir à ${dossierZone}`}>
+                                            <ChevronLeft size={16} />
+                                        </button>
+                                    )}
+                                    <div>
+                                        <h2>{titre}</h2>
+                                        <p>
+                                            {produitsTries.length} produit{produitsTries.length > 1 ? 's' : ''}
+                                            {nbBas > 0 && stockFilter === 'all' && ` · ${nbBas} en stock bas`}
+                                            {nbOut > 0 && stockFilter === 'all' && ` · ${nbOut} en rupture`}
+                                            {recherche && " · dans tout l'entrepôt"}
+                                            {zoneActive && dossierRayon === null && zoneActive.rayons.length > 0 && ` · ${zoneActive.rayons.length} rayon${zoneActive.rayons.length > 1 ? 's' : ''}`}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="ep2-search ex-recherche">
+                                    <Search size={16} />
+                                    <input
+                                        type="text"
+                                        placeholder="Rechercher un produit dans tout l'entrepôt"
+                                        value={searchQuery}
+                                        onChange={(e) => setSearchQuery(e.target.value)}
+                                        aria-label="Rechercher un produit"
+                                    />
+                                    {searchQuery && (
+                                        <button onClick={() => setSearchQuery('')} aria-label="Effacer la recherche"><X size={14} /></button>
+                                    )}
+                                </div>
+                                <button className="ep2-icon-btn" onClick={loadProduits} disabled={loadingProduits}
+                                        title="Rafraîchir" aria-label="Rafraîchir">
+                                    <RefreshCw size={16} className={loadingProduits ? 'ep-spin' : ''} />
                                 </button>
                             </div>
-                        )}
-                    </div>
-                </>
-            )}
 
-            </>)}
+                            {loadingProduits ? (
+                                <div className="ep2-state"><Loader className="ep-spin" size={24} /> Chargement des produits…</div>
+                            ) : errorProduits ? (
+                                <div className="ep2-state">
+                                    <AlertCircle size={36} />
+                                    <strong>Chargement impossible</strong>
+                                    <span>{errorProduits}</span>
+                                    <button className="ep2-btn" onClick={loadProduits}><RefreshCw size={15} /> Réessayer</button>
+                                </div>
+                            ) : produitsTries.length === 0 ? (
+                                <div className="ep2-state">
+                                    <Box size={40} />
+                                    <strong>
+                                        {produits.length === 0 ? 'Aucun produit dans cet entrepôt'
+                                            : recherche ? 'Aucun produit trouvé'
+                                            : stockFilter !== 'all' ? 'Rien à signaler ici' : 'Cet emplacement est vide'}
+                                    </strong>
+                                    <span>
+                                        {produits.length === 0
+                                            ? 'Ajoutez votre premier produit pour démarrer la gestion du stock.'
+                                            : recherche ? "Essayez un autre nom, une marque ou un emplacement."
+                                            : stockFilter !== 'all' ? 'Aucun produit dans cette situation.' : 'Aucun produit rangé ici pour le moment.'}
+                                    </span>
+                                    {produits.length === 0 ? (
+                                        <button className="ep2-btn ep2-btn--primary" onClick={handleOpenAdd}>
+                                            <Plus size={15} /> Ajouter un produit
+                                        </button>
+                                    ) : (
+                                        <button className="ep2-btn" onClick={() => ouvrirDossier(null)}>
+                                            Voir tout l'entrepôt
+                                        </button>
+                                    )}
+                                </div>
+                            ) : (
+                                <>
+                                    {renderTable(produitsPage, (pageProduitsCourante - 1) * PRODUITS_PAR_PAGE, 'ex', 'ex')}
+                                    <div className="ep2-pager">
+                                        <span>
+                                            {(pageProduitsCourante - 1) * PRODUITS_PAR_PAGE + 1}–
+                                            {Math.min(pageProduitsCourante * PRODUITS_PAR_PAGE, produitsTries.length)} sur {produitsTries.length}
+                                        </span>
+                                        {nbPagesProduits > 1 && (
+                                            <div className="ep2-pager-nav">
+                                                <button className="ep2-icon-btn" onClick={() => setPageProduits(pageProduitsCourante - 1)}
+                                                        disabled={pageProduitsCourante <= 1} aria-label="Page précédente">
+                                                    <ChevronLeft size={16} />
+                                                </button>
+                                                <span>Page {pageProduitsCourante} / {nbPagesProduits}</span>
+                                                <button className="ep2-icon-btn" onClick={() => setPageProduits(pageProduitsCourante + 1)}
+                                                        disabled={pageProduitsCourante >= nbPagesProduits} aria-label="Page suivante">
+                                                    <ChevronRight size={16} />
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </>
+                            )}
+                        </section>
+                    </div>
+                );
+            })()}
 
             {/* Modales */}
             {showRejoindre && (
@@ -1826,4 +1913,4 @@ export default function Entrepot() {
             )}
         </div>
     );
-}
+}

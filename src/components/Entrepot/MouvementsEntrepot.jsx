@@ -98,6 +98,12 @@ export default function MouvementsEntrepot({ token, entrepotId, typeInitial = ''
                 </div>
             )}
 
+            <div className="ep2-sous-onglets" role="group" aria-label="Type de mouvement">
+                {FILTRES.map(([cle, lib]) => (
+                    <button key={cle || 'tous'} className={filtres.type === cle ? 'is-on' : ''} aria-pressed={filtres.type === cle} onClick={() => maj({ type: cle })}>{lib}</button>
+                ))}
+            </div>
+
             <div className="ep2-toolbar">
                 <div className="ep2-search">
                     <Search size={16} />
@@ -105,15 +111,12 @@ export default function MouvementsEntrepot({ token, entrepotId, typeInitial = ''
                            onChange={(e) => maj({ q: e.target.value })} />
                     {filtres.q && <button onClick={() => maj({ q: '' })} aria-label="Effacer la recherche"><X size={14} /></button>}
                 </div>
-                <div className="ep2-seg" role="group" aria-label="Type de mouvement">
-                    {FILTRES.map(([cle, lib]) => (
-                        <button key={cle || 'tous'} className={filtres.type === cle ? 'is-on' : ''} onClick={() => maj({ type: cle })}>{lib}</button>
-                    ))}
+                <div className="ep2-periode">
+                    <label className="ep2-date">Du <input type="date" value={filtres.date_debut} max={filtres.date_fin || undefined}
+                                                           onChange={(e) => maj({ date_debut: e.target.value })} /></label>
+                    <label className="ep2-date">au <input type="date" value={filtres.date_fin} min={filtres.date_debut || undefined}
+                                                           onChange={(e) => maj({ date_fin: e.target.value })} /></label>
                 </div>
-                <label className="ep2-date">Du <input type="date" value={filtres.date_debut} max={filtres.date_fin || undefined}
-                                                       onChange={(e) => maj({ date_debut: e.target.value })} /></label>
-                <label className="ep2-date">au <input type="date" value={filtres.date_fin} min={filtres.date_debut || undefined}
-                                                       onChange={(e) => maj({ date_fin: e.target.value })} /></label>
                 <button className="ep2-icon-btn" onClick={charger} disabled={loading} aria-label="Rafraîchir" title="Rafraîchir">
                     <RefreshCw size={16} className={loading ? 'ep-spin' : ''} />
                 </button>
