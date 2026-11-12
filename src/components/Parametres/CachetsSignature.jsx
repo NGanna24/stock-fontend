@@ -203,7 +203,7 @@ export default function CachetsSignature({ afficher }) {
           <tbody>
             {TYPES_DOCUMENTS.map((t) => (
               <tr key={t.cle}>
-                <td className="vt-cell-main">{t.label}</td>
+                <td><span className="vt-cell-main cs-doc">{t.label}</span></td>
                 <td>
                   {t.selonPaiement ? (
                     <div className="cs-paiements">

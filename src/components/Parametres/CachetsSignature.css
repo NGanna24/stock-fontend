@@ -37,7 +37,7 @@
 .cs .cs-signature { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 .cs .cs-table td { vertical-align: middle; }
-.cs .cs-select { min-width: 170px; }
+.cs .cs-select { min-width: 0; width: 100%; max-width: 190px; }
 .cs .cs-paiements { display: flex; flex-wrap: wrap; gap: 8px; }
 .cs .cs-paiement { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; color: var(--ink-3, var(--miyo-text-muted)); }
 .cs .cs-case { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; white-space: nowrap; }
@@ -45,3 +45,13 @@
 @media (max-width: 900px) {
   .cs .cs-ajout { grid-template-columns: 1fr; }
 }
+
+/* Le tableau des règles tient dans la colonne des Paramètres (pas de défilement de côté) */
+.cs .vt-table-wrap { min-height: 0; }
+.cs .cs-table { min-width: 0; table-layout: auto; }
+.cs .cs-table th:first-child { width: 30%; }
+.cs .cs-table th:last-child { width: 130px; }
+.cs .cs-paiement { flex: 1 1 120px; min-width: 0; }
+.cs .cs-case { white-space: normal; }
+.cs .cs-table tbody td { height: auto; padding-top: 10px; padding-bottom: 10px; }
+.cs .cs-doc { white-space: normal; }

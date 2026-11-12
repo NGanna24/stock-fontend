@@ -62,13 +62,14 @@
 .pr-nav-note svg { flex-shrink: 0; margin-top: 1px; }
 
 /* ---------- Sections ---------- */
-.pr-contenu { display: grid; gap: 18px; min-width: 0; }
+.pr-contenu { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; min-width: 0; }
 
 .pr-section {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 12px;
   scroll-margin-top: 16px;
+  min-width: 0;
 }
 .pr-section-head {
   display: flex;
