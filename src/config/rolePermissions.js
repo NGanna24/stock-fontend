@@ -34,7 +34,7 @@ export const ROLE_PERMISSIONS = {
 export const ACTIONS_PAR_DEFAUT = {
     admin: ["*"],
     manager: [
-        "ventes.annuler", "ventes.rembourser", "encaissements.supprimer", "clients.credit",
+        "ventes.annuler", "ventes.modifier_prix", "ventes.rembourser", "encaissements.supprimer", "clients.credit",
         "caisse.historique", "produits.modifier", "approvisionnement.gerer", "inventaires.gerer",
     ],
     caissier: ["ventes.annuler"],

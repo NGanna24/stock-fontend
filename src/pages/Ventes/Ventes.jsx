@@ -532,6 +532,7 @@ const Ventes = () => {
   const canManage = !!user && hasAccess(user.role, "commandes-clients");
   // Droits réglés par le propriétaire (Rôles et permissions)
   const peutAnnuler = !!user && peutFaire(user.role, "ventes.annuler");
+  const peutModifierPrix = !!user && peutFaire(user.role, "ventes.modifier_prix");
   const peutRembourser = !!user && peutFaire(user.role, "ventes.rembourser");
 
   // ============================================================
@@ -935,7 +936,8 @@ const Ventes = () => {
         return;
       }
 
-      const prix = toNum(prixVente) || parseFloat(selectedUnite.prix_vente) || 0;
+      // Sans le droit de modifier le prix : prix du catalogue (le serveur fait de même)
+      const prix = (peutModifierPrix ? toNum(prixVente) : 0) || parseFloat(selectedUnite.prix_vente) || 0;
       if (prix <= 0) {
         showAlert("Prix non défini", "Le prix de vente de ce produit n'est pas renseigné. Veuillez saisir un prix.");
         return;
@@ -2286,8 +2288,10 @@ const renderListView = () => (
                       className="vt-input vt-num"
                       placeholder="Automatique"
                       value={prixVente}
-                      readOnly={!composerReady}
-                      tabIndex={composerReady ? 0 : -1}
+                      readOnly={!composerReady || !peutModifierPrix}
+                      tabIndex={composerReady && peutModifierPrix ? 0 : -1}
+                      aria-describedby={!peutModifierPrix ? "vt-add-hint" : undefined}
+                      title={!peutModifierPrix ? "Prix du catalogue : votre rôle ne permet pas de le modifier" : undefined}
                       onChange={(e) => DECIMAL_RE.test(e.target.value) && setPrixVente(e.target.value)}
                       onKeyDown={onAddKeyDown}
                       autoComplete="off"
@@ -2304,12 +2308,14 @@ const renderListView = () => (
                   </button>
                 </div>
 
-                <p className="vt-add-hint" aria-live="polite">
+                <p id="vt-add-hint" className="vt-add-hint" aria-live="polite">
                   {composerReady && quantite && !isNaN(toNum(quantite)) && !isNaN(toNum(prixVente))
                     ? `Sous-total ${formatMontant(toNum(quantite) * toNum(prixVente))}${
                         selectedUnite.quantite_base > 1 ? `, soit ${calculerUnitesBase()} unité(s) de base` : ""
-                      }`
-                    : "\u00A0"}
+                      }${!peutModifierPrix ? " · prix du catalogue" : ""}`
+                    : !peutModifierPrix
+                      ? "Prix du catalogue appliqué : votre rôle ne permet pas de le modifier"
+                      : "\u00A0"}
                 </p>
               </section>
             </div>
