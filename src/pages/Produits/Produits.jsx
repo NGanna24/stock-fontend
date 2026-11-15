@@ -21,6 +21,7 @@ import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
 import ChoixEmplacement from "../../components/Emplacement/ChoixEmplacement";
 import "./Produits.css";
 import { useDisableNumberScroll } from "../../hooks/useDisableNumberScroll";
+import { peutFaire } from '../../config/rolePermissions';
 /* ============================================================
    CONSTANTES & UTILITAIRES
    ============================================================ */
@@ -174,7 +175,7 @@ const Produits = () => {
   const [deleting, setDeleting] = useState(false);
   const [produitToView, setProduitToView] = useState(null);
 
-  const canManage = !!user && ["admin", "manager"].includes(user.role);
+  const canManage = !!user && peutFaire(user.role, "produits.modifier");
 
   const showToast = (type, message) => {
     clearTimeout(toastTimer.current);

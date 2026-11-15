@@ -5,9 +5,11 @@ import {
   ArrowLeft, User, Mail, Phone, Store, MapPin, Clock,
   CheckCircle2, XCircle, Power, RefreshCw, AlertCircle,
   Package, Users, ShoppingCart, Receipt, UserCheck, Truck,
-  Calendar, Shield, ExternalLink, MapPinOff
+  Calendar, Shield, ExternalLink, MapPinOff, CreditCard, Activity
 } from "lucide-react";
 import UtilisateurAdminService from "../../../services/superAdmin/utilisateurAdminService";
+import AbonnementAdminService from "../../../services/superAdmin/abonnementAdminService";
+import SuiviAdminService from "../../../services/superAdmin/suiviAdminService";
 import "./UtilisateurDetail.css";
 
 // ==================== UTILS ====================
@@ -47,6 +49,19 @@ const UtilisateurDetail = () => {
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
   const [toggling, setToggling] = useState(false);
+  const [abo, setAbo] = useState(undefined);        // undefined = chargement
+  const [activite, setActivite] = useState(undefined);
+
+  useEffect(() => {
+    setAbo(undefined);
+    setActivite(undefined);
+    AbonnementAdminService.detail(id)
+      .then((r) => setAbo(r?.success ? r : null))
+      .catch(() => setAbo(null));
+    SuiviAdminService.activite({ patron: id, jours: 90, limite: 8 })
+      .then((r) => setActivite(r?.evenements || []))
+      .catch(() => setActivite(null));
+  }, [id]);
 
   const load = async () => {
     setLoading(true);
@@ -213,8 +228,29 @@ const UtilisateurDetail = () => {
           </section>
         </div>
 
-        {/* ---------- COLONNE DROITE : MAGASINS ---------- */}
+        {/* ---------- COLONNE DROITE ---------- */}
         <div className="ud-col">
+
+          {/* Abonnement */}
+          <section className="ud-section">
+            <div className="ud-section-head">
+              <h3 className="ud-section-title"><CreditCard size={16} /> Abonnement</h3>
+              <button className="ud-btn ud-btn--primary ud-btn--sm"
+                      onClick={() => navigate(`/super-admin/abonnements?patron=${utilisateur.id_utilisateur}`)}>
+                Prolonger
+              </button>
+            </div>
+            <AbonnementBloc data={abo} />
+          </section>
+
+          {/* Activité récente */}
+          <section className="ud-section">
+            <div className="ud-section-head">
+              <h3 className="ud-section-title"><Activity size={16} /> Activité récente</h3>
+              <span className="ud-count-badge">90 derniers jours</span>
+            </div>
+            <ActiviteBloc evenements={activite} />
+          </section>
           <section className="ud-section">
             <div className="ud-section-head">
               <h3 className="ud-section-title"><Store size={16} /> Magasins</h3>
@@ -274,6 +310,71 @@ const UtilisateurDetail = () => {
 };
 
 // ==================== SOUS-COMPOSANTS ====================
+
+const fcfa = (n) => `${Math.round(Number(n) || 0).toLocaleString("fr-FR")} FCFA`;
+
+const AbonnementBloc = ({ data }) => {
+  if (data === undefined) return <p className="ud-muted-line">Chargement…</p>;
+  if (!data?.abonnement) return <p className="ud-muted-line">Abonnement indisponible.</p>;
+  const a = data.abonnement;
+  const j = a.jours_restants;
+  let cls = "ok", txt = "Abonné";
+  if (a.statut === "expire") { cls = "expire"; txt = "Expiré"; }
+  else if (j <= 5) { cls = "bientot"; txt = a.statut === "essai" ? "Essai, bientôt fini" : "Bientôt fini"; }
+  else if (a.statut === "essai") { cls = "essai"; txt = "Essai gratuit"; }
+  const echeance = a.statut === "expire"
+    ? `Expiré depuis ${Math.abs(j)} jour${Math.abs(j) > 1 ? "s" : ""}`
+    : j === 0 ? "Dernier jour aujourd'hui" : `${j} jour${j > 1 ? "s" : ""} restant${j > 1 ? "s" : ""}`;
+  const historique = data.historique || [];
+  const total = historique.reduce((s, h) => s + (Number(h.montant) || 0), 0);
+  return (
+    <div className="ud-abo">
+      <div className="ud-abo-tete">
+        <span className={`ud-abo-badge ud-abo--${cls}`}>{txt}</span>
+        <div>
+          <strong>{a.statut === "expire" ? "Fin le" : "Valable jusqu'au"} {formatDate(a.date_fin)}</strong>
+          <small>{echeance}</small>
+        </div>
+      </div>
+      <dl className="ud-dl ud-dl--sm">
+        <Field label="Paiements" value={String(historique.length)} />
+        <Field label="Total payé" value={fcfa(total)} />
+      </dl>
+      {historique.length > 0 && (
+        <ol className="ud-liste-num">
+          {historique.slice(0, 3).map((h, i) => (
+            <li key={h.id_abonnement || i}>
+              <span>{formatDate(h.date_creation)}</span>
+              <span>{h.nb_mois} mois</span>
+              <strong>{fcfa(h.montant)}</strong>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  );
+};
+
+const ActiviteBloc = ({ evenements }) => {
+  if (evenements === undefined) return <p className="ud-muted-line">Chargement…</p>;
+  if (evenements === null) return <p className="ud-muted-line">Activité indisponible.</p>;
+  if (evenements.length === 0) return <p className="ud-muted-line">Aucune action enregistrée sur cette période.</p>;
+  return (
+    <ol className="ud-liste-num ud-fil">
+      {evenements.map((e, i) => (
+        <li key={i}>
+          <div>
+            <strong>
+              {e.acteur_nom && /^[a-zà-ÿ]/.test(e.libelle || "") ? `${e.acteur_nom} ${e.libelle}` : e.libelle}
+            </strong>
+            <small>{[e.module && e.source === "journal" ? e.module.replace(/-/g, " ") : null, e.nom_magasin].filter(Boolean).join(" · ")}</small>
+          </div>
+          <span className="ud-fil-date">{formatRelative(e.date_action)}</span>
+        </li>
+      ))}
+    </ol>
+  );
+};
 
 const Field = ({ label, value, link, full, mono }) => (
   <div className={`ud-field ${full ? "ud-field--full" : ""}`}>

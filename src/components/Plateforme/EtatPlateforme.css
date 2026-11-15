@@ -1,0 +1,23 @@
+/* components/Plateforme/EtatPlateforme.css */
+.ep-annonce { display: flex; align-items: flex-start; gap: 12px; margin: 12px 24px 0; padding: 12px 14px; border-radius: 10px; background: #FFF4ED; color: #7C2D12; font-size: 13.5px; line-height: 1.45; }
+.ep-annonce.is-important { background: #C2410C; color: #fff; }
+.ep-annonce > svg { flex-shrink: 0; margin-top: 1px; }
+.ep-annonce-texte { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; overflow-wrap: anywhere; }
+.ep-annonce-texte strong { font-weight: 700; }
+.ep-annonce-fermer { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin: -4px -4px -4px 0; border: 0; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; opacity: .75; }
+.ep-annonce-fermer:hover { opacity: 1; background: rgba(0, 0, 0, .06); }
+.ep-annonce.is-important .ep-annonce-fermer:hover { background: rgba(255, 255, 255, .16); }
+
+.ep-maintenance { position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(28, 25, 23, .55); backdrop-filter: blur(3px); }
+.ep-maintenance-carte { width: 100%; max-width: 460px; padding: 32px 28px; border-radius: 16px; background: #fff; text-align: center; box-shadow: 0 24px 60px rgba(28, 25, 23, .25); }
+.ep-maintenance-icone { display: inline-flex; align-items: center; justify-content: center; width: 64px; height: 64px; border-radius: 50%; background: #FFF4ED; color: #C2410C; margin-bottom: 14px; }
+.ep-maintenance-carte h2 { margin: 0 0 8px; font-size: 20px; color: #1C1917; }
+.ep-maintenance-carte p { margin: 0 0 10px; font-size: 14px; line-height: 1.55; color: #44403C; overflow-wrap: anywhere; }
+.ep-maintenance-retour { font-weight: 600; color: #9A3412 !important; }
+.ep-maintenance-note { font-size: 12.5px !important; color: #78716C !important; }
+.ep-maintenance-btn { display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; height: 40px; padding: 0 18px; border: 0; border-radius: 10px; background: #C2410C; color: #fff; font: 600 14px/1 inherit; cursor: pointer; }
+.ep-maintenance-btn:hover:not(:disabled) { background: #9A3412; }
+.ep-maintenance-btn:disabled { opacity: .7; cursor: default; }
+.ep-tourne { animation: ep-tourne .8s linear infinite; }
+@keyframes ep-tourne { to { transform: rotate(360deg); } }
+@media (max-width: 640px) { .ep-annonce { margin: 10px 12px 0; } }

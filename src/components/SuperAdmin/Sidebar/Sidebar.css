@@ -427,7 +427,7 @@
   transform: translateY(-50%);
   pointer-events: none;
   padding: 7px 12px;
-  background: #0F172A;
+  background: #1C1917;
   color: #fff;
   border: 1px solid var(--signal);
   border-radius: var(--radius-sm);
@@ -452,4 +452,10 @@
     animation: none !important;
     transition: none !important;
   }
+}
+/* Nombre d'alertes sur « Alertes » */
+.sa-sb-badge {
+  margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px;
+  display: inline-grid; place-items: center; background: #B91C1C; color: #fff;
+  font-size: 11px; font-weight: 700; line-height: 1;
 }

@@ -1,10 +1,10 @@
 /* pages/SuperAdmin/Auth/SuperAdminLogin.css */
 
 .sal-page {
-    --ink:      #0F172A;
-    --ink-2:    #334155;
-    --ink-3:    #64748B;
-    --line:     #E2E8F0;
+    --ink:      #1C1917;
+    --ink-2:    #44403C;
+    --ink-3:    #78716C;
+    --line:     #E7E5E4;
     --surface:  #FFFFFF;
 
     --brand:      #C2410C;
@@ -25,7 +25,7 @@
     background:
         radial-gradient(circle at top right, rgba(194, 65, 12, 0.08), transparent 50%),
         radial-gradient(circle at bottom left, rgba(194, 65, 12, 0.05), transparent 50%),
-        #0F172A;
+        #1C1917;
 }
 .sal-page *, .sal-page *::before, .sal-page *::after { box-sizing: border-box; }
 
@@ -166,7 +166,7 @@
     transition: background var(--ease), color var(--ease);
 }
 .sal-toggle-password:hover {
-    background: #F1F5F9;
+    background: #F5F5F4;
     color: var(--ink);
 }
 
@@ -256,4 +256,4 @@
 .sal-switch a:hover {
     color: var(--brand-dark);
     text-decoration: underline;
-}
+}

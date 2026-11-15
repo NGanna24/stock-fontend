@@ -14,6 +14,7 @@ import { useUser } from '../../context/AuthContext';
 import { libelleMode } from '../../config/modesPaiement';
 import '../Ventes/Ventes.css';
 import './Journal.css';
+import { hasAccess } from '../../config/rolePermissions';
 
 // ============================================================
 // HELPERS
@@ -239,7 +240,7 @@ const PAR_PAGE = 50;
 export default function Journal() {
   const { user } = useUser();
   const token = localStorage.getItem('token');
-  const autorise = user?.role === 'admin';
+  const autorise = hasAccess(user?.role, 'journal');
 
   const [periode, setPeriode] = useState('7j');
   const [perso, setPerso] = useState({ debut: aujourdhui(), fin: aujourdhui() });

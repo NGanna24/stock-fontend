@@ -15,6 +15,7 @@ import RelanceService from '../../services/relanceService';
 import { useUser } from '../../context/AuthContext';
 import '../Ventes/Ventes.css';
 import './Relances.css';
+import { hasAccess } from '../../config/rolePermissions';
 
 // ============================================================
 // HELPERS
@@ -420,7 +421,7 @@ const FILTRES = [
 export default function Relances() {
   const { user } = useUser();
   const token = localStorage.getItem('token');
-  const autorise = ['admin', 'manager', 'caissier'].includes(user?.role);
+  const autorise = hasAccess(user?.role, 'relances');
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);

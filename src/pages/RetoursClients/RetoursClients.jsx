@@ -16,6 +16,7 @@ import {
   usePagination, useToast, Toast, Modal, ModalHead, Confirm, ActionsMenu, KV, fcfa, dateFR, sansAccents, pluriel,
 } from "../../components/UI/Vt";
 import "./RetoursClients.css";
+import { hasAccess } from '../../config/rolePermissions';
 
 // ============================================================
 // Helpers
@@ -111,7 +112,7 @@ const RetoursClients = () => {
   const [aAnnuler, setAAnnuler] = useState(null);
   const [annulant, setAnnulant] = useState(false);
 
-  const canManage = user && ['admin', 'manager', 'caissier'].includes(user.role);
+  const canManage = !!user && hasAccess(user.role, 'retours-clients');
 
   // ========== CHARGEMENT ==========
   const loadRetours = async () => {
@@ -241,7 +242,11 @@ const RetoursClients = () => {
 
   // ========== WIZARD : charger les données de la commande ==========
   const chargerCommandeDansWizard = async (commandeComplete) => {
-    setSelectedCommande(commandeComplete);
+    // Ce que le client doit encore sur la facture : un retour l'annule d'abord
+    const resteDu = commandeComplete.id_facture
+      ? Math.max(0, (parseFloat(commandeComplete.montant_facture ?? commandeComplete.montant_total) || 0) - (parseFloat(commandeComplete.total_paye) || 0))
+      : null;
+    setSelectedCommande({ ...commandeComplete, reste_du: resteDu });
 
     const lignes = (commandeComplete.lignes || []).map(l => {
       const achete = parseFloat(l.quantite_totale_base) || 0;
@@ -474,9 +479,9 @@ const RetoursClients = () => {
     en_attente: { label: 'En attente', tone: 'muted' },
     recu: { label: 'Reçu', tone: 'info' },
     controle: { label: 'Contrôlé', tone: 'info' },
-    accepte: { label: 'Accepté', tone: 'ok' },
+    accepte: { label: 'Accepté', tone: 'muted' },
     refuse: { label: 'Refusé', tone: 'bad' },
-    rembourse: { label: 'Remboursé', tone: 'teal' },
+    rembourse: { label: 'Remboursé', tone: 'signal' },
     echange: { label: 'Échangé', tone: 'info' },
     annule: { label: 'Annulé', tone: 'bad' },
   };
@@ -487,8 +492,8 @@ const RetoursClients = () => {
 
   const FILTRES = [
     { value: '', label: 'Tous les retours', count: stats?.total, tone: 'all' },
-    { value: 'accepte', label: 'Acceptés', count: stats?.accepte, tone: 'ok' },
-    { value: 'rembourse', label: 'Remboursés', count: stats?.rembourse, tone: 'teal' },
+    { value: 'accepte', label: 'Acceptés', count: stats?.accepte, tone: 'muted' },
+    { value: 'rembourse', label: 'Remboursés', count: stats?.rembourse, tone: 'signal' },
     { value: 'refuse', label: 'Refusés', count: stats?.refuse, tone: 'bad' },
     { value: 'annule', label: 'Annulés', count: stats?.annule, tone: 'bad', apart: true },
   ];
@@ -762,12 +767,34 @@ const RetoursClients = () => {
                             value={notes} onChange={(e) => setNotes(e.target.value)} />
                 </div>
 
-                <div className="vt-due rcl-total">
-                  <span className="vt-due-label">
-                    {typeResolution === 'remboursement_especes' ? 'À rendre au client (espèces)' : 'Valeur des articles rapportés'}
-                  </span>
-                  <strong className="vt-due-amount vt-num">{formatMontant(totalRemboursement)}</strong>
-                </div>
+                {(() => {
+                  // Le retour annule d'abord ce que le client doit encore ; on ne rend que ce qu'il a payé en trop
+                  const du = selectedCommande?.reste_du;
+                  const connu = du != null && ['remboursement_especes', 'avoir'].includes(typeResolution);
+                  const retire = connu ? Math.min(totalRemboursement, du) : 0;
+                  const rendre = connu && typeResolution === 'remboursement_especes' ? Math.max(0, totalRemboursement - du) : 0;
+                  const enAvoir = connu && typeResolution === 'avoir' ? Math.max(0, totalRemboursement - du) : 0;
+                  return (
+                    <>
+                      {connu && du > 0.009 && totalRemboursement > 0 && (
+                        <ol className="rcl-repart">
+                          <li><span>Valeur des articles rapportés</span><strong className="vt-num">{formatMontant(totalRemboursement)}</strong></li>
+                          <li><span>Retiré de ce qu'il doit encore ({formatMontant(du)})</span><strong className="vt-num">− {formatMontant(retire)}</strong></li>
+                        </ol>
+                      )}
+                      <div className="vt-due rcl-total">
+                        <span className="vt-due-label">
+                          {!connu ? (typeResolution === 'remboursement_especes' ? 'À rendre au client (espèces)' : 'Valeur des articles rapportés')
+                            : typeResolution === 'avoir' ? 'Reste en avoir pour le client' : 'À rendre au client (espèces)'}
+                        </span>
+                        <strong className="vt-due-amount vt-num">{formatMontant(!connu ? totalRemboursement : typeResolution === 'avoir' ? enAvoir : rendre)}</strong>
+                      </div>
+                      {connu && typeResolution === 'remboursement_especes' && rendre < 0.009 && totalRemboursement > 0 && (
+                        <p className="rcl-note">Rien à rendre : le client n'avait pas encore payé ces articles. Sa facture baisse de {formatMontant(totalRemboursement)}.</p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             )}
           </div>
@@ -812,7 +839,9 @@ const RetoursClients = () => {
               ['Motif', MOTIFS.find(m => m.value === selectedRetour.motif_retour)?.label || '-'],
               ['Résolution', RESOLUTIONS.find(r => r.value === selectedRetour.type_resolution)?.label || '-'],
               selectedRetour.notes ? ['Note', selectedRetour.notes] : null,
-              ['Montant', formatMontant(selectedRetour.montant_total), true],
+              ['Valeur des articles', formatMontant(selectedRetour.montant_total), true],
+              selectedRetour.montant_deduit > 0.009 ? ['Retiré de ce que le client devait', formatMontant(selectedRetour.montant_deduit)] : null,
+              selectedRetour.montant_rendu > 0.009 ? ['Rendu en espèces', formatMontant(selectedRetour.montant_rendu)] : null,
             ]} />
             <div className="vt-det-block">
               <h3 className="vt-section-title">Articles rapportés</h3>

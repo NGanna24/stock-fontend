@@ -866,3 +866,8 @@
 .pm-stage--mobile { --tone: var(--sky); }
 .pm-tone-mobile   { --tone: var(--sky); }
 .pm-tag--mobile   { --bg: var(--sky-tint, #E0F2FE); --c: var(--sky-deep, #075985); --dot: var(--sky); }
+
+/* Rang du règlement quand une facture est payée en plusieurs fois */
+.pm-rang { display: block; margin-top: 2px; font-size: 11.5px; color: var(--pm-muted, #78716C); white-space: nowrap; }
+.pm-table .pm-ref { font-size: 13.5px; white-space: nowrap; }
+.pm-table td.pm-muted { white-space: nowrap; }

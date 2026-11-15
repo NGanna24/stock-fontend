@@ -1446,3 +1446,11 @@
 .vt-client-info.is-ko { background: var(--bad-soft); color: var(--bad); font-weight: 600; }
 .vt-client-du { color: var(--ink-2); font-weight: 600; }
 .vt-client-du.is-ko { color: var(--bad); }
+
+/* Téléphone du client : pays + numéro */
+.vt-tel { display: flex; gap: 6px; min-width: 0; }
+.vt-tel .vt-tel-pays { flex: 0 0 auto; width: 116px; padding-right: 22px; font-variant-numeric: tabular-nums; }
+.vt-tel input { flex: 1 1 auto; min-width: 0; }
+.vt-tel.is-erreur input { border-color: var(--miyo-danger, #B91C1C); }
+.vt-tel-aide { display: block; margin-top: 4px; font-size: 12px; color: var(--ink-3); }
+.vt-tel-aide.is-erreur { color: var(--miyo-danger, #B91C1C); }

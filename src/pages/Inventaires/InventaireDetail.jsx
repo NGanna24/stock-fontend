@@ -11,6 +11,7 @@ import {
 } from "../../components/UI/Vt";
 import { StatutInventaire, TYPES_INV } from "./Inventaires";
 import "./Inventaires.css";
+import { peutFaire } from '../../config/rolePermissions';
 
 // Quantité en nombre entier. Attention : la base renvoie les quantités au format « 487.00 ».
 // Avant, le point était retiré et « 487.00 » devenait 48 700 : après un enregistrement
@@ -116,7 +117,7 @@ const InventaireDetail = () => {
     const [toast, showToast, closeToast] = useToast();
 
     const inputRefs = useRef({});
-    const canManage = !!user && ["admin", "manager", "gestionnaire"].includes(user.role);
+    const canManage = !!user && peutFaire(user.role, "inventaires.gerer");
     const idValide = id && id !== "undefined" && id !== "null";
 
     const loadInventaire = useCallback(async () => {

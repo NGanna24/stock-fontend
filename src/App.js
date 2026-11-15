@@ -33,6 +33,7 @@ import Alertes from "./pages/Alertes/Alertes";
 import Recettes from "./pages/Recettes/Recettes";
 import MonMagasin from "./pages/Magasin/MonMagasin";
 import Employes from "./pages/Employes/Employes";
+import RolesPermissions from "./pages/RolesPermissions/RolesPermissions";
 
 import ProtectedRouteByRole from "./components/ProtectedRouteByRole";
 import AssistantAchat from "./pages/AssistantAchat/AssistantAchat";
@@ -50,6 +51,14 @@ import Utilisateurs from "./pages/SuperAdmin/Utilisateurs/Utilisateurs";
 import UtilisateurDetail from "./pages/SuperAdmin/Utilisateurs/UtilisateurDetail";
 import Carte from "./pages/SuperAdmin/Carte/Carte";
 import Abonnements from "./pages/SuperAdmin/Abonnements/Abonnements";
+import AlertesSA from "./pages/SuperAdmin/Suivi/Alertes";
+import ActiviteSA from "./pages/SuperAdmin/Suivi/Activite";
+import RevenusSA from "./pages/SuperAdmin/Suivi/Revenus";
+import StatistiquesSA from "./pages/SuperAdmin/Suivi/Statistiques";
+import AuditSA from "./pages/SuperAdmin/Suivi/Audit";
+import SecuriteSA from "./pages/SuperAdmin/Suivi/Securite";
+import RapportsSA from "./pages/SuperAdmin/Suivi/Rapports";
+import ParametresSA from "./pages/SuperAdmin/Suivi/Parametres";
 import { SuperAdminAuthProvider } from "./context/SuperAdminAuthContext";
 import SuperAdminLogin from "./pages/SuperAdmin/Auth/SuperAdminLogin";
 import SuperAdminRegister from "./pages/SuperAdmin/Auth/SuperAdminRegister";
@@ -144,15 +153,15 @@ function AppContent() {
     {/* Abonnements */}
     <Route path="abonnements" element={<Abonnements />} />
 
-    {/* Placeholders */}
-    <Route path="activite"      element={<div style={{ padding: 28 }}>Activité</div>} />
-    <Route path="alertes"       element={<div style={{ padding: 28 }}>Alertes</div>} />
-    <Route path="statistiques"  element={<div style={{ padding: 28 }}>Statistiques</div>} />
-    <Route path="revenus"       element={<div style={{ padding: 28 }}>Revenus</div>} />
-    <Route path="rapports"      element={<div style={{ padding: 28 }}>Rapports</div>} />
-    <Route path="audit"         element={<div style={{ padding: 28 }}>Journal d'audit</div>} />
-    <Route path="securite"      element={<div style={{ padding: 28 }}>Sécurité</div>} />
-    <Route path="parametres"    element={<div style={{ padding: 28 }}>Paramètres</div>} />
+    {/* Suivi */}
+    <Route path="activite"      element={<ActiviteSA />} />
+    <Route path="alertes"       element={<AlertesSA />} />
+    <Route path="statistiques"  element={<StatistiquesSA />} />
+    <Route path="revenus"       element={<RevenusSA />} />
+    <Route path="rapports"      element={<RapportsSA />} />
+    <Route path="audit"         element={<AuditSA />} />
+    <Route path="securite"      element={<SecuriteSA />} />
+    <Route path="parametres"    element={<ParametresSA />} />
 </Route>
 
           
@@ -484,6 +493,14 @@ function AppContent() {
                         element={
                             <ProtectedRouteByRole itemId="employes">
                                 <Employes />
+                            </ProtectedRouteByRole>
+                        }
+                    />
+                    <Route
+                        path="roles-permissions"
+                        element={
+                            <ProtectedRouteByRole itemId="roles-permissions" proprietaire>
+                                <RolesPermissions />
                             </ProtectedRouteByRole>
                         }
                     />

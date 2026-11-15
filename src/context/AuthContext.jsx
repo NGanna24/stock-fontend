@@ -4,6 +4,7 @@ import axios from 'axios';
 import { memoriserEmpreinte, deverrouiller } from '../securite/session';
 import API_URL from '../config/api';
 import { getErrorMessage } from '../utils/errorMessages';
+import { definirPermissions } from '../config/rolePermissions';
 
 const AuthContext = createContext();
 
@@ -51,6 +52,31 @@ export function AuthContextProvider({ children }) {
         window.addEventListener('miyo:token', surJeton);
         return () => window.removeEventListener('miyo:token', surJeton);
     }, []);
+
+    // ==================== DROITS DU RÔLE ====================
+    // Réglés par le propriétaire (« Rôles et permissions ») : relus à l'ouverture,
+    // au retour sur l'écran et toutes les minutes, pour s'appliquer sans reconnexion.
+    useEffect(() => {
+        if (!token) return undefined;
+        let actif = true;
+        const charger = async () => {
+            try {
+                const res = await axios.get(API_URL.PERMISSIONS.MOI, { headers: { Authorization: `Bearer ${token}` } });
+                if (actif && res.data?.data) definirPermissions(res.data.data);
+            } catch { /* hors ligne : on garde les derniers droits connus */ }
+        };
+        charger();
+        const minuteur = setInterval(charger, 60 * 1000);
+        const surRetour = () => { if (document.visibilityState === 'visible') charger(); };
+        document.addEventListener('visibilitychange', surRetour);
+        window.addEventListener('miyo:permissions-recharger', charger);
+        return () => {
+            actif = false;
+            clearInterval(minuteur);
+            document.removeEventListener('visibilitychange', surRetour);
+            window.removeEventListener('miyo:permissions-recharger', charger);
+        };
+    }, [token]);
 
     // ==================== LOGIN ====================
     const login = async (credentials) => {
@@ -128,6 +154,7 @@ export function AuthContextProvider({ children }) {
             localStorage.removeItem('user');
             localStorage.removeItem('miyo:verrou');
             localStorage.removeItem('miyo:empreinte');
+            definirPermissions(null);
             setToken(null);                              // ✅ NOUVEAU
             setUser(null);
             setLoading(false);
@@ -282,4 +309,4 @@ export function useUser() {
         throw new Error("useUser doit être utilisé à l'intérieur d'un AuthContextProvider");
     }
     return context;
-}
+}

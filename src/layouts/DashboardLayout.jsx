@@ -5,6 +5,7 @@ import Header from "../components/Dashboard/Header/Header";
 import HorsLigne from "../components/HorsLigne/HorsLigne";
 import VerrouSession from "../components/Session/VerrouSession";
 import RappelAbonnement from "../components/Abonnement/RappelAbonnement";
+import EtatPlateforme from "../components/Plateforme/EtatPlateforme";
 import { useEffect } from "react";
 import { chargerReglagesDocuments } from "../config/documents";
 import axios from "axios";
@@ -35,6 +36,7 @@ const DashboardLayout = () => {
         <HorsLigne />
         <VerrouSession />
         <RappelAbonnement />
+        <EtatPlateforme />
         <main className="dashboard-content">
           <Outlet /> {/* Remplacer {children} par Outlet */}
         </main>

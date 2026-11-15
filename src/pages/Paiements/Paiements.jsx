@@ -12,6 +12,7 @@ import { useUser } from "../../context/AuthContext";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
 import { CATALOGUE_MODES, infoMode } from '../../config/modesPaiement';
 import "./Paiements.css";
+import { hasAccess, peutFaire } from '../../config/rolePermissions';
 
 /* ============================================================
    CONSTANTES & UTILITAIRES
@@ -213,6 +214,18 @@ const ActionsMenu = ({ menu, paiement, canManage, isAdmin, onView, onPrint, onDe
 /* ============================================================
    PAGE
    ============================================================ */
+/** « FV-202611-0065 · règlement 2/2 », sans jamais montrer l'identifiant interne */
+const formatMontantTexte = (v) => `${Math.round(Number(v) || 0).toLocaleString("fr-FR").replace(/\u202f|\u00a0/g, " ")} FCFA`;
+const libelleReglement = (p) => {
+  if (!p) return "";
+  const doc = p.numero_facture || p.numero_commande;
+  if (!doc) return "Règlement sans facture";
+  if (Number(p.montant) < 0) return `${doc} · remboursement`;
+  const nb = Number(p.nb_reglements) || 0;
+  return nb > 1 ? `${doc} · règlement ${p.rang_reglement}/${nb}` : doc;
+};
+const decrire = (p) => `${formatMontantTexte(p.montant)} de ${p.nomclient || "client inconnu"}`;
+
 const Paiements = () => {
   const { user, isAuthenticated } = useUser();
   const token = localStorage.getItem("token");
@@ -245,8 +258,9 @@ const Paiements = () => {
   const [selectedPaiement, setSelectedPaiement] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const canManage = !!user && ["admin", "manager", "caissier"].includes(user.role);
-  const isAdmin = !!user && user.role === "admin";
+  const canManage = !!user && hasAccess(user.role, "paiements");
+  // Supprimer un paiement : action réglée par le propriétaire (Rôles et permissions)
+  const isAdmin = !!user && peutFaire(user.role, "encaissements.supprimer");
 
   /* ---------- Chargement ---------- */
   const loadPaiements = async () => {
@@ -368,7 +382,6 @@ const Paiements = () => {
     const list = paiements.filter((p) => {
       const matchSearch =
         !q ||
-        String(p.id_paiement || "").includes(q) ||
         p.nomclient?.toLowerCase().includes(q) ||
         p.telephone?.toLowerCase().includes(q) ||
         p.numero_commande?.toLowerCase().includes(q) ||
@@ -438,7 +451,7 @@ const Paiements = () => {
   };
 
   const handlePrint = (paiement) => {
-    showNotification(`Impression du reçu #${paiement.id_paiement}`, "info");
+    showNotification(`Impression du reçu : ${libelleReglement(paiement)}`, "info");
     // Le service d'impression peut être branché ici
   };
 
@@ -489,7 +502,7 @@ const Paiements = () => {
     if (confirm.kind === "delete")
       return {
         title: "Supprimer ce paiement ?",
-        message: `Le paiement #${confirm.paiement.id_paiement} (${confirm.paiement.nomclient || "client inconnu"}) sera définitivement supprimé. Cette action est irréversible.`,
+        message: `Le paiement de ${decrire(confirm.paiement)} (${libelleReglement(confirm.paiement)}) sera définitivement supprimé. Cette action est irréversible.`,
         confirmLabel: "Supprimer définitivement",
       };
     return {
@@ -504,9 +517,9 @@ const Paiements = () => {
       const response = await PaiementService.exportPaiements(token);
       if (response.success && response.data) {
         downloadCSV(
-          ["ID", "Date", "Client", "Téléphone", "Commande", "Facture", "Montant", "Mode", "Référence", "Notes", "Utilisateur"],
-          response.data.map((p) => [
-            p.id, p.date, p.client, p.telephone, p.commande, p.facture,
+          ["N°", "Date", "Client", "Téléphone", "Commande", "Facture", "Montant", "Mode", "Référence", "Notes", "Utilisateur"],
+          response.data.map((p, i) => [
+            i + 1, p.date, p.client, p.telephone, p.commande, p.facture,
             formatMontant(p.montant), MODES[p.mode]?.label || p.mode,
             p.reference, p.note, p.utilisateur,
           ]),
@@ -526,16 +539,18 @@ const Paiements = () => {
     const sel = paiements.filter((p) => selectedIds.includes(p.id_paiement));
     if (!sel.length) return;
     downloadCSV(
-      ["ID", "Date", "Client", "Téléphone", "Commande", "Facture", "Montant", "Mode"],
-      sel.map((p) => [
-        p.id_paiement,
+      ["N°", "Date", "Client", "Téléphone", "Commande", "Facture", "Règlement", "Montant", "Mode", "Référence"],
+      sel.map((p, i) => [
+        i + 1,
         formatDate(p.date_paiement),
         p.nomclient || "-",
         p.telephone || "-",
         p.numero_commande || "-",
         p.numero_facture || "-",
+        Number(p.nb_reglements) > 1 ? `${p.rang_reglement}/${p.nb_reglements}` : "1/1",
         formatMontant(p.montant),
         MODES[p.mode_paiement]?.label || p.mode_paiement,
+        p.reference || "-",
       ]),
       `paiements_selection_${getTodayISO()}.csv`
     );
@@ -565,7 +580,7 @@ const Paiements = () => {
       className={`pm-more ${menu?.id === paiement.id_paiement ? "is-open" : ""}`}
       data-pm-more
       onClick={(e) => openMenu(e, paiement)}
-      aria-label={`Actions pour le paiement #${paiement.id_paiement}`}
+      aria-label={`Actions pour le paiement de ${decrire(paiement)}`}
       aria-haspopup="menu"
     >
       <MoreVertical size={17} />
@@ -602,11 +617,11 @@ const Paiements = () => {
               <input type="checkbox" className="pm-check" checked={allPageSelected} onChange={toggleSelectPage} aria-label="Tout sélectionner" />
             </th>
             <th className="col-num">N°</th>
-            <th>Référence</th>
             <th>Date</th>
             <th>Client</th>
-            <th>Commande</th>
             <th>Facture</th>
+            <th>Commande</th>
+            <th>Référence</th>
             <th className="pm-num">Montant</th>
             <th>Mode</th>
             <th className="pm-col-act" />
@@ -623,10 +638,9 @@ const Paiements = () => {
                 onClick={() => handleView(p)}
               >
                 <td className="pm-col-check" onClick={(e) => e.stopPropagation()}>
-                  <input type="checkbox" className="pm-check" checked={selected} onChange={() => toggleSelect(p.id_paiement)} aria-label={`Sélectionner paiement #${p.id_paiement}`} />
+                  <input type="checkbox" className="pm-check" checked={selected} onChange={() => toggleSelect(p.id_paiement)} aria-label={`Sélectionner le paiement de ${decrire(p)}`} />
                 </td>
                 <td className="col-num">{firstIdx + i + 1}</td>
-                <td><span className="pm-ref">#{p.id_paiement}</span></td>
                 <td className="pm-muted">{p.date_paiement_formatee || formatDate(p.date_paiement)}</td>
                 <td>
                   <span className="pm-client">
@@ -634,8 +648,14 @@ const Paiements = () => {
                     {p.nomclient || "—"}
                   </span>
                 </td>
+                <td>
+                  {p.numero_facture ? <span className="pm-ref">{p.numero_facture}</span> : <span className="pm-muted">—</span>}
+                  {Number(p.montant) < 0
+                    ? <small className="pm-rang">Remboursement</small>
+                    : Number(p.nb_reglements) > 1 && <small className="pm-rang">Règlement {p.rang_reglement} sur {p.nb_reglements}</small>}
+                </td>
                 <td className="pm-muted">{p.numero_commande || "—"}</td>
-                <td className="pm-muted">{p.numero_facture || "—"}</td>
+                <td className="pm-muted">{p.reference || "—"}</td>
                 <td className="pm-num pm-amount">{formatMontant(p.montant)}</td>
                 <td><ModeTag mode={p.mode_paiement} /></td>
                 <td className="pm-col-act" onClick={(e) => e.stopPropagation()}>
@@ -664,9 +684,9 @@ const Paiements = () => {
                   checked={selected}
                   onClick={(e) => e.stopPropagation()}
                   onChange={() => toggleSelect(p.id_paiement)}
-                  aria-label={`Sélectionner paiement #${p.id_paiement}`}
+                  aria-label={`Sélectionner le paiement de ${decrire(p)}`}
                 />
-                <span className="pm-ref">#{p.id_paiement}</span>
+                <span className="pm-ref">{libelleReglement(p)}</span>
                 <span className="pm-ticket-more" onClick={(e) => e.stopPropagation()}>{renderMore(p)}</span>
               </div>
               <p className="pm-ticket-client">
@@ -876,7 +896,7 @@ const Paiements = () => {
               <div className="pm-sheet-title">
                 <span className="pm-sheet-mark"><Receipt size={21} /></span>
                 <div>
-                  <h2>Paiement #{selectedPaiement.id_paiement}</h2>
+                  <h2>{Number(selectedPaiement.montant) < 0 ? "Remboursement" : Number(selectedPaiement.nb_reglements) > 1 ? `Règlement ${selectedPaiement.rang_reglement} sur ${selectedPaiement.nb_reglements}` : "Paiement"}{selectedPaiement.numero_facture ? ` · ${selectedPaiement.numero_facture}` : ""}</h2>
                   <p><Calendar size={13} /> {selectedPaiement.date_paiement_formatee || formatDate(selectedPaiement.date_paiement)}</p>
                 </div>
               </div>
@@ -917,7 +937,7 @@ const Paiements = () => {
                         <dt>Montant</dt>
                         <dd className="pm-detail-total">{formatMontant(selectedPaiement.montant)}</dd>
                       </div>
-                      <div><dt>Référence</dt><dd>{selectedPaiement.reference || "-"}</dd></div>
+                      <div><dt>Référence du paiement</dt><dd>{selectedPaiement.reference || "-"}</dd></div>
                       <div><dt>Note</dt><dd>{selectedPaiement.note || "-"}</dd></div>
                       <div><dt>Enregistré par</dt><dd>{selectedPaiement.utilisateur_nom || "-"}</dd></div>
                     </dl>

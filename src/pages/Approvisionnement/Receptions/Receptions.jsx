@@ -15,6 +15,7 @@ import { useUser } from "../../../context/AuthContext";
 import ConfirmModal from "../../../components/ConfirmModal/ConfirmModal";
 import StockInputWithSelector from "../../../components/StockSelector/StockInputWithSelector";
 import "./Receptions.css";
+import { peutFaire } from '../../../config/rolePermissions';
 
 // ------------------------------------------------------------
 // Quantités en plusieurs unités : une ligne est commandée dans une unité
@@ -124,7 +125,7 @@ const Receptions = () => {
   };
 
   const toastTimeoutRef = useRef(null);
-  const canManage = user && ['admin', 'manager'].includes(user.role);
+  const canManage = !!user && peutFaire(user.role, 'approvisionnement.gerer');
 
   // ============================================================
   // CHARGEMENT

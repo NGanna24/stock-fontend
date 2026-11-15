@@ -49,9 +49,10 @@ export const COLORS = {
   // ============================================================
   // SÉMANTIQUES (vives, reconnaissables)
   // ============================================================
-  success:        '#16A34A',   // Vert émeraude
-  successSoft:    '#DCFCE7',
-  successDeep:    '#14532D',
+  // Succès et information aux couleurs Miyo (pas de vert : il est réservé à la courbe du bénéfice)
+  success:        '#C2410C',   // Orange Miyo
+  successSoft:    '#FFF4ED',
+  successDeep:    '#9A3412',
 
   danger:         '#DC2626',   // Rouge vif
   dangerSoft:     '#FEE2E2',
@@ -61,16 +62,16 @@ export const COLORS = {
   warningSoft:    '#FEF3C7',
   warningDeep:    '#78350F',
 
-  info:           '#2563EB',   // Bleu
-  infoSoft:       '#DBEAFE',
-  infoDeep:       '#1E3A8A',
+  info:           '#44403C',   // Encre Miyo
+  infoSoft:       '#F5F5F4',
+  infoDeep:       '#1C1917',
 
   // ============================================================
   // COULEURS SPÉCIALES (statuts dashboard)
   // ============================================================
   oxide:          '#DC2626',   // Rouge oxydé (rupture)
-  moss:           '#16A34A',   // Vert mousse (OK)
-  sky:            '#0EA5E9',   // Bleu ciel (info)
+  moss:           '#44403C',   // OK (neutre, pas de vert)
+  sky:            '#78716C',   // Info (neutre)
   teal:           '#0D9488',   // Turquoise (partiel)
   gold:           '#F59E0B',   // Or (mises en avant / charts)
   violet:         '#7C3AED',   // Violet (catégories)

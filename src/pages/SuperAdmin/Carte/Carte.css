@@ -1,14 +1,14 @@
 /* pages/SuperAdmin/Carte/Carte.css */
 
 .ct-page {
-    --ink:      #0F172A;
-    --ink-2:    #334155;
-    --ink-3:    #64748B;
-    --ink-4:    #94A3B8;
-    --line:     #E2E8F0;
-    --line-2:   #F1F5F9;
+    --ink:      #1C1917;
+    --ink-2:    #44403C;
+    --ink-3:    #78716C;
+    --ink-4:    #A8A29E;
+    --line:     #E7E5E4;
+    --line-2:   #F5F5F4;
     --surface:  #FFFFFF;
-    --paper:    #F8FAFC;
+    --paper:    #FAFAF9;
 
     --brand:      #C2410C;
     --brand-dark: #9A3412;

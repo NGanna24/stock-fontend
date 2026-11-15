@@ -1,23 +1,23 @@
 /* pages/SuperAdmin/Magasins/Magasins.css */
 
 .mg-page {
-    --ink:      #0F172A;
-    --ink-2:    #334155;
-    --ink-3:    #64748B;
-    --ink-4:    #94A3B8;
-    --line:     #E2E8F0;
-    --line-2:   #F1F5F9;
+    --ink:      #1C1917;
+    --ink-2:    #44403C;
+    --ink-3:    #78716C;
+    --ink-4:    #A8A29E;
+    --line:     #E7E5E4;
+    --line-2:   #F5F5F4;
     --surface:  #FFFFFF;
-    --paper:    #F8FAFC;
+    --paper:    #FAFAF9;
 
     --brand:      #C2410C;
     --brand-dark: #9A3412;
     --brand-soft: #FED7AA;
 
-    --info:      #0284C7;
-    --info-soft: #E0F2FE;
-    --success:   #16A34A;
-    --success-soft: #DCFCE7;
+    --info:      #44403C;
+    --info-soft: #F5F5F4;
+    --success:   #C2410C;
+    --success-soft: #FFF4ED;
     --warning:   #D97706;
     --warning-soft: #FEF3C7;
     --danger:    #DC2626;
@@ -330,7 +330,7 @@
     font-weight: 700;
     white-space: nowrap;
 }
-.mg-badge--success { background: var(--success-soft); color: #166534; }
+.mg-badge--success { background: var(--success-soft); color: #9A3412; }
 .mg-badge--warning { background: var(--warning-soft); color: #92400E; }
 .mg-badge--danger  { background: var(--danger-soft);  color: #991B1B; }
 
@@ -604,12 +604,12 @@
 
 /* ============ RESPONSIVE ============ */
 @media (max-width: 900px) {
-    .mg-table th:nth-child(3),
-    .mg-table td:nth-child(3),
     .mg-table th:nth-child(4),
     .mg-table td:nth-child(4),
-    .mg-table th:nth-child(7),
-    .mg-table td:nth-child(7) { display: none; }
+    .mg-table th:nth-child(5),
+    .mg-table td:nth-child(5),
+    .mg-table th:nth-child(8),
+    .mg-table td:nth-child(8) { display: none; }
 }
 @media (max-width: 640px) {
     .mg-header { flex-direction: column; align-items: stretch; }
@@ -617,4 +617,11 @@
     .mg-toolbar { flex-direction: column; align-items: stretch; }
     .mg-search { max-width: none; }
     .mg-map-wrap { height: 70vh; }
+}
+/* Numérotation */
+.mg-table .mg-num { width: 44px; text-align: right; padding-right: 4px; color: var(--ink-4); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+/* Filtres sur une seule ligne */
+.mg-toolbar .mg-select { width: auto; flex: 0 0 auto; max-width: 200px; }
+@media (max-width: 1280px) {
+    .mg-table th:nth-child(5), .mg-table td:nth-child(5) { display: none; }
 }

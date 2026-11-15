@@ -6,7 +6,7 @@
 //     aucune donnée n'est envoyée au serveur ni à la base.
 //   - Le compte et le magasin renvoient vers leurs pages existantes.
 // ------------------------------------------------------------
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Printer, Lock, Bell, Monitor, UserCog, Info, RefreshCw, ChevronRight, Loader,
@@ -35,18 +35,27 @@ import './Parametres.css';
 
 const ELECTRON = typeof window !== 'undefined' ? window.electronAPI : undefined;
 
-const SECTIONS = [
-  { id: 'impression', label: 'Impression', icon: Printer },
-  { id: 'securite', label: 'Sécurité', icon: Lock },
-  { id: 'sons', label: 'Sons et alertes', icon: Bell },
-  { id: 'affichage', label: 'Affichage', icon: Monitor },
-  { id: 'compte', label: 'Compte et magasin', icon: UserCog },
-  { id: 'appareil', label: 'Cet appareil', icon: Info },
-  { id: 'abonnement', label: 'Abonnement', icon: Wallet, patron: true },
-  { id: 'modes', label: 'Modes de paiement', icon: CreditCard, patron: true },
-  { id: 'cachets', label: 'Cachets et signature', icon: Stamp, patron: true },
-  { id: 'modele', label: 'Modèle de facture', icon: LayoutTemplate, patron: true },
+// Rubriques regroupées par usage ; une seule rubrique est affichée à la fois.
+const GROUPES = [
+  { id: 'compte', label: 'Mon compte' },
+  { id: 'ventes', label: 'Ventes et documents', patron: true },
+  { id: 'ordi', label: 'Cet ordinateur', aide: 'Ces réglages ne concernent que cet ordinateur.' },
 ];
+const SECTIONS = [
+  { id: 'compte', groupe: 'compte', label: 'Compte et magasin', icon: UserCog },
+  { id: 'abonnement', groupe: 'compte', label: 'Abonnement', icon: Wallet, patron: true },
+  { id: 'modes', groupe: 'ventes', label: 'Modes de paiement', icon: CreditCard, patron: true },
+  { id: 'cachets', groupe: 'ventes', label: 'Cachets et signature', icon: Stamp, patron: true },
+  { id: 'modele', groupe: 'ventes', label: 'Modèle de facture', icon: LayoutTemplate, patron: true },
+  { id: 'impression', groupe: 'ordi', label: 'Impression', icon: Printer },
+  { id: 'securite', groupe: 'ordi', label: 'Sécurité', icon: Lock },
+  { id: 'sons', groupe: 'ordi', label: 'Sons et alertes', icon: Bell },
+  { id: 'affichage', groupe: 'ordi', label: 'Affichage', icon: Monitor },
+  { id: 'appareil', groupe: 'ordi', label: 'Cet appareil', icon: Info },
+];
+const CLE_RUBRIQUE = 'miyo:parametres-rubrique';
+// Rubrique affichée + numéro de chaque rubrique (dans l'ordre du menu)
+const RubriqueCtx = createContext({ actif: null, numeros: {} });
 
 const ROLES = { admin: 'Administrateur', manager: 'Manager', caissier: 'Caissier', magasinier: 'Magasinier' };
 
@@ -69,18 +78,22 @@ const Ligne = ({ titre, aide, children, htmlFor }) => (
   </div>
 );
 
-const Section = ({ id, numero, titre, sous, icon: Icon, children }) => (
-  <section id={`pr-${id}`} className="pr-section" aria-labelledby={`pr-${id}-titre`}>
-    <header className="pr-section-head">
-      <span className="pr-section-icone" aria-hidden="true"><Icon size={18} /></span>
-      <div>
-        <h2 id={`pr-${id}-titre`}>{numero}. {titre}</h2>
-        {sous && <p>{sous}</p>}
-      </div>
-    </header>
-    <div className="pr-section-corps">{children}</div>
-  </section>
-);
+const Section = ({ id, titre, sous, icon: Icon, children }) => {
+  const { actif, numeros } = useContext(RubriqueCtx);
+  if (id !== actif) return null;
+  return (
+    <section id={`pr-${id}`} className="pr-section" aria-labelledby={`pr-${id}-titre`}>
+      <header className="pr-section-head">
+        <span className="pr-section-icone" aria-hidden="true"><Icon size={18} /></span>
+        <div>
+          <h2 id={`pr-${id}-titre`}>{numeros[id]}. {titre}</h2>
+          {sous && <p>{sous}</p>}
+        </div>
+      </header>
+      <div className="pr-section-corps">{children}</div>
+    </section>
+  );
+};
 
 export default function Parametres() {
   const navigate = useNavigate();
@@ -113,6 +126,19 @@ export default function Parametres() {
       .catch(() => setErreurAbonnement(true));
   }, [estPatron]);
   const sections = SECTIONS.filter((s) => !s.patron || estPatron);
+  const numeros = useMemo(() => Object.fromEntries(sections.map((s, i) => [s.id, i + 1])), [sections]);
+  // Rubrique ouverte : celle du lien (#cachets), sinon la dernière ouverte, sinon la première
+  const [actif, setActif] = useState(() => {
+    const voulue = (window.location.hash || '').replace('#', '') || (() => { try { return localStorage.getItem(CLE_RUBRIQUE); } catch { return null; } })();
+    return voulue;
+  });
+  const rubrique = sections.some((x) => x.id === actif) ? actif : sections[0]?.id;
+  const ouvrir = (id) => {
+    setActif(id);
+    try { localStorage.setItem(CLE_RUBRIQUE, id); } catch { /* sans importance */ }
+    window.history.replaceState(null, '', `#${id}`);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // ---------- Modes de paiement de la boutique (patron) ----------
   const [modesChoisis, setModesChoisis] = useState(null);
@@ -252,8 +278,6 @@ export default function Parametres() {
     }
   };
 
-  const allerA = (id) => document.getElementById(`pr-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
   const liensCompte = [
     { id: 'mon-profil', titre: 'Mon profil', aide: 'Nom, téléphone, code de connexion, déconnexion des autres appareils', icon: User, visible: true },
     { id: 'mon-magasin', titre: 'Mon magasin', aide: 'Nom, adresse, logo et informations imprimées sur les factures', icon: Store, visible: estAdmin },
@@ -264,34 +288,38 @@ export default function Parametres() {
 
   return (
     <Page className="pr-page">
-      <PageHead title="Paramètres" sub="Réglages de cet ordinateur et accès à votre compte" />
+      <PageHead title="Paramètres" sub="Votre compte, vos ventes et documents, et les réglages de cet ordinateur" />
 
       <div className="pr-grille">
         {/* ---------- Sommaire ---------- */}
-        <nav className="pr-nav" aria-label="Sections des paramètres">
-          <ol>
-            {sections.map((s, i) => {
-              const Icon = s.icon;
-              return (
-                <li key={s.id}>
-                  <button type="button" onClick={() => allerA(s.id)}>
-                    <span className="pr-nav-num">{i + 1}</span>
-                    <Icon size={16} aria-hidden="true" />
-                    <span>{s.label}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-          <p className="pr-nav-note">
-            <HelpCircle size={14} aria-hidden="true" />
-            Ces réglages concernent cet ordinateur uniquement.
-          </p>
+        <nav className="pr-nav" aria-label="Rubriques des paramètres">
+          {GROUPES.filter((g) => sections.some((x) => x.groupe === g.id)).map((g) => (
+            <div key={g.id} className="pr-nav-groupe">
+              <div className="pr-nav-titre">{g.label}</div>
+              <ol>
+                {sections.filter((x) => x.groupe === g.id).map((x) => {
+                  const Icon = x.icon;
+                  const on = x.id === rubrique;
+                  return (
+                    <li key={x.id}>
+                      <button type="button" className={on ? 'is-on' : ''} aria-current={on ? 'page' : undefined} onClick={() => ouvrir(x.id)}>
+                        <span className="pr-nav-num">{numeros[x.id]}</span>
+                        <Icon size={16} aria-hidden="true" />
+                        <span>{x.label}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
+              {g.aide && <p className="pr-nav-note"><HelpCircle size={14} aria-hidden="true" /> {g.aide}</p>}
+            </div>
+          ))}
         </nav>
 
+        <RubriqueCtx.Provider value={{ actif: rubrique, numeros }}>
         <div className="pr-contenu">
           {/* ---------- 1. Impression ---------- */}
-          <Section id="impression" numero={1} titre="Impression" sous="Imprimante et format utilisés pour les factures" icon={Printer}>
+          <Section id="impression" titre="Impression" sous="Imprimante et format utilisés pour les factures" icon={Printer}>
             <Ligne
               titre="Imprimante des factures"
               htmlFor="pr-imprimante"
@@ -347,7 +375,7 @@ export default function Parametres() {
           </Section>
 
           {/* ---------- 2. Sécurité ---------- */}
-          <Section id="securite" numero={2} titre="Sécurité" sous="Protection de l'écran quand personne ne l'utilise" icon={Lock}>
+          <Section id="securite" titre="Sécurité" sous="Protection de l'écran quand personne ne l'utilise" icon={Lock}>
             <Ligne titre="Verrouiller l'écran après" htmlFor="pr-delai" aide="Sans activité pendant ce temps, Miyo demande votre code. Le travail en cours est conservé.">
               <select id="pr-delai" className="vt-input pr-select" value={delai} onChange={(e) => changerDelai(Number(e.target.value))}>
                 {DELAIS_VERROU.map((n) => <option key={n} value={n}>{n} minutes</option>)}
@@ -366,14 +394,14 @@ export default function Parametres() {
           </Section>
 
           {/* ---------- 3. Sons ---------- */}
-          <Section id="sons" numero={3} titre="Sons et alertes" sous="Signal sonore du tableau de bord" icon={Bell}>
+          <Section id="sons" titre="Sons et alertes" sous="Signal sonore du tableau de bord" icon={Bell}>
             <Ligne titre="Son des alertes de stock" aide="Un signal sonore retentit sur le tableau de bord quand des produits sont en rupture ou presque.">
               <Interrupteur id="pr-son" checked={son} onChange={changerSon} label="Son des alertes de stock" />
             </Ligne>
           </Section>
 
           {/* ---------- 4. Affichage ---------- */}
-          <Section id="affichage" numero={4} titre="Affichage" sous="Disposition de l'écran" icon={Monitor}>
+          <Section id="affichage" titre="Affichage" sous="Disposition de l'écran" icon={Monitor}>
             <Ligne titre="Menu latéral réduit" aide="N'affiche que les icônes du menu pour laisser plus de place aux pages.">
               <Interrupteur id="pr-menu" checked={reduit} onChange={changerMenu} label="Menu latéral réduit" />
             </Ligne>
@@ -385,7 +413,7 @@ export default function Parametres() {
           </Section>
 
           {/* ---------- 5. Compte et magasin ---------- */}
-          <Section id="compte" numero={5} titre="Compte et magasin" sous={`Connecté en tant que ${user?.fullname || 'utilisateur'} (${ROLES[user?.role] || user?.role || '-'})`} icon={UserCog}>
+          <Section id="compte" titre="Compte et magasin" sous={`Connecté en tant que ${user?.fullname || 'utilisateur'} (${ROLES[user?.role] || user?.role || '-'})`} icon={UserCog}>
             <ol className="pr-liens">
               {liensCompte.map((l, i) => {
                 const Icon = l.icon;
@@ -407,7 +435,7 @@ export default function Parametres() {
           </Section>
 
           {/* ---------- 6. Cet appareil ---------- */}
-          <Section id="appareil" numero={6} titre="Cet appareil" sous="Version, connexion et ventes en attente" icon={Info}>
+          <Section id="appareil" titre="Cet appareil" sous="Version, connexion et ventes en attente" icon={Info}>
             <ol className="pr-infos">
               <li><span>Version de Miyo</span><strong className="vt-num">{ELECTRON ? (versionOrdi || '...') : VERSION_LOGICIEL}</strong></li>
               {ELECTRON && <li><span>Version des écrans</span><strong className="vt-num">{VERSION_LOGICIEL}</strong></li>}
@@ -432,7 +460,7 @@ export default function Parametres() {
 
           {/* ---------- 7. Abonnement (patron) ---------- */}
           {estPatron && (
-            <Section id="abonnement" numero={7} titre="Abonnement" sous="Votre formule Miyo et comment la renouveler" icon={Wallet}>
+            <Section id="abonnement" titre="Abonnement" sous="Votre formule Miyo et comment la renouveler" icon={Wallet}>
               {erreurAbonnement ? (
                 <p className="pr-ligne-aide">Impossible de charger l'abonnement. Vérifiez la connexion puis rouvrez cette page.</p>
               ) : !abonnement ? (
@@ -479,7 +507,7 @@ export default function Parametres() {
 
           {/* ---------- 8. Modes de paiement (patron) ---------- */}
           {estPatron && (
-            <Section id="modes" numero={8} titre="Modes de paiement" sous="Les moyens de paiement acceptés dans votre boutique" icon={CreditCard}>
+            <Section id="modes" titre="Modes de paiement" sous="Les moyens de paiement acceptés dans votre boutique" icon={CreditCard}>
               <p className="pr-ligne-aide">
                 Seuls les modes cochés sont proposés à l'encaissement, dans les dépenses et pour payer les fournisseurs, sur l'ordinateur et sur le téléphone.
                 Seules les espèces comptent dans le tiroir-caisse.
@@ -513,18 +541,19 @@ export default function Parametres() {
 
           {/* ---------- 9. Cachets et signature (patron) ---------- */}
           {estPatron && (
-            <Section id="cachets" numero={9} titre="Cachets et signature" sous="Les cachets posés sur vos factures et autres documents" icon={Stamp}>
+            <Section id="cachets" titre="Cachets et signature" sous="Les cachets posés sur vos factures et autres documents" icon={Stamp}>
               <CachetsSignature afficher={afficherToast} />
             </Section>
           )}
 
           {/* ---------- 10. Modèle de facture (patron) ---------- */}
           {estPatron && (
-            <Section id="modele" numero={10} titre="Modèle de facture" sous="La présentation de vos factures A4" icon={LayoutTemplate}>
+            <Section id="modele" titre="Modèle de facture" sous="La présentation de vos factures A4" icon={LayoutTemplate}>
               <ModeleFacture afficher={afficherToast} />
             </Section>
           )}
         </div>
+        </RubriqueCtx.Provider>
       </div>
 
       <Toast toast={toast} onClose={cacherToast} />

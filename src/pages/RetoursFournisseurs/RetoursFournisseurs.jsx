@@ -16,6 +16,7 @@ import {
 import "./RetoursFournisseurs.css";
 import RetourPDFActions from "../../components/RetourFournisseur/RetourPDFActions";
 import StockInputWithSelector from "../../components/StockSelector/StockInputWithSelector";
+import { peutFaire } from '../../config/rolePermissions';
 
 // Quantité en unité de base affichée dans les unités du produit : « 2 Cartons 3 Pièces »
 const plurielU = (n, mot) => (n > 1 && !/[sxz]$/i.test(mot) ? `${mot}s` : mot);
@@ -119,7 +120,7 @@ const RetoursFournisseurs = () => {
   const [produitsRecus, setProduitsRecus] = useState([]);
   const [loadingProduits, setLoadingProduits] = useState(false);
 
-  const canManage = user && ['admin', 'manager'].includes(user.role);
+  const canManage = !!user && peutFaire(user.role, 'approvisionnement.gerer');
 
   // ============================================================
   // CHARGEMENT

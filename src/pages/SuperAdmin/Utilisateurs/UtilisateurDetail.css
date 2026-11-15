@@ -1,23 +1,23 @@
 /* pages/SuperAdmin/Utilisateurs/UtilisateurDetail.css */
 
 .ud-page {
-    --ink:      #0F172A;
-    --ink-2:    #334155;
-    --ink-3:    #64748B;
-    --ink-4:    #94A3B8;
-    --line:     #E2E8F0;
-    --line-2:   #F1F5F9;
+    --ink:      #1C1917;
+    --ink-2:    #44403C;
+    --ink-3:    #78716C;
+    --ink-4:    #A8A29E;
+    --line:     #E7E5E4;
+    --line-2:   #F5F5F4;
     --surface:  #FFFFFF;
-    --paper:    #F8FAFC;
+    --paper:    #FAFAF9;
 
     --brand:      #C2410C;
     --brand-dark: #9A3412;
     --brand-soft: #FED7AA;
 
-    --info:      #0284C7;
-    --info-soft: #E0F2FE;
-    --success:   #16A34A;
-    --success-soft: #DCFCE7;
+    --info:      #44403C;
+    --info-soft: #F5F5F4;
+    --success:   #C2410C;
+    --success-soft: #FFF4ED;
     --warning:   #D97706;
     --warning-soft: #FEF3C7;
     --danger:    #DC2626;
@@ -88,7 +88,7 @@
     font-size: 12.5px;
     font-weight: 700;
 }
-.ud-status.is-on  { background: var(--success-soft); color: #166534; }
+.ud-status.is-on  { background: var(--success-soft); color: #9A3412; }
 .ud-status.is-off { background: var(--danger-soft);  color: #991B1B; }
 .ud-actions { display: flex; gap: 8px; align-items: center; }
 
@@ -128,7 +128,7 @@
 .ud-btn--danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
 .ud-btn--success {
     background: var(--success-soft);
-    color: #166534;
+    color: #9A3412;
     border-color: var(--success-soft);
 }
 .ud-btn--success:hover:not(:disabled) { background: var(--success); color: #fff; }
@@ -356,7 +356,7 @@
     font-weight: 700;
     white-space: nowrap;
 }
-.ud-badge--success { background: var(--success-soft); color: #166534; }
+.ud-badge--success { background: var(--success-soft); color: #9A3412; }
 .ud-badge--danger  { background: var(--danger-soft);  color: #991B1B; }
 .ud-badge--warning { background: var(--warning-soft); color: #92400E; }
 .ud-badge--info    { background: var(--info-soft);    color: var(--info); }
@@ -408,3 +408,29 @@
     .ud-actions .ud-btn { flex: 1; }
     .ud-magasin-tags { display: none; }
 }
+/* Abonnement et activité récente */
+.ud-btn--sm { height: 30px; padding: 0 12px; font-size: 12.5px; }
+.ud-muted-line { margin: 4px 0 0; font-size: 13px; color: var(--ink-3); }
+.ud-abo { display: flex; flex-direction: column; gap: 14px; }
+.ud-abo-tete { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ud-abo-tete > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.ud-abo-tete strong { font-size: 14px; color: var(--ink); }
+.ud-abo-tete small { font-size: 12.5px; color: var(--ink-3); }
+.ud-abo-badge { padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.ud-abo--ok      { background: #FFF4ED; color: #9A3412; }
+.ud-abo--essai   { background: #F5F5F4; color: #44403C; }
+.ud-abo--bientot { background: #FEF3C7; color: #92400E; }
+.ud-abo--expire  { background: #FEE2E2; color: #991B1B; }
+.ud-liste-num { list-style: none; counter-reset: udn; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.ud-liste-num > li { counter-increment: udn; display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line, #E7E5E4); font-size: 13px; color: var(--ink-2); min-width: 0; }
+.ud-liste-num > li:first-child { border-top: 0; }
+.ud-liste-num > li::before { content: counter(udn); flex: 0 0 22px; text-align: right; color: var(--ink-4); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ud-liste-num > li > span:nth-of-type(1) { flex: 1; }
+.ud-liste-num > li > strong { margin-left: auto; color: var(--ink); white-space: nowrap; }
+.ud-fil > li > div { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ud-fil > li > div strong { font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.ud-fil > li > div small { font-size: 12px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ud-fil-date { flex: 0 0 auto; font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.ud-fil > li > div { flex: 1 1 0; }
+.ud-fil-date { margin-left: auto; }
+.ud-abo .ud-dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }

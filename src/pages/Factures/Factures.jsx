@@ -16,6 +16,7 @@ import FormatChoiceModal from "../../components/Facture/FormatChoiceModal";
 import { CATALOGUE_MODES, infoMode, libelleMode, useModesPaiement, useModeValide } from '../../config/modesPaiement';
 import "../Ventes/Ventes.css";
 import "./Factures.css";
+import { hasAccess } from '../../config/rolePermissions';
 
 // ============================================================
 // HELPERS
@@ -238,7 +239,7 @@ const Factures = () => {
   const MODES_PAIEMENT = useModesPaiement();
   const { user, isAuthenticated } = useUser();
   const token = localStorage.getItem("token");
-  const canManage = !!user && ["admin", "manager", "caissier"].includes(user.role);
+  const canManage = !!user && hasAccess(user.role, "factures");
 
   // Données
   const [factures, setFactures] = useState([]);

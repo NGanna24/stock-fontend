@@ -69,12 +69,12 @@
 }
 
 .btn-success {
-  background: #10b981;
+  background: #C2410C;
   color: white;
 }
 
 .btn-success:hover {
-  background: #059669;
+  background: #C2410C;
 }
 
 .btn-sm {
@@ -342,8 +342,8 @@
 }
 
 .status-success {
-  background: #d1fae5;
-  color: #065f46;
+  background: #FFF4ED;
+  color: #9A3412;
 }
 
 .status-warning {

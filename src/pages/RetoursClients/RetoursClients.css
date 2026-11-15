@@ -55,3 +55,11 @@
   .vt .rcl-saisie { grid-template-columns: 1fr 1fr; }
 }
 .vt .qte-vide { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+/* Répartition du retour : dette annulée puis espèces rendues */
+.rcl-repart { list-style: none; counter-reset: rcr; margin: 4px 0 8px; padding: 0; font-size: 13px; }
+.rcl-repart li { counter-increment: rcr; display: flex; align-items: baseline; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--line); color: var(--ink-2); }
+.rcl-repart li::before { content: counter(rcr); width: 14px; text-align: right; font-size: 11.5px; color: var(--ink-3); }
+.rcl-repart li span { flex: 1; min-width: 0; }
+.rcl-repart li strong { color: var(--ink); white-space: nowrap; }
+.rcl-note { margin: 8px 0 0; font-size: 12.5px; color: var(--ink-3); }

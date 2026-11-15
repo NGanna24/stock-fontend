@@ -13,6 +13,7 @@ import ModalClient from '../../components/Clients/ModalClient';
 import { useUser } from '../../context/AuthContext';
 import '../Ventes/Ventes.css';
 import './Clients.css';
+import { peutFaire } from '../../config/rolePermissions';
 
 const NBSP = ' ';
 const fm = (v) => `${Math.round(Number(v) || 0).toString().replace(/\B(?=(\d{3})+(?!\d))/g, NBSP)}${NBSP}FCFA`;
@@ -76,7 +77,7 @@ export default function Clients() {
   const token = localStorage.getItem('token');
   const navigate = useNavigate();
   const { slug } = useParams();
-  const responsable = user?.role === 'admin' || user?.role === 'manager';
+  const responsable = peutFaire(user?.role, 'clients.credit');
 
   const [clients, setClients] = useState(null);
   const [stats, setStats] = useState(null);

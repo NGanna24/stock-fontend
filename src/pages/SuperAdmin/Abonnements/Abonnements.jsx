@@ -3,6 +3,7 @@
 // Le patron paie hors du logiciel (Wave, Orange Money, MTN MoMo, banque),
 // puis le super-admin prolonge son abonnement ici.
 import React, { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { createPortal } from "react-dom";
 import {
   Wallet, RefreshCw, Search, X, AlertCircle, CalendarClock, CalendarX2,
@@ -98,7 +99,26 @@ const Abonnements = () => {
   const [filtre, setFiltre] = useState("tous");
   const [recherche, setRecherche] = useState("");
   const [selection, setSelection] = useState(null); // id_utilisateur ouvert
-  const [reglagesOuverts, setReglagesOuverts] = useState(false);
+  // Lien direct depuis Alertes / Revenus : ?patron=12 ouvre sa fiche d'abonnement
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    const id = Number(params.get("patron"));
+    if (id > 0) {
+      setSelection(id);
+      params.delete("patron");
+      setParams(params, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // ?reglages=1 (depuis Paramètres) ouvre directement le tarif et les moyens de paiement
+  const [reglagesOuverts, setReglagesOuverts] = useState(() => params.get("reglages") === "1");
+  useEffect(() => {
+    if (params.get("reglages")) {
+      params.delete("reglages");
+      setParams(params, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [message, setMessage] = useState(null);
 
   const charger = async () => {

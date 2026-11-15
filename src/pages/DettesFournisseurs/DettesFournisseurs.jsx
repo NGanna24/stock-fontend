@@ -15,6 +15,7 @@ import { useUser } from '../../context/AuthContext';
 import { CATALOGUE_MODES, infoMode, libelleMode, useModesPaiement, useModeValide } from '../../config/modesPaiement';
 import '../Ventes/Ventes.css';
 import './DettesFournisseurs.css';
+import { hasAccess } from '../../config/rolePermissions';
 
 // ============================================================
 // HELPERS
@@ -240,7 +241,7 @@ export default function DettesFournisseurs() {
   const { user } = useUser();
   const token = localStorage.getItem('token');
   const role = user?.role;
-  const autorise = role === 'admin' || role === 'manager';
+  const autorise = hasAccess(role, 'comptes-fournisseurs');
   const estAdmin = role === 'admin';
 
   const [data, setData] = useState(null); // { fournisseurs, totaux }

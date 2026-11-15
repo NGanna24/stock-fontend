@@ -4,20 +4,20 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 
 .sa-hd {
-  --ink:         #0F172A;
-  --ink-2:       #334155;
-  --ink-3:       #64748B;
-  --ink-4:       #94A3B8;
-  --line:        #E2E8F0;
-  --line-soft:   #F1F5F9;
+  --ink:         #1C1917;
+  --ink-2:       #44403C;
+  --ink-3:       #78716C;
+  --ink-4:       #A8A29E;
+  --line:        #E7E5E4;
+  --line-soft:   #F5F5F4;
   --surface:     #FFFFFF;
-  --paper:       #F8FAFC;
+  --paper:       #FAFAF9;
   --brand:       #C2410C;
   --brand-dark:  #9A3412;
   --brand-soft:  #FED7AA;
   --danger:      #DC2626;
   --danger-soft: #FEE2E2;
-  --success:     #16A34A;
+  --success:     #C2410C;
 
   --radius-sm:   8px;
   --radius:      10px;
@@ -92,8 +92,8 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  background: #DCFCE7;
-  color: #166534;
+  background: #FFF4ED;
+  color: #9A3412;
   border-radius: var(--radius-full);
   font-size: 12px;
   font-weight: 600;
@@ -339,7 +339,7 @@
   align-items: center;
   gap: 13px;
   padding: 14px 16px;
-  background: #0F172A;
+  background: #1C1917;
   color: #fff;
 }
 

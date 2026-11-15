@@ -6,24 +6,24 @@
    TOKENS
    ============================================================ */
 .adash-page {
-    --ink:         #0F172A;
-    --ink-2:       #334155;
-    --ink-3:       #64748B;
-    --ink-4:       #94A3B8;
-    --line:        #E2E8F0;
-    --line-soft:   #F1F5F9;
+    --ink:         #1C1917;
+    --ink-2:       #44403C;
+    --ink-3:       #78716C;
+    --ink-4:       #A8A29E;
+    --line:        #E7E5E4;
+    --line-soft:   #F5F5F4;
     --surface:     #FFFFFF;
-    --paper:       #F8FAFC;
+    --paper:       #FAFAF9;
 
     --brand:       #C2410C;
     --brand-dark:  #9A3412;
     --brand-soft:  #FED7AA;
 
-    --info:        #0284C7;
-    --info-soft:   #E0F2FE;
+    --info:        #44403C;
+    --info-soft:   #F5F5F4;
 
-    --success:     #16A34A;
-    --success-soft:#DCFCE7;
+    --success:     #C2410C;
+    --success-soft:#FFF4ED;
 
     --warning:     #D97706;
     --warning-soft:#FEF3C7;
@@ -189,7 +189,7 @@
     font-size: 11.5px;
     font-weight: 700;
 }
-.adash-kpi-trend.is-up   { background: var(--success-soft); color: #166534; }
+.adash-kpi-trend.is-up   { background: var(--success-soft); color: #9A3412; }
 .adash-kpi-trend.is-down { background: var(--danger-soft);  color: #991B1B; }
 
 .adash-kpi-body {
@@ -516,7 +516,7 @@
 }
 
 .adash-rank--1 { background: linear-gradient(135deg, #FBBF24, #D97706); color: #fff; }
-.adash-rank--2 { background: linear-gradient(135deg, #CBD5E1, #94A3B8); color: #fff; }
+.adash-rank--2 { background: linear-gradient(135deg, #D6D3D1, #A8A29E); color: #fff; }
 .adash-rank--3 { background: linear-gradient(135deg, #F97316, #C2410C); color: #fff; }
 
 .adash-ranking-info {
@@ -904,3 +904,12 @@
         transition-duration: 0.01ms !important;
     }
 }
+/* Graphique 12 mois (composant Barres des pages de suivi) */
+.su.su--integre { min-height: 0; padding: 0; background: transparent; }
+.adash-mini.is-clickable { cursor: pointer; transition: border-color .15s; }
+.adash-mini.is-clickable:hover { border-color: var(--brand); }
+.adash-kpi--ink .adash-kpi-icon    { background: #F5F5F4; color: #44403C; }
+.adash-kpi--danger .adash-kpi-icon { background: var(--danger-soft); color: var(--danger); }
+.adash-line-footer { display: flex; flex-wrap: wrap; gap: 8px 24px; justify-content: space-between; margin-top: 12px; }
+.adash-line-footer { font-size: 13px; color: var(--ink-3); }
+.adash-line-footer strong { color: var(--ink); }

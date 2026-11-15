@@ -14,6 +14,7 @@ import {
 } from '../../config/emplacements';
 import '../Ventes/Ventes.css';
 import './Emplacements.css';
+import { hasAccess, peutFaire } from '../../config/rolePermissions';
 
 // Nombre de produits rangés dans un nœud et tout ce qu'il contient
 function totalProduits(liste, n) {
@@ -120,7 +121,7 @@ function Colonne({ niveau, items, liste, parent, choisi, onChoisir, peutModifier
 export function GestionEmplacements({ idEntrepot = null, afficher, rechargement = 0, onChange }) {
   const { user } = useUser();
   const role = String(user?.role || '').toLowerCase();
-  const peutModifier = user?.type !== 'employe' || role !== 'caissier';
+  const peutModifier = user?.type !== 'employe' || hasAccess(role, 'emplacements') || peutFaire(role, 'produits.modifier');
 
   const [liste, setListe] = useState([]);
   const [chargement, setChargement] = useState(true);

@@ -236,3 +236,15 @@
 .pr-mode-nom { flex: 1; font-weight: 600; font-size: 14px; color: var(--miyo-text, #0F172A); }
 .pr-actions { display: flex; justify-content: flex-end; margin-top: 14px; }
 @media (max-width: 760px) { .pr-modes { grid-template-columns: 1fr; } }
+
+/* ---------- Menu groupé, une rubrique à la fois ---------- */
+.pr-nav-groupe + .pr-nav-groupe { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); }
+.pr-nav-titre { margin: 8px 10px 4px; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3, #78716c); }
+.pr-nav button.is-on { background: var(--signal-soft); color: var(--signal-ink, #9a3412); font-weight: 600; }
+.pr-nav button.is-on .pr-nav-num { background: var(--signal, #C2410C); color: #fff; }
+.pr-nav .pr-nav-note { border-top: 0; padding-top: 2px; margin-top: 4px; }
+.pr-contenu { min-height: 420px; align-content: start; }
+@media (max-width: 960px) {
+  .pr-nav-groupe { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+  .pr-nav-titre { width: 100%; }
+}

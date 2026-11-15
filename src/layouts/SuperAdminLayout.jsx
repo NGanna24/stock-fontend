@@ -5,7 +5,7 @@ import SuperAdminSidebar from "../components/SuperAdmin/Sidebar/Sidebar";
 
 const SuperAdminLayout = () => {
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#F8FAFC" }}>
+    <div style={{ display: "flex", minHeight: "100vh", background: "#FAFAF9" }}>
       <SuperAdminSidebar />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
         <SuperAdminHeader />

@@ -21,6 +21,7 @@ import { useUser } from '../../context/AuthContext';
 import { libelleMode } from '../../config/modesPaiement';
 import '../Ventes/Ventes.css';
 import './Caisse.css';
+import { hasAccess, peutFaire } from '../../config/rolePermissions';
 
 // ============================================================
 // HELPERS
@@ -172,8 +173,9 @@ export default function Caisse() {
   const { user } = useUser();
   const token = localStorage.getItem('token');
   const role = user?.role;
-  const peutUtiliser = ['admin', 'manager', 'caissier'].includes(role);
-  const responsable = role === 'admin' || role === 'manager';
+  // Droits réglés par le propriétaire (Rôles et permissions)
+  const peutUtiliser = hasAccess(role, 'caisse');
+  const responsable = peutFaire(role, 'caisse.historique');
 
   const [vue, setVue] = useState('jour'); // 'jour' | 'historique'
   const [etat, setEtat] = useState(null);  // { session, mouvements, derniere_cloture }

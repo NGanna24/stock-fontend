@@ -183,8 +183,8 @@
 }
 .trx-btn:hover { background: #f8fafc; }
 .trx-btn--sm { padding: 6px 10px; font-size: 13px; }
-.trx-btn--ok { background: #16a34a; border-color: #16a34a; color: #fff; }
-.trx-btn--ok:hover { background: #15803d; }
+.trx-btn--ok { background: #C2410C; border-color: #C2410C; color: #fff; }
+.trx-btn--ok:hover { background: #9A3412; }
 .trx-btn--ko { color: #b91c1c; border-color: #fecaca; }
 .trx-btn--ko:hover { background: #fef2f2; }
 

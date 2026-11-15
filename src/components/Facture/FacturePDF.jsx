@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
 // Modèle choisi dans Paramètres (ou forcé pour l'aperçu des modèles)
 const AUTRES_MODELES = { moderne: FactureModerne, epure: FactureEpure, compact: FactureCompact };
 
-const FacturePDF = ({ data, modele }) => {
+const FacturePDF = ({ data, modele = undefined }) => {
     const Autre = AUTRES_MODELES[modele || modeleFacture()];
     if (Autre) return <Autre data={data} />;
     return <FactureClassique data={data} />;

@@ -420,6 +420,7 @@ const Magasins = () => {
       ) : (
         <TableView
           magasins={data.magasins}
+          debut={(page - 1) * limit}
           onSelect={(id) => navigate(`/super-admin/magasins/${id}`)}
           onToggle={handleToggle}
           togglingId={togglingId}
@@ -471,11 +472,12 @@ const TabBtn = ({ active, onClick, children }) => (
 );
 
 // ---------- TABLE ----------
-const TableView = ({ magasins, onSelect, onToggle, togglingId }) => (
+const TableView = ({ magasins, debut = 0, onSelect, onToggle, togglingId }) => (
   <div className="mg-table-wrap">
     <table className="mg-table">
       <thead>
         <tr>
+          <th className="mg-num">N°</th>
           <th>Magasin</th>
           <th>Patron</th>
           <th>Localisation</th>
@@ -487,8 +489,9 @@ const TableView = ({ magasins, onSelect, onToggle, togglingId }) => (
         </tr>
       </thead>
       <tbody>
-        {magasins.map((m) => (
+        {magasins.map((m, i) => (
           <tr key={m.id_magasin} onClick={() => onSelect(m.id_magasin)}>
+            <td className="mg-num">{debut + i + 1}</td>
             <td>
               <div className="mg-cell-store">
                 <div className="mg-logo">

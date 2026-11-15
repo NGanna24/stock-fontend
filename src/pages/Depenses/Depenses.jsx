@@ -16,6 +16,7 @@ import { useUser } from '../../context/AuthContext';
 import { CATALOGUE_MODES, infoMode, libelleMode, useModesPaiement, useModeValide } from '../../config/modesPaiement';
 import '../Ventes/Ventes.css';
 import './Depenses.css';
+import { hasAccess } from '../../config/rolePermissions';
 
 // ============================================================
 // HELPERS
@@ -606,7 +607,7 @@ export default function Depenses() {
     const token = localStorage.getItem('token');
     const role = user?.role;
     const estAdmin = role === 'admin';
-    const peutEditer = estAdmin || role === 'manager';
+    const peutEditer = estAdmin || hasAccess(role, 'depenses');
 
     // Données
     const [depenses, setDepenses] = useState([]);

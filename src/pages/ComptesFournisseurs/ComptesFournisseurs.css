@@ -1,6 +1,4 @@
 /* pages/ComptesFournisseurs/ComptesFournisseurs.css */
-.cf .cf-chiffres { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
-.cf .cf-chiffres .vt-chiffre-val { font-size: clamp(18px, 1.6vw, 24px); white-space: nowrap; }
 
 .cf .cf-bloc { margin-bottom: 16px; }
 .cf .cf-bloc-titre { margin: 0 0 8px; font-size: 14px; font-weight: 700; color: var(--ink); }
@@ -83,3 +81,109 @@
 .cf .cf-table td.cf-detail { min-width: 200px; max-width: 340px; }
 .cf .cf-table td.cf-detail .vt-cell-sub { white-space: normal; overflow-wrap: anywhere; }
 .cf .cf-table .cf-type { white-space: normal; }
+
+/* ================================================================== */
+/* Montants, couleurs par famille, cartes et lignes                     */
+/* ================================================================== */
+.cf { --t-dette: #B42340; --t-credit: #57534E; --t-achat: #44403C; --t-paye: #C2410C; --t-bonus: #B45309; --t-neutre: #78716C; }
+.cf .cf-ton--dette  { --t: var(--t-dette);  --ts: rgba(180, 35, 64, .10); }
+.cf .cf-ton--credit { --t: var(--t-credit); --ts: rgba(87, 83, 78, .10); }
+.cf .cf-ton--achat  { --t: var(--t-achat);  --ts: rgba(68, 64, 60, .10); }
+.cf .cf-ton--paye   { --t: var(--t-paye);   --ts: rgba(194, 65, 12, .10); }
+.cf .cf-ton--bonus  { --t: var(--t-bonus);  --ts: rgba(180, 83, 9, .12); }
+.cf .cf-ton--neutre { --t: var(--t-neutre); --ts: rgba(120, 113, 108, .10); }
+
+.cf .cf-m { display: inline-flex; align-items: baseline; gap: 4px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; letter-spacing: -.01em; }
+.cf .cf-m small { font-size: .62em; font-weight: 600; color: var(--ink-3); letter-spacing: .02em; }
+.cf .cf-m-signe { margin-right: 1px; }
+.cf .cf-m--hausse { color: var(--t-dette); }
+.cf .cf-m--baisse { color: var(--t-paye); }
+.cf .cf-m--bonus { color: var(--t-bonus); }
+.cf .cf-solde { font-size: 14px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+.cf .cf-gris { color: var(--ink-3); font-weight: 500; font-size: 13px; }
+.cf .cf-avance { color: var(--t-paye); }
+.cf .cf-rouge { color: var(--t-dette); }
+
+.cf .cf-pastille { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 10px; background: var(--ts, var(--sunken)); color: var(--t, var(--ink-2)); flex-shrink: 0; }
+
+/* Barre de crédit */
+.cf .cf-barre { height: 6px; border-radius: 999px; background: var(--sunken, #F5F5F4); overflow: hidden; margin-top: 8px; width: 100%; }
+.cf .cf-barre span { display: block; height: 100%; border-radius: 999px; background: #F97316; }
+.cf .cf-barre--haut span { background: #D97706; }
+.cf .cf-barre--depasse span { background: var(--t-dette); }
+.cf .cf-sans-plafond { font-size: 12px; color: var(--ink-3); }
+
+/* Cartes de chiffres */
+.cf .cf-cartes { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.cf .cf-cartes--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.cf .cf-carte { display: flex; flex-direction: column; gap: 6px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; min-width: 0; }
+.cf .cf-carte-tete { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cf .cf-carte-titre { font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.cf .cf-carte-valeur { margin-top: 4px; font-size: clamp(20px, 1.7vw, 26px); line-height: 1.15; }
+.cf .cf-carte-valeur .cf-m { color: var(--t); }
+.cf .cf-ton--credit .cf-carte-valeur .cf-m, .cf .cf-ton--achat .cf-carte-valeur .cf-m { color: var(--ink); }
+.cf .cf-carte-texte { font-size: 18px; font-weight: 700; color: var(--ink-3); }
+.cf .cf-carte-sous { font-size: 12.5px; color: var(--ink-3); line-height: 1.4; }
+
+/* Lignes (listes numérotées) */
+.cf .cf-lignes { list-style: none; counter-reset: cfl; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.cf .cf-ligne { counter-increment: cfl; position: relative; display: grid; grid-template-columns: 22px 36px minmax(0, 1fr) auto auto; align-items: center; gap: 14px; padding: 14px 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+.cf .cf-ligne::before { content: counter(cfl); text-align: right; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.cf .cf-ligne-corps { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.cf .cf-ligne-titre { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cf .cf-ligne-titre strong { font-size: 14px; color: var(--ink); }
+.cf .cf-ref { display: inline-flex; align-items: center; gap: 2px; padding: 1px 7px; border-radius: 6px; background: var(--sunken, #F5F5F4); font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.cf .cf-ligne-sous { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--ink-3); overflow-wrap: anywhere; }
+.cf .cf-date { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: var(--ink-2); white-space: nowrap; }
+.cf .cf-ligne-par { font-size: 11.5px; color: var(--ink-3); opacity: .85; }
+.cf .cf-ligne-montant { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; text-align: right; }
+.cf .cf-ligne-montant > .cf-m { font-size: 17px; }
+.cf .cf-m-plafond { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; color: var(--ink-3); }
+.cf .cf-apres { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
+.cf .cf-apres b { color: var(--ink-2); font-weight: 600; }
+.cf .cf-ligne-actions { display: flex; gap: 6px; justify-content: flex-end; min-width: 36px; }
+.cf .cf-annulee { opacity: .6; }
+.cf .cf-annulee .cf-ligne-montant .cf-m { text-decoration: line-through; }
+
+/* Blocs de valeurs alignés (commandes, bonus, rapprochements, fournisseurs) */
+.cf .cf-valeurs { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(130px, 1fr); gap: 18px; align-items: start; }
+.cf .cf-valeurs > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cf .cf-valeurs > div > span:first-child { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); white-space: nowrap; }
+.cf .cf-valeurs > div > span:first-child svg { color: var(--t, var(--ink-3)); }
+.cf .cf-valeurs .cf-m { font-size: 15px; }
+.cf .cf-valeurs .cf-valeur-forte .cf-m { font-size: 17px; }
+.cf .cf-valeurs small { font-size: 11.5px; color: var(--ink-3); }
+.cf .cf-ligne--cmd, .cf .cf-ligne--bonus, .cf .cf-ligne--rappro { grid-template-columns: 22px 36px minmax(180px, 1fr) minmax(0, 2fr) auto; }
+.cf .cf-ligne--bonus { grid-template-columns: 22px 36px minmax(180px, 1fr) minmax(0, 2fr); }
+
+/* Liste des fournisseurs */
+.cf .cf-ligne--fourn { grid-template-columns: 22px minmax(200px, 1.1fr) minmax(0, 3fr) auto; padding: 14px 16px; }
+.cf .cf-fourn-id { display: flex; align-items: center; gap: 12px; min-width: 0; padding: 0; border: 0; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.cf .cf-fourn-id:hover strong { color: var(--t-paye); text-decoration: underline; }
+.cf .cf-avatar { width: 40px; height: 40px; border-radius: 12px; background: rgba(194, 65, 12, .12); color: var(--t-paye); display: inline-flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; flex-shrink: 0; }
+.cf .cf-fourn-txt { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cf .cf-fourn-txt strong { font-size: 14.5px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cf .cf-fourn-txt small { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 12px; color: var(--ink-3); }
+.cf .cf-ligne--fourn .cf-valeurs { grid-auto-columns: minmax(120px, 1fr); }
+.cf .cf-ligne-etat { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
+
+@media (max-width: 1360px) {
+  .cf .cf-cartes--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cf .cf-ligne--fourn { grid-template-columns: 22px minmax(0, 1fr) auto; }
+  .cf .cf-ligne--fourn .cf-valeurs { grid-column: 2 / -1; grid-row: 2; grid-auto-flow: row; grid-template-columns: repeat(4, minmax(0, 1fr)); padding-top: 12px; border-top: 1px solid var(--line); }
+  .cf .cf-ligne--fourn .cf-ligne-etat { flex-direction: row; align-items: center; }
+  .cf .cf-ligne--cmd, .cf .cf-ligne--bonus, .cf .cf-ligne--rappro { grid-template-columns: 22px 36px minmax(0, 1fr) auto; }
+  .cf .cf-ligne--cmd .cf-valeurs, .cf .cf-ligne--bonus .cf-valeurs, .cf .cf-ligne--rappro .cf-valeurs { grid-column: 3 / -1; grid-row: 2; }
+  .cf .cf-ligne--cmd .cf-ligne-actions, .cf .cf-ligne--rappro .cf-ligne-actions { grid-column: 4; grid-row: 1; }
+}
+@media (max-width: 900px) {
+  .cf .cf-cartes--4 { grid-template-columns: minmax(0, 1fr); }
+  .cf .cf-ligne--fourn .cf-valeurs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cf .cf-valeurs { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cf .cf-lignes--histo .cf-ligne { grid-template-columns: 22px 36px minmax(0, 1fr) auto; }
+  .cf .cf-lignes--histo .cf-ligne-montant { grid-column: 3 / -1; grid-row: 2; align-items: flex-start; text-align: left; }
+}
+
+/* Reçu ajouté après coup */
+.cf .cf-joindre { white-space: nowrap; }
+.cf-jo-apercu { display: block; max-width: 100%; max-height: 280px; margin: 4px auto 0; border-radius: 10px; border: 1px solid var(--line); object-fit: contain; }

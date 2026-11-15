@@ -12,6 +12,7 @@
 import { useSyncExternalStore } from 'react';
 import axios from 'axios';
 import API_URL from '../config/api';
+import { hasAccess } from '../config/rolePermissions';
 import {
   lireKV, ecrireKV, toutesLesVentes, lireVente, ecrireVente, supprimerVente,
 } from './stockage';
@@ -180,6 +181,11 @@ async function enDataUrl(url) {
 export async function preparer({ force = false, magasin = null } = {}) {
   const token = jeton();
   if (!token || !utilisateurCourant()) return false;
+  // La vente hors ligne ne sert qu'aux rôles qui ont accès à la page Vente
+  try {
+    const role = JSON.parse(localStorage.getItem('user') || 'null')?.role;
+    if (role && !hasAccess(role, 'commandes-clients')) return false;
+  } catch { /* compte illisible : on continue comme avant */ }
   const actuel = await chargerCatalogue();
   if (!force && actuel.genere_le && Date.now() - new Date(actuel.recu_le || actuel.genere_le).getTime() < CATALOGUE_FRAIS_MS) {
     if (magasin) await memoriserMagasin(magasin);

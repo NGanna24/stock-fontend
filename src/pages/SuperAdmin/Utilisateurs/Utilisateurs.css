@@ -1,23 +1,23 @@
 /* pages/SuperAdmin/Utilisateurs/Utilisateurs.css */
 
 .us-page {
-    --ink:      #0F172A;
-    --ink-2:    #334155;
-    --ink-3:    #64748B;
-    --ink-4:    #94A3B8;
-    --line:     #E2E8F0;
-    --line-2:   #F1F5F9;
+    --ink:      #1C1917;
+    --ink-2:    #44403C;
+    --ink-3:    #78716C;
+    --ink-4:    #A8A29E;
+    --line:     #E7E5E4;
+    --line-2:   #F5F5F4;
     --surface:  #FFFFFF;
-    --paper:    #F8FAFC;
+    --paper:    #FAFAF9;
 
     --brand:      #C2410C;
     --brand-dark: #9A3412;
     --brand-soft: #FED7AA;
 
-    --info:      #0284C7;
-    --info-soft: #E0F2FE;
-    --success:   #16A34A;
-    --success-soft: #DCFCE7;
+    --info:      #44403C;
+    --info-soft: #F5F5F4;
+    --success:   #C2410C;
+    --success-soft: #FFF4ED;
     --warning:   #D97706;
     --warning-soft: #FEF3C7;
     --danger:    #DC2626;
@@ -114,7 +114,7 @@
 .us-muted { color: var(--ink-4); }
 
 .us-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; }
-.us-badge--success { background: var(--success-soft); color: #166534; }
+.us-badge--success { background: var(--success-soft); color: #9A3412; }
 .us-badge--danger  { background: var(--danger-soft);  color: #991B1B; }
 
 .us-row-actions { display: flex; gap: 4px; justify-content: flex-end; }
@@ -153,8 +153,13 @@
 .us-spinner { width: 32px; height: 32px; border: 3px solid var(--line); border-top-color: var(--brand); border-radius: 50%; animation: us-spin .8s linear infinite; }
 
 /* RESPONSIVE */
+@media (max-width: 1280px) {
+    .us-table th:nth-child(8), .us-table td:nth-child(8) { display: none; }
+}
+@media (max-width: 1100px) {
+    .us-table th:nth-child(3), .us-table td:nth-child(3) { display: none; }
+}
 @media (max-width: 900px) {
-    .us-table th:nth-child(4), .us-table td:nth-child(4),
     .us-table th:nth-child(7), .us-table td:nth-child(7) { display: none; }
 }
 @media (max-width: 640px) {
@@ -163,3 +168,14 @@
     .us-toolbar { flex-direction: column; align-items: stretch; }
     .us-search { max-width: none; }
 }
+/* Numérotation et abonnement */
+.us-table .us-num { width: 44px; text-align: right; padding-right: 4px; color: var(--ink-4); font-variant-numeric: tabular-nums; font-size: 12.5px; }
+.us-magasin-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.us-magasin-txt small { font-size: 11.5px; }
+.us-abo { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; }
+.us-abo small { font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+.us-abo-badge { display: inline-flex; padding: 2px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.us-abo--ok      { background: #FFF4ED; color: #9A3412; }
+.us-abo--essai   { background: #F5F5F4; color: #44403C; }
+.us-abo--bientot { background: #FEF3C7; color: #92400E; }
+.us-abo--expire  { background: #FEE2E2; color: #991B1B; }

@@ -338,6 +338,13 @@ export const API_URL = {
         DELETE: (id) => `${BASE_URL}/api/retours-fournisseurs/${id}`,
     },
 
+    // ==================== RÔLES ET PERMISSIONS ====================
+    PERMISSIONS: {
+        MOI: `${BASE_URL}/api/permissions/moi`,
+        LISTE: `${BASE_URL}/api/permissions`,
+        ROLE: (role) => `${BASE_URL}/api/permissions/${role}`,
+    },
+
     // ==================== URLS CLIENTS ====================
     CLIENT: {
         GET_ALL: `${BASE_URL}/api/clients`,
@@ -440,11 +447,15 @@ export const API_URL = {
     // ============================================================
     // ✅ SUPER ADMIN — AUTH (au niveau racine)
     // ============================================================
+    // État de la plateforme vu par les patrons (public)
+    PLATEFORME_ETAT: `${BASE_URL}/api/plateforme/etat`,
+
     SUPER_ADMIN_AUTH: {
         LOGIN: `${BASE_URL}/api/super-admin/auth/login`,
         REGISTER: `${BASE_URL}/api/super-admin/auth/register`,
         ME: `${BASE_URL}/api/super-admin/auth/me`,
         CHANGE_PASSWORD: `${BASE_URL}/api/super-admin/auth/change-password`,
+        PROFIL: `${BASE_URL}/api/super-admin/auth/profil`,
         LOGOUT: `${BASE_URL}/api/super-admin/auth/logout`,
     },
 
@@ -589,6 +600,23 @@ TRANSFERT: {
             DETAIL: (id) => `${BASE_URL}/api/super-admin/utilisateurs/${id}`,
             TOGGLE: (id) => `${BASE_URL}/api/super-admin/utilisateurs/${id}/toggle`,
         },
+
+        // Pages de suivi : alertes, activité, revenus, statistiques, journal d'audit, sécurité
+        SUIVI: {
+            ALERTES: `${BASE_URL}/api/super-admin/suivi/alertes`,
+            NOMBRE_ALERTES: `${BASE_URL}/api/super-admin/suivi/alertes/nombre`,
+            ACTIVITE: `${BASE_URL}/api/super-admin/suivi/activite`,
+            REVENUS: `${BASE_URL}/api/super-admin/suivi/revenus`,
+            STATISTIQUES: `${BASE_URL}/api/super-admin/suivi/statistiques`,
+            RAPPORT: `${BASE_URL}/api/super-admin/suivi/rapport`,
+            APERCU: `${BASE_URL}/api/super-admin/suivi/apercu`,
+            JOURNAL: `${BASE_URL}/api/super-admin/suivi/journal`,
+            SECURITE: `${BASE_URL}/api/super-admin/suivi/securite`,
+            DEBLOQUER: (type, id) => `${BASE_URL}/api/super-admin/suivi/securite/debloquer/${type}/${id}`,
+        },
+
+        // Réglages de la plateforme (maintenance, annonce, application mobile)
+        PLATEFORME: `${BASE_URL}/api/super-admin/plateforme`,
 
         // Abonnements des patrons (paiement validé à la main)
         ABONNEMENTS: {

@@ -37,11 +37,12 @@ const ConfirmModal = ({
     if (!isOpen) return null;
 
     const config = {
-        warning: { icon: AlertTriangle, color: '#f59e0b', bg: '#fffbeb' },
-        danger:  { icon: XCircle,       color: '#ef4444', bg: '#fef2f2' },
-        success: { icon: CheckCircle,   color: '#10b981', bg: '#ecfdf5' },
-        info:    { icon: Info,          color: '#2563eb', bg: '#eff6ff' },
-    }[type] || { icon: AlertTriangle, color: '#f59e0b', bg: '#fffbeb' };
+        // Couleurs Miyo : orange pour « attention », rouge seulement pour supprimer / annuler
+        warning: { icon: AlertTriangle, color: '#C2410C', bg: '#FFF4ED' },
+        danger:  { icon: XCircle,       color: '#B91C1C', bg: '#FEF2F2' },
+        success: { icon: CheckCircle,   color: '#C2410C', bg: '#FFF4ED' },
+        info:    { icon: Info,          color: '#44403C', bg: '#F5F5F4' },
+    }[type] || { icon: AlertTriangle, color: '#C2410C', bg: '#FFF4ED' };
 
     const Icon = config.icon;
 

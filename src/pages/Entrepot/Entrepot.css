@@ -24,14 +24,14 @@
   --signal-tint:  var(--miyo-primary-soft, #FBF3E8);
   --oxide:        var(--miyo-danger, #B42318);
   --oxide-deep:   var(--miyo-danger-deep, #991B1B);
-  --moss:         var(--miyo-success, #1B7A3E);
-  --moss-deep:    var(--miyo-success-deep, #166534);
+  --moss:         var(--miyo-success, #9A3412);
+  --moss-deep:    var(--miyo-success-deep, #9A3412);
   --warn:         var(--miyo-warning, #E0B85C);
   --warn-deep:    var(--miyo-warning-deep, #8A5A00);
   --bad-soft:     var(--miyo-danger-soft, #FDECEC);
-  --ok-soft:      var(--miyo-success-soft, #E7F6EC);
-  --info-soft:    var(--miyo-info-soft, #EFF6FF);
-  --info-deep:    var(--miyo-info-deep, #1E40AF);
+  --ok-soft:      var(--miyo-success-soft, #FFF4ED);
+  --info-soft:    var(--miyo-info-soft, #F5F5F4);
+  --info-deep:    var(--miyo-info-deep, #1C1917);
 
   --radius-sm:    var(--miyo-radius-sm, 8px);
   --radius:       var(--miyo-radius, 10px);
@@ -1399,7 +1399,7 @@ button.ep2-kpi:hover { border-color: #94a3b8; }
 .ep2-stock .ep-level { margin-top: 6px; }
 .ep2-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ep2-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; white-space: nowrap; }
-.ep2-badge--ok, .ep2-badge--high { background: #dcfce7; color: #166534; }
+.ep2-badge--ok, .ep2-badge--high { background: #FFF4ED; color: #9A3412; }
 .ep2-badge--low { background: #fef3c7; color: #92400e; }
 .ep2-badge--out { background: #fee2e2; color: #991b1b; }
 .ep2-row-actions { display: inline-flex; gap: 4px; justify-content: flex-end; }
@@ -1417,4 +1417,4 @@ button.ep2-kpi:hover { border-color: #94a3b8; }
 .ep2-state strong { color: #0f172a; font-size: 16px; }
 
 @media (max-width: 900px) { .ep2-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 520px) { .ep2-page { padding: 14px 12px 40px; } .ep2-kpis { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .ep2-page { padding: 14px 12px 40px; } .ep2-kpis { grid-template-columns: 1fr; } }

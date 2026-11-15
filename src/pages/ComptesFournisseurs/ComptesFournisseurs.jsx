@@ -8,11 +8,12 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Plus, RefreshCw, ArrowLeft, ShoppingBag, Wallet, Gift, Ticket, Gauge, Scale, Paperclip, Ban,
   AlertTriangle, Loader, Search, SlidersHorizontal, Eye, CheckCircle2, BookOpen, PackageCheck, Undo2, ClipboardList,
+  Landmark, HandCoins, Truck, Store, ChevronRight, Phone, CalendarDays, Hash,
 } from 'lucide-react';
 import CompteFournisseurService from '../../services/compteFournisseurService';
 import { useModesPaiement, useModeValide, libelleMode } from '../../config/modesPaiement';
 import {
-  Page, PageHead, Chiffres, Onglets, Badge, ErrorBar, Toast, useToast, Modal, ModalHead,
+  Page, PageHead, Onglets, Badge, ErrorBar, Toast, useToast, Modal, ModalHead,
   fcfa, dateFR, dateHeureFR,
 } from '../../components/UI/Vt';
 import '../Ventes/Ventes.css';
@@ -29,15 +30,16 @@ const versNombre = (v) => {
 };
 const MONTANT_RE = /^-?[\d\s]*[.,]?\d{0,2}$/;
 
+// ton : achat (la dette monte), paye (la dette baisse), bonus, neutre
 const TYPES = {
-  reception: { label: 'Réception', Icon: PackageCheck },
-  achat: { label: 'Achat hors stock', Icon: ShoppingBag },
-  retour: { label: 'Retour', Icon: Undo2 },
-  versement: { label: 'Versement', Icon: Wallet },
-  bonus: { label: 'Bonus reçu', Icon: Gift },
-  utilisation_bonus: { label: 'Bonus utilisé', Icon: Ticket },
-  ajustement: { label: 'Ajustement', Icon: SlidersHorizontal },
-  plafond: { label: 'Plafond', Icon: Gauge },
+  reception: { label: 'Réception', Icon: PackageCheck, ton: 'achat' },
+  achat: { label: 'Achat hors stock', Icon: ShoppingBag, ton: 'achat' },
+  retour: { label: 'Retour', Icon: Undo2, ton: 'paye' },
+  versement: { label: 'Versement', Icon: Wallet, ton: 'paye' },
+  bonus: { label: 'Bonus reçu', Icon: Gift, ton: 'bonus' },
+  utilisation_bonus: { label: 'Bonus utilisé', Icon: Ticket, ton: 'bonus' },
+  ajustement: { label: 'Ajustement', Icon: SlidersHorizontal, ton: 'neutre' },
+  plafond: { label: 'Plafond', Icon: Gauge, ton: 'neutre' },
 };
 const TYPES_BONUS = { libre: 'Libre', conditionnel: 'Conditionnel', avoir: 'Avoir' };
 const TON_ALERTE = { danger: 'bad', attention: 'warn', info: 'muted' };
@@ -81,10 +83,10 @@ function ChampDate({ id, label, value, onChange, disabled, min, max }) {
   );
 }
 
-function ChampJustificatif({ fichier, onChange, disabled }) {
+function ChampJustificatif({ fichier, onChange, disabled, obligatoire = false }) {
   return (
     <div className="vt-field">
-      <span className="vt-field-label">Justificatif <span className="vt-muted">(facultatif : photo ou PDF, 5 Mo max)</span></span>
+      <span className="vt-field-label">{obligatoire ? 'Reçu' : 'Justificatif'} <span className="vt-muted">({obligatoire ? '' : 'facultatif : '}photo ou PDF, 5 Mo max)</span></span>
       <label className={`cf-fichier ${fichier ? 'has-file' : ''}`}>
         <Paperclip size={15} />
         <span>{fichier ? fichier.name : 'Joindre la photo du reçu ou de la facture'}</span>
@@ -110,6 +112,46 @@ function ChoixMode({ mode, setMode, disabled, idLabel }) {
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------
+// Affichage des montants : le nombre en gras, l'unité en petit à part
+// ------------------------------------------------------------
+const milliers = (n) => Math.round(Math.abs(Number(n) || 0)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, '\u202f');
+function Montant({ v, signe = '', unite = true, className = '' }) {
+  return (
+    <span className={`cf-m ${className}`}>
+      {signe && <span className="cf-m-signe">{signe}</span>}{milliers(v)}{unite && <small>FCFA</small>}
+    </span>
+  );
+}
+const initiales = (n = '') => n.split(/\s+/).filter(Boolean).map((m) => m[0]).join('').slice(0, 2).toUpperCase() || '?';
+
+/** Barre d'utilisation du crédit */
+function BarreCredit({ utilise, plafond, compact = false }) {
+  if (!(plafond > 0)) return compact ? <span className="cf-sans-plafond">Pas de plafond</span> : null;
+  const pct = Math.min(100, (utilise / plafond) * 100);
+  const ton = utilise > plafond + 0.009 ? 'depasse' : pct >= 85 ? 'haut' : 'ok';
+  return (
+    <div className={`cf-barre cf-barre--${ton}`} role="img" aria-label={`Crédit utilisé : ${Math.round((utilise / plafond) * 100)} % du plafond`}>
+      <span style={{ width: `${Math.max(pct, 3)}%` }} />
+    </div>
+  );
+}
+
+/** Carte de chiffre : icône de couleur, montant lisible, détail en dessous */
+function CarteChiffre({ icone: Icone, ton, titre, valeur, montant, signe, sous, children }) {
+  return (
+    <div className={`cf-carte cf-ton--${ton}`}>
+      <div className="cf-carte-tete">
+        <span className="cf-pastille"><Icone size={17} /></span>
+        <span className="cf-carte-titre">{titre}</span>
+      </div>
+      <div className="cf-carte-valeur">{montant != null ? <Montant v={montant} signe={signe} /> : valeur}</div>
+      {children}
+      {sous && <div className="cf-carte-sous">{sous}</div>}
     </div>
   );
 }
@@ -439,7 +481,51 @@ function ModalAnnuler({ op, onClose, onFait }) {
   );
 }
 
-function ModalJustificatif({ op, onClose }) {
+/** Ajouter ou remplacer le reçu d'une opération déjà enregistrée */
+function ModalJoindre({ op, remplacer = false, onClose, onFait }) {
+  const [fichier, setFichier] = useState(null);
+  const [apercu, setApercu] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [erreur, setErreur] = useState(null);
+  useEffect(() => {
+    if (!fichier || !fichier.type.startsWith('image/')) { setApercu(null); return undefined; }
+    const u = URL.createObjectURL(fichier);
+    setApercu(u);
+    return () => URL.revokeObjectURL(u);
+  }, [fichier]);
+  const choisir = (f) => {
+    setErreur(null);
+    if (f && f.size > 5 * 1024 * 1024) { setErreur('Fichier trop lourd : 5 Mo maximum.'); return; }
+    setFichier(f);
+  };
+  const envoyer = async () => {
+    setSaving(true); setErreur(null);
+    try { onFait(await CompteFournisseurService.joindreJustificatif(op.source, op.id, fichier)); }
+    catch (e) { setErreur(e.message); } finally { setSaving(false); }
+  };
+  const T = TYPES[op.type] || { label: 'Opération' };
+  return (
+    <Modal size="md" busy={saving} labelledBy="cf-jo-titre" dismissable={!saving} onClose={onClose}>
+      <ModalHead id="cf-jo-titre" title={remplacer ? 'Remplacer le reçu' : 'Joindre le reçu'}
+                 sub={`${T.label} du ${dateFR(op.date)} · ${fcfa(Math.abs(Number(op.montant)))}${op.reference ? ` · ${op.reference}` : ''}`}
+                 onClose={onClose} disabled={saving} />
+      <div className="vt-modal-body cf-form">
+        <Erreur texte={erreur} />
+        {remplacer && <div className="cf-rappel">L'ancien reçu sera remplacé par le nouveau. Le montant et la date ne changent pas.</div>}
+        <ChampJustificatif fichier={fichier} onChange={choisir} disabled={saving} obligatoire />
+        {apercu && <img src={apercu} alt="Aperçu du reçu choisi" className="cf-jo-apercu" />}
+      </div>
+      <div className="vt-modal-foot vt-modal-foot--end">
+        <button type="button" className="vt-btn" onClick={onClose} disabled={saving}>Annuler</button>
+        <button type="button" className="vt-btn vt-btn--primary" onClick={envoyer} disabled={saving || !fichier}>
+          {saving ? <Loader size={16} className="vt-spin" /> : <Paperclip size={16} />} {remplacer ? 'Remplacer le reçu' : 'Enregistrer le reçu'}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function ModalJustificatif({ op, onClose, onRemplacer }) {
   const [url, setUrl] = useState(null);
   const [type, setType] = useState('');
   const [erreur, setErreur] = useState(null);
@@ -465,6 +551,12 @@ function ModalJustificatif({ op, onClose }) {
           ? <iframe title="Justificatif" src={url} className="cf-justif-pdf" />
           : <img src={url} alt="Justificatif de l'opération" className="cf-justif-img" />)}
       </div>
+      {onRemplacer && !op.annulee && (
+        <div className="vt-modal-foot vt-modal-foot--end">
+          <button type="button" className="vt-btn" onClick={onClose}>Fermer</button>
+          <button type="button" className="vt-btn vt-btn--primary" onClick={onRemplacer}><Paperclip size={16} /> Remplacer le reçu</button>
+        </div>
+      )}
     </Modal>
   );
 }
@@ -641,20 +733,26 @@ function FicheCompte({ idCompte, onRetour, afficher }) {
         <button type="button" className="vt-btn" onClick={() => setModal({ nom: 'ajustement' })}><SlidersHorizontal size={16} /> Ajustement</button>
       </div>
 
-      <Chiffres className="cf-chiffres" items={[
-        { label: 'Plafond accordé', value: compte.plafond > 0 ? fcfa(compte.plafond) : 'Aucun', fort: true },
-        { label: 'Je dois', value: fcfa(compte.credit_utilise), tone: compte.depassement > 0 ? 'bad' : undefined,
-          note: compte.depassement > 0 ? `Dépasse le plafond de ${fcfa(compte.depassement)}` : null },
-        { label: 'Crédit disponible', value: fcfa(compte.credit_disponible), tone: compte.alertes.some((a) => a.code === 'credit_faible') ? 'warn' : undefined },
-        compte.avance > 0 ? { label: 'Avance chez lui', value: fcfa(compte.avance), tone: 'signal' } : null,
-        { label: 'Total des achats', value: fcfa(compte.total_achats),
-          note: compte.total_achats_hors_stock > 0 ? `dont ${fcfa(compte.total_achats_hors_stock)} hors stock` : 'réceptions de marchandise' },
-        compte.total_retours > 0 ? { label: 'Retours', value: fcfa(compte.total_retours) } : null,
-        { label: 'Total versé', value: fcfa(compte.total_versements + compte.total_paye_achats),
-          note: compte.total_paye_achats > 0 ? `dont ${fcfa(compte.total_paye_achats)} payés aux achats` : null },
-        { label: 'Bonus disponible', value: fcfa(compte.bonus_disponible), note: `${fcfa(compte.total_bonus_accordes)} reçus au total` },
-        { label: 'Bonus utilisés', value: fcfa(compte.total_bonus_utilises) },
-      ]} />
+      <div className="cf-cartes">
+        <CarteChiffre icone={HandCoins} ton="dette" titre="Je dois" montant={compte.credit_utilise}
+                      sous={compte.depassement > 0 ? <span className="cf-rouge">Dépasse le plafond de {fcfa(compte.depassement)}</span>
+                        : compte.plafond > 0 ? `sur un plafond de ${fcfa(compte.plafond)}` : 'aucun plafond accordé'}>
+          <BarreCredit utilise={compte.credit_utilise} plafond={compte.plafond} />
+        </CarteChiffre>
+        <CarteChiffre icone={Gauge} ton="credit" titre="Crédit disponible"
+                      valeur={compte.plafond > 0 ? <Montant v={compte.credit_disponible} /> : <span className="cf-carte-texte">Aucun plafond</span>}
+                      sous={compte.plafond > 0 ? `Plafond accordé : ${fcfa(compte.plafond)}` : 'Ce fournisseur ne vous fait pas crédit'} />
+        <CarteChiffre icone={Truck} ton="achat" titre="Total des achats" montant={compte.total_achats}
+                      sous={[compte.total_achats_hors_stock > 0 ? `dont ${fcfa(compte.total_achats_hors_stock)} hors stock` : 'réceptions de marchandise',
+                        compte.total_retours > 0 ? `${fcfa(compte.total_retours)} retournés` : null].filter(Boolean).join(' · ')} />
+        <CarteChiffre icone={Wallet} ton="paye" titre="Total versé" montant={compte.total_versements + compte.total_paye_achats}
+                      sous={compte.total_paye_achats > 0 ? `dont ${fcfa(compte.total_paye_achats)} payés aux achats` : 'versements sur le compte'} />
+        <CarteChiffre icone={Gift} ton="bonus" titre="Bonus disponible" montant={compte.bonus_disponible}
+                      sous={`${fcfa(compte.total_bonus_accordes)} reçus · ${fcfa(compte.total_bonus_utilises)} utilisés`} />
+        {compte.avance > 0 && (
+          <CarteChiffre icone={Landmark} ton="paye" titre="Avance chez lui" montant={compte.avance} sous="Déjà payé d'avance" />
+        )}
+      </div>
 
       <Onglets actif={onglet} onChange={setOnglet} label="Contenu du compte" items={[
         { id: 'historique', label: 'Historique', count: operations.length },
@@ -682,150 +780,175 @@ function FicheCompte({ idCompte, onRetour, afficher }) {
               <button type="button" className="vt-btn vt-btn--sm" onClick={() => setFiltres({ du: '', au: '', type: '', q: '' })}>Effacer</button>
             )}
           </div>
-          <div className="vt-table-wrap">
-            <table className="vt-table cf-table">
-              <thead>
-                <tr>
-                  <th>Date</th><th>Opération</th><th>Référence / détail</th><th className="vt-th-right">Montant</th>
-                  <th className="vt-th-right cf-col-hide cf-col-lg">Dette avant</th><th className="vt-th-right">Dette après</th>
-                  <th className="vt-th-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {operations.map((o) => {
-                  const T = TYPES[o.type] || { label: o.type, Icon: BookOpen };
-                  const baisse = o.type === 'versement' || o.type === 'retour' || (o.type === 'ajustement' && Number(o.montant) < 0)
-                    || (o.type === 'utilisation_bonus' && o.sur_dette);
-                  const peutAnnuler = !o.annulee && (o.source === 'versement' || (o.source === 'operation' && o.type !== 'plafond'));
-                  return (
-                    <tr key={o.cle} className={o.annulee ? 'cf-annulee' : ''}>
-                      <td className="vt-num">{dateFR(o.date)}</td>
-                      <td><span className="cf-type"><T.Icon size={15} /> {T.label}</span>
-                        {o.type === 'bonus' && o.type_bonus && <div className="vt-cell-sub">{TYPES_BONUS[o.type_bonus]}{o.date_expiration ? ` · jusqu'au ${dateFR(o.date_expiration)}` : ''}</div>}
-                        {o.annulee && <div className="vt-cell-sub cf-rouge">Annulée{o.motif_annulation ? ` : ${o.motif_annulation}` : ''}</div>}
-                      </td>
-                      <td className="cf-detail">
-                        <div className="vt-cell-main">{o.reference || <span className="vt-muted">-</span>}</div>
-                        <div className="vt-cell-sub">
-                          {[
-                            o.source !== 'operation' ? o.detail : null,
-                            o.type === 'achat' && Number(o.montant_paye) > 0 ? `payé ${fcfa(o.montant_paye)} (${libelleMode(o.mode_paiement)})` : null,
-                            o.type === 'achat' && Number(o.bonus_utilise) > 0 ? `bonus ${fcfa(o.bonus_utilise)}` : null,
-                            o.type === 'versement' ? libelleMode(o.mode_paiement) : null,
-                            o.type === 'utilisation_bonus' && o.sur_dette ? 'règle la dette' : null,
-                            o.type === 'plafond' ? `${fcfa(o.plafond_avant)} → ${fcfa(o.plafond_apres)}` : null,
-                            o.observation,
-                          ].filter(Boolean).join(' · ')}
-                        </div>
-                        {o.cree_par_nom && <div className="vt-cell-sub cf-par">Saisi par {o.cree_par_nom}{o.date_creation ? `, le ${dateHeureFR(o.date_creation)}` : ''}</div>}
-                      </td>
-                      <td className="vt-td-right vt-num cf-montant">{o.type === 'plafond' ? '-' : `${baisse ? '−' : ''}${fcfa(Math.abs(Number(o.montant)))}`}</td>
-                      <td className="vt-td-right vt-num cf-col-hide cf-col-lg">{o.dette_avant == null ? '-' : lireSolde(Number(o.dette_avant))}</td>
-                      <td className="vt-td-right vt-num">{o.dette_apres == null ? '-' : lireSolde(Number(o.dette_apres))}</td>
-                      <td className="vt-td-right">
-                        <div className="vt-actions">
-                          {o.a_justificatif && (
-                            <button type="button" className="vt-iconbtn vt-iconbtn--sm" title="Voir le justificatif" aria-label="Voir le justificatif"
-                                    onClick={() => setModal({ nom: 'justificatif', op: o })}><Eye size={15} /></button>
-                          )}
-                          {peutAnnuler && (
-                            <button type="button" className="vt-iconbtn vt-iconbtn--sm" title="Annuler" aria-label="Annuler l'opération"
-                                    onClick={() => setModal({ nom: 'annuler', op: o })}><Ban size={15} /></button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {operations.length === 0 && (
-              <div className="vt-empty"><BookOpen size={28} /><p className="vt-empty-title">Aucune opération</p>
-                <p className="vt-empty-text">Les réceptions de marchandise et les versements apparaissent ici.</p></div>
-            )}
-          </div>
+          <ol className="cf-lignes cf-lignes--histo">
+            {operations.map((o) => {
+              const T = TYPES[o.type] || { label: o.type, Icon: BookOpen, ton: 'neutre' };
+              const baisse = o.type === 'versement' || o.type === 'retour' || (o.type === 'ajustement' && Number(o.montant) < 0)
+                || (o.type === 'utilisation_bonus' && o.sur_dette);
+              const hausse = !baisse && ['reception', 'achat', 'ajustement'].includes(o.type);
+              const peutAnnuler = !o.annulee && (o.source === 'versement' || (o.source === 'operation' && o.type !== 'plafond'));
+              const peutJoindre = peutAnnuler && !o.a_justificatif;
+              const details = [
+                o.source !== 'operation' ? o.detail : null,
+                o.type === 'achat' && Number(o.montant_paye) > 0 ? `payé ${fcfa(o.montant_paye)} (${libelleMode(o.mode_paiement)})` : null,
+                o.type === 'achat' && Number(o.bonus_utilise) > 0 ? `bonus ${fcfa(o.bonus_utilise)}` : null,
+                o.type === 'versement' ? libelleMode(o.mode_paiement) : null,
+                o.type === 'utilisation_bonus' && o.sur_dette ? 'règle la dette' : null,
+                o.type === 'bonus' && o.type_bonus ? `${TYPES_BONUS[o.type_bonus]}${o.date_expiration ? `, jusqu'au ${dateFR(o.date_expiration)}` : ''}` : null,
+                o.observation,
+              ].filter(Boolean).join(' · ');
+              return (
+                <li key={o.cle} className={`cf-ligne cf-ton--${T.ton} ${o.annulee ? 'cf-annulee' : ''}`}>
+                  <span className="cf-pastille"><T.Icon size={17} /></span>
+                  <div className="cf-ligne-corps">
+                    <div className="cf-ligne-titre">
+                      <strong>{T.label}</strong>
+                      {o.reference && <span className="cf-ref"><Hash size={12} />{o.reference}</span>}
+                      {o.annulee && <Badge tone="bad">Annulée</Badge>}
+                    </div>
+                    <div className="cf-ligne-sous">
+                      <span className="cf-date"><CalendarDays size={12} />{dateFR(o.date)}</span>
+                      {details && <span>{details}</span>}
+                    </div>
+                    {o.annulee && o.motif_annulation && <div className="cf-ligne-sous cf-rouge">Motif : {o.motif_annulation}</div>}
+                    {o.cree_par_nom && <div className="cf-ligne-par">Saisi par {o.cree_par_nom}{o.date_creation ? `, le ${dateHeureFR(o.date_creation)}` : ''}</div>}
+                  </div>
+                  <div className="cf-ligne-montant">
+                    {o.type === 'plafond'
+                      ? <span className="cf-m-plafond"><Montant v={o.plafond_avant} unite={false} /> <ChevronRight size={13} /> <Montant v={o.plafond_apres} /></span>
+                      : <Montant v={o.montant} signe={baisse ? '−' : hausse ? '+' : ''} className={baisse ? 'cf-m--baisse' : hausse ? 'cf-m--hausse' : ''} />}
+                    {o.dette_apres != null && (
+                      <small className="cf-apres">Je dois ensuite : <b>{lireSolde(Number(o.dette_apres))}</b></small>
+                    )}
+                  </div>
+                  <div className="cf-ligne-actions">
+                    {o.a_justificatif && (
+                      <button type="button" className="vt-iconbtn vt-iconbtn--sm cf-recu-ok" title="Voir le reçu" aria-label="Voir le reçu"
+                              onClick={() => setModal({ nom: 'justificatif', op: o })}><Eye size={15} /></button>
+                    )}
+                    {peutJoindre && (
+                      <button type="button" className="vt-btn vt-btn--sm cf-joindre" title="Ajouter le reçu de cette opération"
+                              onClick={() => setModal({ nom: 'joindre', op: o })}><Paperclip size={14} /> Reçu</button>
+                    )}
+                    {peutAnnuler && (
+                      <button type="button" className="vt-iconbtn vt-iconbtn--sm" title="Annuler" aria-label="Annuler l'opération"
+                              onClick={() => setModal({ nom: 'annuler', op: o })}><Ban size={15} /></button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          {operations.length === 0 && (
+            <div className="vt-empty"><BookOpen size={28} /><p className="vt-empty-title">Aucune opération</p>
+              <p className="vt-empty-text">Les réceptions de marchandise et les versements apparaissent ici.</p></div>
+          )}
         </>
       )}
 
       {onglet === 'commandes' && (
-        <div className="vt-table-wrap">
-          <table className="vt-table cf-table">
-            <thead><tr><th>Commande</th><th>Date</th><th className="vt-th-right">Reçu</th><th className="vt-th-right cf-col-hide">Retours</th><th className="vt-th-right">Payé</th><th className="vt-th-right">Reste à payer</th><th className="vt-th-right">Actions</th></tr></thead>
-            <tbody>
-              {commandes.map((c) => (
-                <tr key={c.id_commande_achat}>
-                  <td className="vt-cell-main">{c.numero_commande}</td>
-                  <td className="vt-num">{dateFR(c.date_commande)}</td>
-                  <td className="vt-td-right vt-num">{fcfa(c.recu)}</td>
-                  <td className="vt-td-right vt-num cf-col-hide">{c.retours > 0 ? `−${fcfa(c.retours)}` : '-'}</td>
-                  <td className="vt-td-right vt-num">{fcfa(c.paye)}</td>
-                  <td className="vt-td-right vt-num">{c.reste > 0.009 ? <strong>{fcfa(c.reste)}</strong> : <Badge tone="muted">Payée</Badge>}</td>
-                  <td className="vt-td-right">{c.reste > 0.009 && (
-                    <button type="button" className="vt-btn vt-btn--sm vt-btn--cash" onClick={() => setModal({ nom: 'versement', commande: c.id_commande_achat })}>
-                      <Wallet size={14} /> Payer
-                    </button>
-                  )}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <>
+          <ol className="cf-lignes">
+            {commandes.map((c) => {
+              const due = c.reste > 0.009;
+              return (
+                <li key={c.id_commande_achat} className={`cf-ligne cf-ligne--cmd cf-ton--${due ? 'dette' : 'paye'}`}>
+                  <span className="cf-pastille"><ClipboardList size={17} /></span>
+                  <div className="cf-ligne-corps">
+                    <div className="cf-ligne-titre"><strong>{c.numero_commande}</strong></div>
+                    <div className="cf-ligne-sous"><span className="cf-date"><CalendarDays size={12} />{dateFR(c.date_commande)}</span></div>
+                  </div>
+                  <div className="cf-valeurs">
+                    <div><span>Reçu</span><Montant v={c.recu} />{c.retours > 0 && <small>− {fcfa(c.retours)} retournés</small>}</div>
+                    <div><span>Payé</span><Montant v={c.paye} /></div>
+                    <div className="cf-valeur-forte"><span>Reste à payer</span>{due ? <Montant v={c.reste} className="cf-m--hausse" /> : <Badge tone="signal">Payée</Badge>}</div>
+                  </div>
+                  <div className="cf-ligne-actions">
+                    {due && (
+                      <button type="button" className="vt-btn vt-btn--sm vt-btn--primary" onClick={() => setModal({ nom: 'versement', commande: c.id_commande_achat })}>
+                        <Wallet size={14} /> Payer
+                      </button>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
           {commandes.length === 0 && (
             <div className="vt-empty"><ClipboardList size={28} /><p className="vt-empty-title">Aucune commande reçue</p>
               <p className="vt-empty-text">Les commandes fournisseurs apparaissent ici dès leur réception.</p></div>
           )}
-        </div>
+        </>
       )}
 
       {onglet === 'bonus' && (
-        <div className="vt-table-wrap">
-          <table className="vt-table cf-table">
-            <thead><tr><th>Reçu le</th><th>Type</th><th>Motif</th><th className="vt-th-right">Montant</th><th className="vt-th-right">Utilisé</th><th className="vt-th-right">Reste</th><th>Valable jusqu'au</th><th>État</th></tr></thead>
-            <tbody>
-              {compte.bonus.map((b) => (
-                <tr key={b.id_operation}>
-                  <td className="vt-num">{dateFR(b.date_operation)}</td>
-                  <td>{TYPES_BONUS[b.type_bonus]}</td>
-                  <td>{b.observation || <span className="vt-muted">-</span>}</td>
-                  <td className="vt-td-right vt-num">{fcfa(b.montant)}</td>
-                  <td className="vt-td-right vt-num">{fcfa(b.utilise)}</td>
-                  <td className="vt-td-right vt-num"><strong>{fcfa(Math.max(b.reste, 0))}</strong></td>
-                  <td className="vt-num">{b.date_expiration ? dateFR(b.date_expiration) : <span className="vt-muted">Sans limite</span>}</td>
-                  <td>{b.epuise ? <Badge tone="muted">Entièrement utilisé</Badge> : b.expire ? <Badge tone="bad">Expiré</Badge> : <Badge tone="signal">Disponible</Badge>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <>
+          <ol className="cf-lignes">
+            {compte.bonus.map((b) => {
+              const etat = b.epuise ? 'epuise' : b.expire ? 'expire' : 'dispo';
+              return (
+                <li key={b.id_operation} className={`cf-ligne cf-ligne--bonus cf-ton--${etat === 'dispo' ? 'bonus' : 'neutre'}`}>
+                  <span className="cf-pastille"><Gift size={17} /></span>
+                  <div className="cf-ligne-corps">
+                    <div className="cf-ligne-titre">
+                      <strong>Bonus {TYPES_BONUS[b.type_bonus].toLowerCase()}</strong>
+                      {etat === 'dispo' ? <Badge tone="signal">Disponible</Badge> : etat === 'expire' ? <Badge tone="bad">Expiré</Badge> : <Badge tone="muted">Entièrement utilisé</Badge>}
+                    </div>
+                    <div className="cf-ligne-sous">
+                      <span className="cf-date"><CalendarDays size={12} />Reçu le {dateFR(b.date_operation)}</span>
+                      <span>{b.date_expiration ? `Valable jusqu'au ${dateFR(b.date_expiration)}` : 'Sans limite de date'}</span>
+                    </div>
+                    {b.observation && <div className="cf-ligne-sous">{b.observation}</div>}
+                  </div>
+                  <div className="cf-valeurs">
+                    <div><span>Montant</span><Montant v={b.montant} /></div>
+                    <div><span>Utilisé</span><Montant v={b.utilise} /></div>
+                    <div className="cf-valeur-forte"><span>Reste</span><Montant v={Math.max(b.reste, 0)} className={etat === 'dispo' ? 'cf-m--bonus' : ''} />
+                      <BarreCredit utilise={b.utilise} plafond={b.montant} /></div>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
           {compte.bonus.length === 0 && <div className="vt-empty"><Gift size={28} /><p className="vt-empty-title">Aucun bonus reçu</p></div>}
-        </div>
+        </>
       )}
 
       {onglet === 'rapprochements' && (
         <>
           <div className="cf-actions"><button type="button" className="vt-btn vt-btn--primary" onClick={() => setModal({ nom: 'rapprochement' })}><Scale size={16} /> Nouveau rapprochement</button></div>
-          <div className="vt-table-wrap">
-            <table className="vt-table cf-table">
-              <thead><tr><th>Date</th><th className="vt-th-right">Solde Miyo</th><th className="vt-th-right">Annoncé par le fournisseur</th><th className="vt-th-right">Différence</th><th>Statut</th><th>Observations</th><th className="vt-th-right">Actions</th></tr></thead>
-              <tbody>
-                {rappros.map((r) => (
-                  <tr key={r.id_rapprochement}>
-                    <td className="vt-num">{dateFR(r.date_verification)}</td>
-                    <td className="vt-td-right vt-num">{lireSolde(Number(r.solde_miyo))}</td>
-                    <td className="vt-td-right vt-num">{lireSolde(Number(r.solde_fournisseur))}</td>
-                    <td className="vt-td-right vt-num">{Math.abs(Number(r.ecart)) < 0.01 ? '-' : fcfa(Math.abs(Number(r.ecart)))}</td>
-                    <td>{r.statut === 'conforme' ? <Badge tone="signal">Identique</Badge> : r.statut === 'ecart' ? <Badge tone="bad">Écart à vérifier</Badge> : <Badge tone="muted">Écart réglé</Badge>}</td>
-                    <td><div>{r.observation || <span className="vt-muted">-</span>}</div>{r.note_resolution && <div className="vt-cell-sub">Réglé : {r.note_resolution}</div>}</td>
-                    <td className="vt-td-right">{r.statut === 'ecart' && (
+          <ol className="cf-lignes">
+            {rappros.map((r) => {
+              const ton = r.statut === 'conforme' ? 'paye' : r.statut === 'ecart' ? 'dette' : 'neutre';
+              return (
+                <li key={r.id_rapprochement} className={`cf-ligne cf-ligne--rappro cf-ton--${ton}`}>
+                  <span className="cf-pastille"><Scale size={17} /></span>
+                  <div className="cf-ligne-corps">
+                    <div className="cf-ligne-titre">
+                      <strong>Vérification du {dateFR(r.date_verification)}</strong>
+                      {r.statut === 'conforme' ? <Badge tone="signal">Identique</Badge> : r.statut === 'ecart' ? <Badge tone="bad">Écart à vérifier</Badge> : <Badge tone="muted">Écart réglé</Badge>}
+                    </div>
+                    {r.observation && <div className="cf-ligne-sous">{r.observation}</div>}
+                    {r.note_resolution && <div className="cf-ligne-sous">Réglé : {r.note_resolution}</div>}
+                  </div>
+                  <div className="cf-valeurs">
+                    <div><span>Solde Miyo</span><b className="cf-solde">{lireSolde(Number(r.solde_miyo))}</b></div>
+                    <div><span>Selon le fournisseur</span><b className="cf-solde">{lireSolde(Number(r.solde_fournisseur))}</b></div>
+                    <div className="cf-valeur-forte"><span>Différence</span>{Math.abs(Number(r.ecart)) < 0.01 ? <b className="cf-solde">Aucune</b> : <Montant v={r.ecart} className="cf-m--hausse" />}</div>
+                  </div>
+                  <div className="cf-ligne-actions">
+                    {r.statut === 'ecart' && (
                       <button type="button" className="vt-btn vt-btn--sm" onClick={() => setModal({ nom: 'resoudre', rappro: r })}><CheckCircle2 size={14} /> Réglé</button>
-                    )}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {rappros.length === 0 && (
-              <div className="vt-empty"><Scale size={28} /><p className="vt-empty-title">Aucune vérification</p>
-                <p className="vt-empty-text">Quand le fournisseur vous donne votre solde, comparez-le ici.</p></div>
-            )}
-          </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          {rappros.length === 0 && (
+            <div className="vt-empty"><Scale size={28} /><p className="vt-empty-title">Aucune vérification</p>
+              <p className="vt-empty-text">Quand le fournisseur vous donne votre solde, comparez-le ici.</p></div>
+          )}
         </>
       )}
 
@@ -836,7 +959,14 @@ function FicheCompte({ idCompte, onRetour, afficher }) {
       {modal?.nom === 'annuler' && (
         <ModalAnnuler op={modal.op} onClose={() => setModal(null)} onFait={() => { setModal(null); toutRecharger(); afficher(modal.op.source === 'versement' ? 'Versement annulé' : 'Opération annulée', 'success'); }} />
       )}
-      {modal?.nom === 'justificatif' && <ModalJustificatif op={modal.op} onClose={() => setModal(null)} />}
+      {modal?.nom === 'justificatif' && (
+        <ModalJustificatif op={modal.op} onClose={() => setModal(null)}
+                           onRemplacer={(modal.op.source === 'versement' || modal.op.source === 'operation') ? () => setModal({ nom: 'joindre', op: modal.op, remplacer: true }) : null} />
+      )}
+      {modal?.nom === 'joindre' && (
+        <ModalJoindre op={modal.op} remplacer={!!modal.remplacer} onClose={() => setModal(null)}
+                      onFait={(r) => { setModal(null); chargerOperations(); afficher(r?.message || 'Reçu enregistré', 'success'); }} />
+      )}
       {modal?.nom === 'rapprochement' && (
         <ModalRapprochement compte={compte} onClose={() => setModal(null)}
                             onFait={(r) => { setModal(null); setOnglet('rapprochements'); toutRecharger();
@@ -894,16 +1024,18 @@ export default function ComptesFournisseurs() {
           {erreur && <ErrorBar message={erreur} onRetry={charger} />}
 
           {t && (
-            <Chiffres className="cf-chiffres" items={[
-              { label: 'Fournisseurs', value: String(t.nb_fournisseurs), fort: true },
-              { label: 'Plafond total accordé', value: fcfa(t.plafond_total) },
-              { label: 'Dette totale', value: fcfa(t.dette_totale), tone: t.dette_totale > 0 ? 'warn' : undefined },
-              { label: 'Crédit disponible', value: fcfa(t.credit_disponible_total) },
-              { label: 'Total versé', value: fcfa(t.total_versements) },
-              { label: 'Bonus reçus', value: fcfa(t.total_bonus_accordes) },
-              { label: 'Bonus disponibles', value: fcfa(t.bonus_disponibles), tone: t.bonus_disponibles > 0 ? 'signal' : undefined },
-              { label: 'Bonus utilisés', value: fcfa(t.bonus_utilises) },
-            ]} />
+            <div className="cf-cartes cf-cartes--4">
+              <CarteChiffre icone={HandCoins} ton="dette" titre="Dette totale" montant={t.dette_totale}
+                            sous={t.nb_fournisseurs_dus ? `chez ${t.nb_fournisseurs_dus} fournisseur${t.nb_fournisseurs_dus > 1 ? 's' : ''}` : 'Vous ne devez rien'} />
+              <CarteChiffre icone={Gauge} ton="credit" titre="Crédit disponible" montant={t.credit_disponible_total}
+                            sous={t.plafond_total > 0 ? `sur ${fcfa(t.plafond_total)} de plafond accordé` : 'aucun plafond accordé'}>
+                <BarreCredit utilise={Math.max(t.plafond_total - t.credit_disponible_total, 0)} plafond={t.plafond_total} />
+              </CarteChiffre>
+              <CarteChiffre icone={Wallet} ton="paye" titre="Total versé" montant={t.total_versements}
+                            sous={`à ${t.nb_fournisseurs} fournisseur${t.nb_fournisseurs > 1 ? 's' : ''}`} />
+              <CarteChiffre icone={Gift} ton="bonus" titre="Bonus disponibles" montant={t.bonus_disponibles}
+                            sous={`${fcfa(t.total_bonus_accordes)} reçus · ${fcfa(t.bonus_utilises)} utilisés`} />
+            </div>
           )}
 
           {data?.alertes?.length > 0 && (
@@ -930,43 +1062,56 @@ export default function ComptesFournisseurs() {
               <input className="vt-input" placeholder="Chercher un fournisseur" aria-label="Chercher un fournisseur" value={recherche} onChange={(e) => setRecherche(e.target.value)} /></div>
           </div>
 
-          <div className="vt-table-wrap" aria-busy={chargement || undefined}>
-            <table className="vt-table cf-table">
-              <thead>
-                <tr>
-                  <th>Fournisseur</th><th className="vt-th-right">Plafond</th><th className="vt-th-right">Je dois</th>
-                  <th className="vt-th-right">Crédit disponible</th><th className="vt-th-right cf-col-hide">Total versé</th>
-                  <th className="vt-th-right cf-col-hide">Bonus disponible</th><th>État</th><th className="vt-th-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {comptes.map((c) => {
-                  const pire = c.alertes.find((a) => a.niveau === 'danger') || c.alertes.find((a) => a.niveau === 'attention');
-                  return (
-                    <tr key={c.id_compte}>
-                      <td><button type="button" className="vt-link vt-cell-main" onClick={() => setOuvert(c.id_compte)}>{c.fournisseur.nom}</button>
-                        <div className="vt-cell-sub">{[c.fournisseur.telephone, c.fournisseur.ville].filter(Boolean).join(' · ') || '-'}</div></td>
-                      <td className="vt-td-right vt-num">{c.plafond > 0 ? fcfa(c.plafond) : <span className="vt-muted">Aucun</span>}</td>
-                      <td className="vt-td-right vt-num">{c.avance > 0 ? <span className="vt-muted">Avance {fcfa(c.avance)}</span> : fcfa(c.credit_utilise)}</td>
-                      <td className="vt-td-right vt-num">{c.plafond > 0 ? fcfa(c.credit_disponible) : <span className="vt-muted">-</span>}</td>
-                      <td className="vt-td-right vt-num cf-col-hide">{c.total_versements + c.total_paye_achats > 0 ? fcfa(c.total_versements + c.total_paye_achats) : <span className="vt-muted">-</span>}</td>
-                      <td className="vt-td-right vt-num cf-col-hide">{c.bonus_disponible > 0 ? fcfa(c.bonus_disponible) : <span className="vt-muted">-</span>}</td>
-                      <td>{pire ? <Badge tone={TON_ALERTE[pire.niveau]} title={pire.message}>{pire.code === 'plafond_atteint' ? 'Plafond atteint' : pire.code === 'credit_faible' ? 'Crédit faible' : pire.code === 'ecart' ? 'Écart' : 'Bonus à utiliser'}</Badge>
-                        : <Badge tone="muted">Normal</Badge>}</td>
-                      <td className="vt-td-right"><button type="button" className="vt-btn vt-btn--sm" onClick={() => setOuvert(c.id_compte)}><Eye size={14} /> Ouvrir</button></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            {!chargement && comptes.length === 0 && (
-              <div className="vt-empty"><BookOpen size={30} />
-                <p className="vt-empty-title">{recherche || filtre !== 'tous' ? 'Aucun fournisseur ne correspond' : 'Aucun fournisseur'}</p>
-                <p className="vt-empty-text">{recherche ? 'Modifiez la recherche.' : filtre !== 'tous' ? 'Affichez « Tous » pour voir tous vos fournisseurs.' : 'Ajoutez les fournisseurs chez qui vous achetez : Yuzin, Absonic, UBM…'}</p>
-                {filtre !== 'tous' && <button type="button" className="vt-btn vt-btn--sm" onClick={() => setFiltre('tous')}>Afficher tous les fournisseurs</button>}
-              </div>
-            )}
-          </div>
+          <ol className="cf-lignes cf-lignes--fourn" aria-busy={chargement || undefined}>
+            {comptes.map((c) => {
+              const pire = c.alertes.find((a) => a.niveau === 'danger') || c.alertes.find((a) => a.niveau === 'attention');
+              const verse = c.total_versements + c.total_paye_achats;
+              return (
+                <li key={c.id_compte} className="cf-ligne cf-ligne--fourn">
+                  <button type="button" className="cf-fourn-id" onClick={() => setOuvert(c.id_compte)}>
+                    <span className="cf-avatar">{initiales(c.fournisseur.nom)}</span>
+                    <span className="cf-fourn-txt">
+                      <strong>{c.fournisseur.nom}</strong>
+                      <small>{c.fournisseur.telephone ? <><Phone size={11} />{c.fournisseur.telephone}</> : null}
+                        {c.fournisseur.ville ? <>{c.fournisseur.telephone ? ' · ' : ''}<Store size={11} />{c.fournisseur.ville}</> : null}
+                        {!c.fournisseur.telephone && !c.fournisseur.ville ? 'Aucun contact' : null}</small>
+                    </span>
+                  </button>
+                  <div className="cf-valeurs">
+                    <div className="cf-valeur-forte cf-ton--dette">
+                      <span><HandCoins size={13} /> Je dois</span>
+                      {c.avance > 0 ? <b className="cf-solde cf-avance">Avance {fcfa(c.avance)}</b> : <Montant v={c.credit_utilise} className={c.credit_utilise > 0.009 ? 'cf-m--hausse' : ''} />}
+                    </div>
+                    <div className="cf-ton--credit">
+                      <span><Gauge size={13} /> Crédit disponible</span>
+                      {c.plafond > 0 ? <Montant v={c.credit_disponible} /> : <b className="cf-solde cf-gris">Pas de plafond</b>}
+                      {c.plafond > 0 && <BarreCredit utilise={c.credit_utilise} plafond={c.plafond} />}
+                    </div>
+                    <div className="cf-ton--paye">
+                      <span><Wallet size={13} /> Total versé</span>
+                      {verse > 0 ? <Montant v={verse} /> : <b className="cf-solde cf-gris">Rien</b>}
+                    </div>
+                    <div className="cf-ton--bonus">
+                      <span><Gift size={13} /> Bonus</span>
+                      {c.bonus_disponible > 0 ? <Montant v={c.bonus_disponible} className="cf-m--bonus" /> : <b className="cf-solde cf-gris">Aucun</b>}
+                    </div>
+                  </div>
+                  <div className="cf-ligne-etat">
+                    {pire ? <Badge tone={TON_ALERTE[pire.niveau]} title={pire.message}>{pire.code === 'plafond_atteint' ? 'Plafond atteint' : pire.code === 'credit_faible' ? 'Crédit faible' : pire.code === 'ecart' ? 'Écart' : 'Bonus à utiliser'}</Badge>
+                      : <Badge tone="muted">Normal</Badge>}
+                    <button type="button" className="vt-btn vt-btn--sm" onClick={() => setOuvert(c.id_compte)}>Ouvrir <ChevronRight size={14} /></button>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          {!chargement && comptes.length === 0 && (
+            <div className="vt-empty"><BookOpen size={30} />
+              <p className="vt-empty-title">{recherche || filtre !== 'tous' ? 'Aucun fournisseur ne correspond' : 'Aucun fournisseur'}</p>
+              <p className="vt-empty-text">{recherche ? 'Modifiez la recherche.' : filtre !== 'tous' ? 'Affichez « Tous » pour voir tous vos fournisseurs.' : 'Ajoutez les fournisseurs chez qui vous achetez : Yuzin, Absonic, UBM…'}</p>
+              {filtre !== 'tous' && <button type="button" className="vt-btn vt-btn--sm" onClick={() => setFiltre('tous')}>Afficher tous les fournisseurs</button>}
+            </div>
+          )}
         </>
       )}
 

@@ -9,6 +9,7 @@ import {
     usePagination, useToast, Toast, Modal, ModalHead, Confirm, ActionsMenu, dateFR, pluriel,
 } from "../../components/UI/Vt";
 import "./Inventaires.css";
+import { peutFaire } from '../../config/rolePermissions';
 
 export const STATUTS_INV = {
     planifie: { label: "Planifié", tone: "muted" },
@@ -51,7 +52,7 @@ const Inventaires = () => {
     const [confirmation, setConfirmation] = useState(null); // { type: 'demarrer'|'annuler'|'supprimer', inv }
     const [agissant, setAgissant] = useState(false);
 
-    const canManage = !!user && ["admin", "manager", "gestionnaire"].includes(user.role);
+    const canManage = !!user && peutFaire(user.role, "inventaires.gerer");
 
     const pause = useRef(null);
     useEffect(() => {

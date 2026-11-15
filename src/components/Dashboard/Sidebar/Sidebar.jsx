@@ -3,14 +3,14 @@ import { useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useUser } from "../../../context/AuthContext";
-import { ROLE_PERMISSIONS } from "../../../config/rolePermissions";
+import { hasAccess, usePermissions } from "../../../config/rolePermissions";
 import {
   ChevronDown, LayoutDashboard, Package, Boxes, Tag, ShoppingBasket, Truck,
   PackageCheck, ShoppingCart, FileText, Users, RotateCcw, Warehouse, LayoutTemplate,
   ClipboardList, Layers, AlertTriangle, CreditCard, BarChart3, TrendingUp, Banknote,
   Settings, PanelLeftClose, PanelLeftOpen, LogOut, Store, Ruler, Bot, User, Wallet, Calculator, History, BellRing,
   MapPin,
-  BookOpenCheck,
+  BookOpenCheck, ShieldCheck,
 } from "lucide-react";
 import ConfirmModal from "../../ConfirmModal/ConfirmModal";
 import Avatar from '../../UI/Avatar';
@@ -82,11 +82,12 @@ export const MENU_CONFIG = [
   {
     section: "Administration",
     icon: Settings,
-    allowedRoles: ["admin"],
+    // proprietaire : réservé au propriétaire ; les autres entrées suivent les permissions du rôle
     items: [
-      { id: "mon-profil", title: "Mon profil", icon: User, path: "/mon-profil" },
-      { id: "mon-magasin", title: "Mon magasin", icon: Store, path: "/mon-magasin" },
-      { id: "employes", title: "Employés", icon: Users, path: "/employes" },
+      { id: "mon-profil", title: "Mon profil", icon: User, path: "/mon-profil", proprietaire: true },
+      { id: "mon-magasin", title: "Mon magasin", icon: Store, path: "/mon-magasin", proprietaire: true },
+      { id: "employes", title: "Employés", icon: Users, path: "/employes", proprietaire: true },
+      { id: "roles-permissions", title: "Rôles et permissions", icon: ShieldCheck, path: "/roles-permissions", proprietaire: true },
       { id: "journal", title: "Journal d'activité", icon: History, path: "/journal" },
       { id: "paiements", title: "Paiements", icon: CreditCard, path: "/paiements" },
     ],
@@ -181,15 +182,19 @@ const Sidebar = () => {
     });
   };
 
-  // ---------- Filtrage selon le rôle ----------
+  // ---------- Filtrage selon les permissions du rôle (réglées par le propriétaire) ----------
+  const permissions = usePermissions(userRole);
   const menuConfigFiltre = useMemo(() => {
-    const perms = ROLE_PERMISSIONS[userRole] || [];
-    const isFullAccess = perms.includes("*");
+    const proprietaire = userRole === "admin";
     return MENU_CONFIG
       .filter((s) => (s.allowedRoles ? s.allowedRoles.includes(userRole) : true))
-      .map((s) => ({ ...s, items: s.items.filter((it) => isFullAccess || perms.includes(it.id)) }))
+      .map((s) => ({
+        ...s,
+        items: s.items.filter((it) => (it.proprietaire ? proprietaire : hasAccess(userRole, it.id))),
+      }))
       .filter((s) => s.items.length > 0);
-  }, [userRole]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userRole, permissions]);
 
   // ---------- Élément actif ----------
   const active = useMemo(

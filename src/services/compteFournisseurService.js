@@ -50,6 +50,13 @@ const CompteFournisseurService = {
   rapprochements: (id) => appel(axios.get(U().RAPPROCHEMENTS(id), entetes()), 'Impossible de charger les rapprochements'),
   rapprocher: (id, d) => appel(axios.post(U().RAPPROCHEMENTS(id), d, entetes()), "Impossible d'enregistrer le rapprochement"),
   resoudre: (idR, note) => appel(axios.put(U().RESOUDRE(idR), { note }, entetes()), "Impossible de régler l'écart"),
+  // Joindre ou remplacer le reçu d'une ligne déjà enregistrée
+  joindreJustificatif: (source, id, fichier) => {
+    const url = source === 'versement' ? U().JUSTIFICATIF_VERSEMENT(id) : U().JUSTIFICATIF(id);
+    const fd = new FormData();
+    fd.append('justificatif', fichier);
+    return appel(axios.post(url, fd, entetes()), "Impossible d'enregistrer le reçu");
+  },
   // Le justificatif n'est pas public : on le récupère avec la connexion puis on l'affiche
   justificatif: async (source, id) => {
     try {

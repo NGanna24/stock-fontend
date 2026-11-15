@@ -13,6 +13,7 @@ import ProduitService from "../../services/produitService";
 import UniteVenteService from "../../services/uniteVenteService";
 import MagasinService from "../../services/magasinService";
 import ClientService from "../../services/clientService";
+import { PAYS_TELEPHONE, analyserTelephone, formaterTelephone, indicatifParDefaut } from "../../utils/telephone";
 import { useUser } from "../../context/AuthContext";
 import ConfirmModal from "../../components/ConfirmModal/ConfirmModal";
 import FormatChoiceModal from '../../components/Facture/FormatChoiceModal';
@@ -25,6 +26,7 @@ import {
 import { CATALOGUE_MODES, infoMode, libelleMode, useModesPaiement, useModeValide } from '../../config/modesPaiement';
 
 import "./Ventes.css";
+import { hasAccess, peutFaire } from '../../config/rolePermissions';
 
 // ============================================================
 // HELPERS
@@ -315,7 +317,7 @@ const PaiementTag = ({ info }) =>
     <span className="vt-muted">-</span>
   );
 
-const StatutMenu = ({ commande, onSelect, updatingStatut, canManage, peutRembourser }) => {
+const StatutMenu = ({ commande, onSelect, updatingStatut, canManage, peutRembourser, peutAnnuler = true }) => {
   const [open, setOpen] = useState(false);
   const btnRef = useRef(null);
   const current = STATUTS.find((s) => s.value === commande.statut) || STATUTS[0];
@@ -360,8 +362,8 @@ const StatutMenu = ({ commande, onSelect, updatingStatut, canManage, peutRembour
         <div className="vt-menu-title">Changer le statut</div>
         {STATUTS.map((s) => {
           const isCurrent = s.value === commande.statut;
-          // Annuler une vente encaissée rembourse le client : patron ou manager seulement
-          const reserve = s.value === "annulee" && getMontantPaye(commande) > 0 && !peutRembourser;
+          // Annuler : action réglée par le propriétaire ; une vente encaissée demande en plus le droit de rembourser
+          const reserve = s.value === "annulee" && (!peutAnnuler || (getMontantPaye(commande) > 0 && !peutRembourser));
           return (
             <button
               key={s.value}
@@ -370,7 +372,7 @@ const StatutMenu = ({ commande, onSelect, updatingStatut, canManage, peutRembour
               className="vt-menu-item"
               data-s={s.value}
               disabled={isCurrent || reserve}
-              title={reserve ? "Vente déjà encaissée : seuls le patron ou un manager peuvent l'annuler" : undefined}
+              title={reserve ? (peutAnnuler ? "Vente déjà encaissée : votre rôle ne permet pas de rembourser le client" : "Votre rôle ne permet pas d'annuler une vente") : undefined}
               onClick={() => {
                 onSelect(commande.id_commande, s.value, commande);
                 setOpen(false);
@@ -378,7 +380,7 @@ const StatutMenu = ({ commande, onSelect, updatingStatut, canManage, peutRembour
             >
               <i className="vt-dot" />
               <span>{s.label}</span>
-              {reserve && <small className="vt-menu-hint">Patron ou manager</small>}
+              {reserve && <small className="vt-menu-hint">Non autorisé</small>}
               {isCurrent && <Check size={14} className="vt-menu-check" />}
             </button>
           );
@@ -435,6 +437,8 @@ const Ventes = () => {
   const [loading, setLoading] = useState(!!token);
   const [error, setError] = useState(null);
   const [magasin, setMagasin] = useState(null);
+  // Indicatif du téléphone client : celui du pays du magasin, sauf si on en choisit un autre
+  const [indicatifChoisi, setIndicatifChoisi] = useState(null);
 
   // ---------- Liste ----------
   const [searchTerm, setSearchTerm] = useState("");
@@ -485,6 +489,9 @@ const Ventes = () => {
 
   // ---------- Formulaire de vente ----------
   const [formData, setFormData] = useState({ nomclient: "", telephone: "", lignes: [] });
+  const indicatifTel = indicatifChoisi || indicatifParDefaut(magasin, user);
+  const analyseTel = formData.telephone.trim() ? analyserTelephone(formData.telephone, indicatifTel) : null;
+  const telFormate = analyseTel?.norme ? formaterTelephone(formData.telephone, indicatifTel) : formData.telephone.trim();
   // Fiche client choisie dans la recherche (dette, plafond de crédit)
   const [clientChoisi, setClientChoisi] = useState(null);
   const [produitSearch, setProduitSearch] = useState("");
@@ -522,8 +529,10 @@ const Ventes = () => {
   const [paiementData, setPaiementData] = useState({ mode_paiement: "especes", montant: "" });
   useModeValide(MODES_PAIEMENT, paiementData.mode_paiement, (v) => setPaiementData((p) => ({ ...p, mode_paiement: v })));
 
-  const canManage = !!user && ["admin", "manager", "caissier"].includes(user.role);
-  const peutRembourser = !!user && ["admin", "manager"].includes(user.role);
+  const canManage = !!user && hasAccess(user.role, "commandes-clients");
+  // Droits réglés par le propriétaire (Rôles et permissions)
+  const peutAnnuler = !!user && peutFaire(user.role, "ventes.annuler");
+  const peutRembourser = !!user && peutFaire(user.role, "ventes.rembourser");
 
   // ============================================================
   // HELPERS FORMAT
@@ -1006,6 +1015,7 @@ const Ventes = () => {
   // ============================================================
   const handleAdd = () => {
     setFormData({ nomclient: "", telephone: "", lignes: [] });
+    setIndicatifChoisi(null);
     setClientChoisi(null);
     resetComposer();
     setClientSearch("");
@@ -1100,7 +1110,8 @@ const Ventes = () => {
   const finaliserHorsLigne = async () => {
     const vente = await creerVenteHL({
       nomclient: formData.nomclient.trim(),
-      telephone: formData.telephone.trim(),
+      telephone: telFormate,
+      indicatif: indicatifTel,
       mode_paiement: "especes",
       lignes: formData.lignes,
     });
@@ -1152,6 +1163,11 @@ const Ventes = () => {
       showAlert("Téléphone manquant", "Veuillez saisir le numéro de téléphone du client.");
       return;
     }
+    if (analyseTel?.erreur) {
+      showAlert("Numéro invalide", `${analyseTel.erreur}. Vérifiez le numéro ou choisissez le bon pays à côté du champ.`);
+      telRef.current?.focus();
+      return;
+    }
     if (formData.lignes.length === 0) {
       showAlert("Panier vide", "Veuillez ajouter au moins un produit à la vente.");
       return;
@@ -1175,7 +1191,8 @@ const Ventes = () => {
     try {
       const data = {
         nomclient: formData.nomclient.trim(),
-        telephone: formData.telephone.trim(),
+        telephone: telFormate,
+        indicatif: indicatifTel,
         id_client: clientChoisi?.id_client || null,
         date_commande: new Date().toISOString().split("T")[0],
         notes: null,
@@ -1572,6 +1589,7 @@ const Ventes = () => {
   const manques = [];
   if (!formData.nomclient.trim()) manques.push("le nom du client");
   if (!formData.telephone.trim()) manques.push("le téléphone");
+  else if (analyseTel?.erreur) manques.push("un numéro de téléphone valide");
   if (formData.lignes.length === 0) manques.push("au moins un produit");
 
   const factureReste = factureGeneree
@@ -1604,7 +1622,7 @@ const Ventes = () => {
       <RowMenu
         commande={commande}
         canPrint={!!commande.id_facture}
-        canDelete={canManage}
+        canDelete={canManage && peutAnnuler}
         onPrint={handleImprimerDepuisListe}
         onDelete={confirmDelete}
       />
@@ -1723,6 +1741,7 @@ const renderListView = () => (
                     updatingStatut={updatingStatut}
                     canManage={canManage}
                     peutRembourser={peutRembourser}
+                    peutAnnuler={peutAnnuler}
                   />
                 </td>
 
@@ -1772,6 +1791,7 @@ const renderListView = () => (
               updatingStatut={updatingStatut}
               canManage={canManage}
               peutRembourser={peutRembourser}
+                    peutAnnuler={peutAnnuler}
             />
             <PaiementTag info={paiementInfo(commande)} />
           </div>
@@ -2049,20 +2069,39 @@ const renderListView = () => (
                   </div>
                   <div className="vt-field">
                     <label htmlFor="vt-tel">Téléphone</label>
-                    <input
-                      id="vt-tel"
-                      ref={telRef}
-                      type="tel"
-                      inputMode="tel"
-                      name="telephone"
-                      className="vt-input"
-                      value={formData.telephone}
-                      onChange={handleInputChange}
-                      onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); inputRef.current?.focus(); } }}
-                      placeholder="+225 07 00 00 00 00"
-                      readOnly={saving}
-                      autoComplete="off"
-                    />
+                    <div className={`vt-tel ${analyseTel?.erreur ? "is-erreur" : ""}`}>
+                      <select
+                        className="vt-input vt-tel-pays"
+                        aria-label="Pays du numéro"
+                        title="Pays du numéro"
+                        value={indicatifTel}
+                        onChange={(e) => { setIndicatifChoisi(e.target.value); telRef.current?.focus(); }}
+                        disabled={saving}
+                      >
+                        {PAYS_TELEPHONE.map((p) => <option key={p.code} value={p.indicatif}>{p.code} +{p.indicatif}</option>)}
+                      </select>
+                      <input
+                        id="vt-tel"
+                        ref={telRef}
+                        type="tel"
+                        inputMode="tel"
+                        name="telephone"
+                        className="vt-input"
+                        value={formData.telephone}
+                        onChange={handleInputChange}
+                        onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); inputRef.current?.focus(); } }}
+                        placeholder={PAYS_TELEPHONE.find((p) => p.indicatif === indicatifTel)?.exemple || "07 07 08 09 10"}
+                        readOnly={saving}
+                        autoComplete="off"
+                        aria-invalid={analyseTel?.erreur ? "true" : undefined}
+                        aria-describedby="vt-tel-aide"
+                      />
+                    </div>
+                    <small id="vt-tel-aide" className={`vt-tel-aide ${analyseTel?.erreur ? "is-erreur" : ""}`} aria-live="polite">
+                      {!analyseTel ? "Le numéro est vérifié selon le pays choisi."
+                        : analyseTel.erreur ? analyseTel.erreur
+                        : `Sera enregistré : ${telFormate}`}
+                    </small>
                   </div>
                 </div>
 
@@ -2616,6 +2655,7 @@ const renderListView = () => (
                 updatingStatut={updatingStatut}
                 canManage={canManage}
                 peutRembourser={peutRembourser}
+                    peutAnnuler={peutAnnuler}
               />
               <PaiementTag info={paiementInfo(selectedCommande)} />
             </div>
@@ -2639,7 +2679,7 @@ const renderListView = () => (
                   <div><dt>Déjà payé</dt><dd className="vt-num">{formatMontant(getMontantPaye(selectedCommande))}</dd></div>
                   <div>
                     <dt>Reste à payer</dt>
-                    <dd className="vt-num" style={{ color: getResteAPayer(selectedCommande) > 0 ? "#dc2626" : "#16a34a" }}>
+                    <dd className="vt-num" style={{ color: getResteAPayer(selectedCommande) > 0 ? "#dc2626" : "#1C1917" }}>
                       {formatMontant(getResteAPayer(selectedCommande))}
                     </dd>
                   </div>

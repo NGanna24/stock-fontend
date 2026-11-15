@@ -9,6 +9,7 @@ import {
   Shield, AlertTriangle, Settings, FileText, CreditCard, Lock, Wallet
 } from "lucide-react";
 import ConfirmModal from "../../ConfirmModal/ConfirmModal";
+import SuiviAdminService from "../../../services/superAdmin/suiviAdminService";
 import "./Sidebar.css";
 
 // ============================================================
@@ -96,6 +97,18 @@ const SuperAdminSidebar = () => {
 
   // Base URL de l'espace admin
   const basePath = "/super-admin";
+
+  // Nombre d'alertes affiché sur « Alertes » (mis à jour toutes les 5 minutes et à chaque page)
+  const [nbAlertes, setNbAlertes] = useState(0);
+  useEffect(() => {
+    let actif = true;
+    const lire = () => SuiviAdminService.nombreAlertes()
+      .then((r) => { if (actif && r?.success) setNbAlertes(Number(r.total) || 0); })
+      .catch(() => {});
+    lire();
+    const t = setInterval(lire, 5 * 60 * 1000);
+    return () => { actif = false; clearInterval(t); };
+  }, [location.pathname]);
 
   useEffect(() => {
     const mq = window.matchMedia(MOBILE_QUERY);
@@ -185,6 +198,11 @@ const SuperAdminSidebar = () => {
       >
         <Icon size={19} className="sa-sb-item-icon" />
         {!collapsed && <span className="sa-sb-item-label">{item.title}</span>}
+        {item.badge === "dynamic" && nbAlertes > 0 && (
+          collapsed
+            ? <i className="sa-sb-dot" style={{ background: "#B91C1C" }} aria-label={`${nbAlertes} alertes`} />
+            : <span className="sa-sb-badge" aria-label={`${nbAlertes} alertes`}>{nbAlertes > 99 ? "99+" : nbAlertes}</span>
+        )}
         {!collapsed && item.highlight && !isActive && (
           <i className="sa-sb-dot" style={{ background: item.highlight }} />
         )}
@@ -308,4 +326,4 @@ const SuperAdminSidebar = () => {
   );
 };
 
-export default SuperAdminSidebar;
+export default SuperAdminSidebar;

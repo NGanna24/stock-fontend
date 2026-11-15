@@ -8,6 +8,7 @@ import {
   AlertCircle, Mail, Phone, UserPlus, Calendar
 } from "lucide-react";
 import UtilisateurAdminService from "../../../services/superAdmin/utilisateurAdminService";
+import AbonnementAdminService from "../../../services/superAdmin/abonnementAdminService";
 import "./Utilisateurs.css";
 
 // ==================== UTILS ====================
@@ -96,6 +97,19 @@ const Utilisateurs = () => {
       setRefreshing(false);
     }
   };
+
+  // Abonnements de tous les patrons, indexés par id
+  const [abonnements, setAbonnements] = useState({});
+  useEffect(() => {
+    AbonnementAdminService.liste()
+      .then((r) => {
+        if (!r?.success) return;
+        const m = {};
+        (r.abonnements || []).forEach((a) => { m[a.id_utilisateur] = a; });
+        setAbonnements(m);
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     loadListe();
@@ -242,6 +256,8 @@ const Utilisateurs = () => {
       ) : (
         <TableView
           utilisateurs={data.utilisateurs}
+          abonnements={abonnements}
+          debut={(page - 1) * limit}
           onSelect={(id) => navigate(`/super-admin/utilisateurs/${id}`)}
           onToggle={handleToggle}
           togglingId={togglingId}
@@ -280,24 +296,44 @@ const TabBtn = ({ active, onClick, children }) => (
   <button className={`us-tab ${active ? "is-active" : ""}`} onClick={onClick}>{children}</button>
 );
 
-const TableView = ({ utilisateurs, onSelect, onToggle, togglingId }) => (
+const AboBadge = ({ abo }) => {
+  if (!abo) return <span className="us-muted">—</span>;
+  const j = abo.jours_restants;
+  let cls = "us-abo--ok", txt = "Abonné";
+  if (abo.statut === "expire") { cls = "us-abo--expire"; txt = "Expiré"; }
+  else if (j <= 5) { cls = "us-abo--bientot"; txt = abo.statut === "essai" ? "Fin d'essai" : "Bientôt fini"; }
+  else if (abo.statut === "essai") { cls = "us-abo--essai"; txt = "Essai"; }
+  const sous = abo.statut === "expire"
+    ? `depuis ${Math.abs(j)} j`
+    : j === 0 ? "dernier jour" : `${j} j restant${j > 1 ? "s" : ""}`;
+  return (
+    <div className="us-abo">
+      <span className={`us-abo-badge ${cls}`}>{txt}</span>
+      <small>{sous}</small>
+    </div>
+  );
+};
+
+const TableView = ({ utilisateurs, abonnements = {}, debut = 0, onSelect, onToggle, togglingId }) => (
   <div className="us-table-wrap">
     <table className="us-table">
       <thead>
         <tr>
+          <th className="us-num">N°</th>
           <th>Utilisateur</th>
           <th>Contact</th>
           <th>Magasin</th>
-          <th>Localisation</th>
-          <th>Statut</th>
+          <th>Abonnement</th>
+          <th>Compte</th>
           <th>Dernière connexion</th>
           <th>Inscrit le</th>
           <th></th>
         </tr>
       </thead>
       <tbody>
-        {utilisateurs.map((u) => (
+        {utilisateurs.map((u, i) => (
           <tr key={u.id_utilisateur} onClick={() => onSelect(u.id_utilisateur)}>
+            <td className="us-num">{debut + i + 1}</td>
             <td>
               <div className="us-cell-user">
                 <div className="us-avatar">{getInitials(u.fullname)}</div>
@@ -321,20 +357,21 @@ const TableView = ({ utilisateurs, onSelect, onToggle, togglingId }) => (
                       ? <img src={u.logo_magasin} alt="" onError={(e) => { e.target.style.display = "none"; }} />
                       : <Store size={14} />}
                   </div>
-                  <span>{u.nom_magasin}</span>
+                  <div className="us-magasin-txt">
+                    <span>{u.nom_magasin}</span>
+                    {(u.ville_magasin || u.pays_magasin) && (
+                      <small className="us-cell-loc">
+                        <MapPin size={10} />
+                        {[u.ville_magasin, u.pays_magasin].filter(Boolean).join(", ")}
+                      </small>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <span className="us-muted">—</span>
               )}
             </td>
-            <td>
-              {u.ville_magasin || u.pays_magasin ? (
-                <span className="us-cell-loc">
-                  <MapPin size={11} />
-                  {[u.ville_magasin, u.pays_magasin].filter(Boolean).join(", ")}
-                </span>
-              ) : <span className="us-muted">—</span>}
-            </td>
+            <td><AboBadge abo={abonnements[u.id_utilisateur]} /></td>
             <td>
               {u.actif
                 ? <span className="us-badge us-badge--success"><CheckCircle2 size={11} /> Actif</span>

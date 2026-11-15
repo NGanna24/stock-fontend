@@ -1,0 +1,289 @@
+/* pages/RolesPermissions/RolesPermissions.css — page « Rôles et permissions » (style « vt ») */
+
+.rp-page { padding-bottom: 96px; }
+
+.rp-chargement {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+
+.rp-grille {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+
+/* ---------- Choix du rôle ---------- */
+.rp-roles {
+  position: sticky;
+  top: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px;
+  min-width: 0;
+}
+.rp-roles ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+
+.rp-role {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 20px 36px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.rp-role:hover { background: var(--signal-soft, #FFF7ED); }
+.rp-role:focus-visible { outline: 2px solid var(--signal); outline-offset: 1px; }
+.rp-role.is-on {
+  background: var(--signal-soft, #FFF7ED);
+  border-color: var(--signal);
+}
+
+.rp-role-num,
+.rp-num {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--signal-soft, #FFF7ED);
+  color: var(--signal-edge, #9A3412);
+  font-size: 11px;
+  font-weight: 700;
+}
+.rp-role.is-on .rp-role-num { background: var(--signal); color: #fff; }
+
+.rp-role-icone {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--line-soft, #F5F5F4);
+  color: var(--ink-2);
+}
+.rp-role.is-on .rp-role-icone { background: #fff; color: var(--signal); }
+
+.rp-role-texte { display: grid; gap: 2px; min-width: 0; }
+.rp-role-nom {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.rp-role-resume { font-size: 12.5px; color: var(--ink-2); }
+.rp-role-chiffres { font-size: 12px; color: var(--ink-3); }
+
+.rp-pastille {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #FFEDD5;
+  color: #9A3412;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.rp-note {
+  display: flex;
+  gap: 6px;
+  align-items: flex-start;
+  margin: 8px 6px 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--ink-3);
+  line-height: 1.45;
+}
+.rp-note svg { flex-shrink: 0; margin-top: 1px; }
+
+/* ---------- Sections ---------- */
+.rp-contenu { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; min-width: 0; }
+
+.rp-section {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  min-width: 0;
+}
+.rp-section-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+.rp-section-head h2 { margin: 0; font-size: 16px; font-weight: 700; color: var(--ink); }
+.rp-section-head p { margin: 4px 0 0; font-size: 13px; color: var(--ink-3); line-height: 1.45; }
+.rp-section-icone {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--signal-soft, #FFF7ED);
+  color: var(--signal);
+}
+.rp-section-corps { padding: 8px 20px 16px; }
+
+.rp-groupe + .rp-groupe { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.rp-groupe-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+}
+.rp-groupe-head h3 {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.rp-groupe-compte { font-size: 12px; color: var(--ink-3); }
+.rp-lien {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  padding: 4px 6px;
+  border-radius: 6px;
+  color: var(--signal);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rp-lien:hover { background: var(--signal-soft, #FFF7ED); }
+.rp-lien:focus-visible { outline: 2px solid var(--signal); outline-offset: 1px; }
+
+/* Pages : deux colonnes sur grand écran */
+.rp-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 16px;
+}
+.rp-ligne {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 8px;
+  min-width: 0;
+}
+.rp-ligne:hover { background: var(--line-soft, #F5F5F4); }
+.rp-ligne-texte {
+  min-width: 0;
+  font-size: 14px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.rp-ligne.is-on .rp-ligne-texte { color: var(--ink); font-weight: 600; }
+
+/* Actions : une colonne, avec une aide */
+.rp-section-corps > .rp-liste:only-child { grid-template-columns: minmax(0, 1fr); }
+.rp-ligne--action { padding: 10px; }
+.rp-ligne--action .rp-ligne-texte { display: grid; gap: 2px; }
+.rp-ligne-titre { font-size: 14px; }
+.rp-ligne-aide { font-size: 12.5px; color: var(--ink-3); font-weight: 400; }
+
+/* ---------- Interrupteur ---------- */
+.rp-switch { position: relative; display: inline-flex; cursor: pointer; }
+.rp-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.rp-switch-track {
+  width: 44px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--line-strong, #D6D3D1);
+  position: relative;
+  transition: background-color 0.18s;
+}
+.rp-switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  transition: transform 0.18s;
+}
+.rp-switch input:checked + .rp-switch-track { background: var(--signal); }
+.rp-switch input:checked + .rp-switch-track .rp-switch-thumb { transform: translateX(20px); }
+.rp-switch input:focus-visible + .rp-switch-track { outline: 2px solid var(--signal); outline-offset: 2px; }
+
+/* ---------- Bas de page ---------- */
+.rp-bas { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.rp-defaut { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-3); }
+
+/* ---------- Barre d'enregistrement ---------- */
+.rp-barre {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  z-index: 40;
+  width: min(760px, calc(100vw - 32px));
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 14px 12px 18px;
+  border-radius: 14px;
+  background: var(--ink, #1C1917);
+  color: #fff;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+}
+.rp-barre-texte { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; }
+.rp-barre-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.rp-barre .vt-btn:not(.vt-btn--primary) { background: transparent; color: #fff; border-color: rgba(255, 255, 255, 0.35); }
+
+@media (max-width: 1100px) {
+  .rp-liste { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 860px) {
+  .rp-grille { grid-template-columns: minmax(0, 1fr); }
+  .rp-roles { position: static; }
+  .rp-roles ol { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .rp-role { grid-template-columns: minmax(0, 1fr); justify-items: start; gap: 6px; }
+  .rp-role-num { display: none; }
+  .rp-role-resume { display: none; }
+}
+
+@media (max-width: 560px) {
+  .rp-roles ol { grid-template-columns: minmax(0, 1fr); }
+  .rp-role { grid-template-columns: 36px minmax(0, 1fr); align-items: center; }
+  .rp-section-head { padding: 14px 16px; }
+  .rp-section-corps { padding: 6px 12px 14px; }
+  .rp-barre { flex-direction: column; align-items: stretch; gap: 10px; bottom: 12px; }
+  .rp-barre-actions > * { flex: 1; justify-content: center; }
+}
+
+/* Dans la barre sombre, le bouton principal reste bien visible */
+.rp-barre .vt-btn--primary { background: var(--signal); border-color: var(--signal); color: #fff; }
+.rp-barre .vt-btn--primary:hover:not(:disabled) { background: var(--signal-deep, #9A3412); border-color: var(--signal-deep, #9A3412); }

@@ -29,7 +29,7 @@
 .apimp-btn--ghost{border-color:transparent;color:var(--miyo-text-muted,#64748b)}
 .apimp-msg{padding:10px 12px;border-radius:8px;font-size:13px;font-weight:500}
 .apimp-msg--err{background:var(--miyo-danger-soft,#fef2f2);color:var(--miyo-danger-deep,#991b1b);border:1px solid var(--miyo-danger,#fecaca)}
-.apimp-msg--ok{background:var(--miyo-success-soft,#ecfdf5);color:var(--miyo-success-deep,#065f46);border:1px solid var(--miyo-success,#a7f3d0)}
+.apimp-msg--ok{background:var(--miyo-success-soft,#FFF4ED);color:var(--miyo-success-deep,#9A3412);border:1px solid var(--miyo-success,#FED7AA)}
 .apimp-spin{animation:apimp-spin .8s linear infinite}
 @keyframes apimp-spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.apimp-spin{animation:none}}

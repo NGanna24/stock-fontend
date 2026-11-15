@@ -20,6 +20,7 @@ import { useUser } from '../../context/AuthContext';
 import { CATALOGUE_MODES, infoMode, libelleMode, useModesPaiement, useModeValide } from '../../config/modesPaiement';
 import '../Ventes/Ventes.css';
 import './Recettes.css';
+import { peutFaire } from '../../config/rolePermissions';
 
 // ============================================================
 // HELPERS
@@ -302,7 +303,7 @@ const TYPES = [
 export default function Recettes() {
   const { user } = useUser();
   const token = localStorage.getItem('token');
-  const peutSupprimer = user?.role === 'admin' || user?.role === 'manager';
+  const peutSupprimer = peutFaire(user?.role, 'encaissements.supprimer');
 
   const [periode, setPeriode] = useState('mois');
   const [perso, setPerso] = useState({ debut: aujourdhui(), fin: aujourdhui() });

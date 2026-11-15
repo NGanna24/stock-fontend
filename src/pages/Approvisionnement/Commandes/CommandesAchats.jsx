@@ -17,6 +17,7 @@ import { useUser } from "../../../context/AuthContext";
 import BonCommandePDFActions from "../../../components/commande/BonCommandePDFActions";
 import ConfirmModal from "../../../components/ConfirmModal/ConfirmModal";
 import "./CommandesAchats.css";
+import { peutFaire } from '../../../config/rolePermissions';
 
 /* ============================================================
    CONSTANTES & UTILITAIRES
@@ -272,7 +273,7 @@ const CommandesAchat = () => {
   const qteRef = useRef(null);
   const produitInputRef = useRef(null);
 
-  const canManage = !!user && ["admin", "manager"].includes(user.role);
+  const canManage = !!user && peutFaire(user.role, "approvisionnement.gerer");
   const isAdmin = !!user && user.role === "admin";
 
   /* ---------- Chargement ---------- */

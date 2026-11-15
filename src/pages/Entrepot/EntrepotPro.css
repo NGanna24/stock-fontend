@@ -16,7 +16,7 @@
     --signal-deep: var(--miyo-primary-dark, #9a3412);
     --signal-tint: var(--miyo-primary-soft, #ffedd5);
     --oxide: var(--miyo-danger, #dc2626);
-    --moss: var(--miyo-success, #16a34a);
+    --moss: var(--miyo-success, #C2410C);
     --warn-deep: var(--miyo-warning-deep, #92400e);
     --inverse: var(--miyo-text-inverse, #fff);
     --radius-sm: var(--miyo-radius-sm, 6px);
@@ -161,7 +161,7 @@ button.ep2-kpi:hover { background: rgba(255, 255, 255, .06); }
 
 /* Étiquettes d'état (comme .ca-tag) */
 .ep2-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: var(--radius-full); font-size: 12px; font-weight: 600; white-space: nowrap; background: var(--paper-2); color: var(--steel); }
-.ep2-badge--ok, .ep2-badge--high { background: var(--miyo-success-soft, #dcfce7); color: var(--miyo-success-deep, #166534); }
+.ep2-badge--ok, .ep2-badge--high { background: var(--miyo-success-soft, #FFF4ED); color: var(--miyo-success-deep, #9A3412); }
 .ep2-badge--low { background: var(--miyo-warning-soft, #fef3c7); color: var(--warn-deep); }
 .ep2-badge--out { background: var(--miyo-danger-soft, #fee2e2); color: var(--miyo-danger-deep, #991b1b); }
 
@@ -262,8 +262,8 @@ button.ep2-alerte:hover { border-color: var(--signal); background: var(--paper);
 .ep2-alerte--out svg:first-child, .ep2-alerte--out b { color: var(--miyo-danger-deep, #991b1b); }
 .ep2-alerte--low { background: var(--miyo-warning-soft, #fef3c7); border-color: transparent; }
 .ep2-alerte--low svg:first-child, .ep2-alerte--low b { color: var(--warn-deep); }
-.ep2-alerte--info { background: var(--miyo-info-soft, #dbeafe); border-color: transparent; }
-.ep2-alerte--info svg:first-child, .ep2-alerte--info b { color: var(--miyo-info-deep, #1e40af); }
+.ep2-alerte--info { background: var(--miyo-info-soft, #F5F5F4); border-color: transparent; }
+.ep2-alerte--info svg:first-child, .ep2-alerte--info b { color: var(--miyo-info-deep, #1C1917); }
 .ep2-alerte.is-calme { opacity: .6; }
 
 /* Activité */
@@ -338,7 +338,7 @@ button.ep2-alerte:hover { border-color: var(--signal); background: var(--paper);
 
 .ep2-inv-st { display: inline-flex; padding: 3px 10px; border-radius: var(--radius-full); font-size: 12px; font-weight: 600; background: var(--paper-2); color: var(--steel); border: 1px solid var(--line); }
 .ep2-inv-st--cours { background: var(--signal-tint); color: var(--warn-deep); border-color: transparent; }
-.ep2-inv-st--ok { background: var(--ent-soft, #dcfce7); color: var(--ent-deep, #166534); border-color: transparent; }
+.ep2-inv-st--ok { background: var(--ent-soft, #FFF4ED); color: var(--ent-deep, #9A3412); border-color: transparent; }
 .ep2-inv-row { cursor: pointer; }
 .ep2-inv-go { color: var(--mute); }
 .ep2-table--invliste { min-width: 720px; }
@@ -377,9 +377,9 @@ button.ep2-alerte:hover { border-color: var(--signal); background: var(--paper);
 .ep2-page .ep2-inv-champ input { width: 68px; height: 34px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); color: var(--ink); font-size: 14px; font-weight: 600; text-align: right; }
 .ep2-page .ep2-inv-champ input:focus { outline: none; border-color: var(--signal); box-shadow: 0 0 0 3px var(--signal-tint); }
 .ep2-inv-live { font-size: 12.5px; font-weight: 700; color: var(--signal-deep); }
-.ep2-inv-live.is-ok { color: var(--ent-deep, #166534); }
+.ep2-inv-live.is-ok { color: var(--ent-deep, #9A3412); }
 .ep2-inv-fait { margin-top: 5px; display: flex; align-items: center; gap: 5px; font-size: 12.5px; color: var(--steel); }
-.ep2-inv-ok { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; font-size: 13px; color: var(--ent-deep, #166534); }
+.ep2-inv-ok { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; font-size: 13px; color: var(--ent-deep, #9A3412); }
 .ep2-inv-warn { display: inline-flex; align-items: center; gap: 3px; margin-top: 3px; font-size: 11.5px; color: var(--warn-deep); }
 .ep2-inv-actions { display: flex; justify-content: flex-end; gap: 6px; }
 
@@ -400,7 +400,7 @@ button.ep2-alerte:hover { border-color: var(--signal); background: var(--paper);
 .ep2-inv-live-box { display: flex; align-items: center; gap: 8px 12px; flex-wrap: wrap; font-size: 12.5px; color: var(--steel); }
 .ep2-inv-live-box b { color: var(--ink); }
 .ep2-inv-badge { display: inline-flex; padding: 2px 9px; border-radius: var(--radius-full); font-weight: 700; background: var(--paper-2); border: 1px solid var(--line); }
-.ep2-inv-badge.is-ok { background: var(--ent-soft, #dcfce7); border-color: transparent; color: var(--ent-deep, #166534); }
+.ep2-inv-badge.is-ok { background: var(--ent-soft, #FFF4ED); border-color: transparent; color: var(--ent-deep, #9A3412); }
 .ep2-inv-badge.is-plus { background: var(--ent-soft, #dcfce7); border-color: transparent; color: var(--ent-deep, #166534); }
 .ep2-inv-badge.is-moins { background: var(--signal-tint); border-color: transparent; color: var(--signal-deep); }
 /* ---------- Listes d'emplacements de l'entrepôt ---------- */

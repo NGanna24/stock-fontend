@@ -7,7 +7,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { pdf } from '@react-pdf/renderer';
-import { 
+import {
   ArrowLeft, Pencil, FileText, MessageCircle, X, AlertTriangle, Loader, Merge, UserX, UserCheck,
   ShoppingBag, Package, BellRing, StickyNote, MapPin, Phone, Search, Printer,
 } from 'lucide-react';
@@ -20,6 +20,7 @@ import { TypeTag, Doit } from './Clients';
 import { useUser } from '../../context/AuthContext';
 import '../Ventes/Ventes.css';
 import './Clients.css';
+import { peutFaire } from '../../config/rolePermissions';
 
 const NBSP = ' ';
 const fm = (v) => `${Number(v) < 0 ? '−' : ''}${Math.round(Math.abs(Number(v) || 0)).toString().replace(/\B(?=(\d{3})+(?!\d))/g, NBSP)}${NBSP}FCFA`;
@@ -275,7 +276,7 @@ export default function ClientDetail() {
   const navigate = useNavigate();
   const { user } = useUser();
   const token = localStorage.getItem('token');
-  const responsable = user?.role === 'admin' || user?.role === 'manager';
+  const responsable = peutFaire(user?.role, 'clients.credit');
 
   const [fiche, setFiche] = useState(null);
   const [loading, setLoading] = useState(true);

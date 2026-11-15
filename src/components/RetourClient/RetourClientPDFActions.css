@@ -196,8 +196,8 @@
 .email-modal-body .form-input:focus,
 .email-modal-body .form-textarea:focus {
     outline: none;
-    border-color: #2563eb;
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    border-color: #44403C;
+    box-shadow: 0 0 0 3px rgba(68, 64, 60, 0.1);
     background: white;
 }
 
@@ -250,11 +250,11 @@
 }
 
 .email-modal-footer .btn-primary {
-    background: #2563eb;
+    background: #44403C;
     color: white;
 }
 .email-modal-footer .btn-primary:hover:not(:disabled) {
-    background: #1d4ed8;
+    background: #44403C;
 }
 .email-modal-footer .btn:disabled {
     opacity: 0.5;
