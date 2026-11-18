@@ -12,6 +12,9 @@ import {
 import MagasinService from "../../services/magasinService";
 import API_URL from "../../config/api";
 import { useUser } from "../../context/AuthContext";
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 import "./MonMagasin.css";
 
 // ==================== ÉTAT INITIAL ====================
@@ -385,7 +388,7 @@ const gateGetPosition = async () => {
       setGeoGateStatus('idle');
       setSuccessMessage(
         position_source === 'ip'
-          ? 'Position approximative enregistrée'
+          ? 'Position approximative enregistrée : placez le repère sur votre boutique dans « Localisation »'
           : 'Position GPS enregistrée avec succès'
       );
       setTimeout(() => setSuccessMessage(''), 3000);
@@ -461,6 +464,19 @@ const gateGetPosition = async () => {
     setGeoGateLoading(false);
   }
 };
+
+  // Enregistre seulement la position, avec les informations déjà enregistrées
+  // (les autres modifications en cours ne partent pas)
+  const enregistrerPositionCarte = async ({ latitude, longitude, precision_gps, position_source }) => {
+    const payload = { ...initialData, latitude, longitude, precision_gps, position_source };
+    const res = await MagasinService.updateMonMagasin(token, payload);
+    if (!res.success) throw new Error(res.message || "La position n'a pas pu être enregistrée");
+    setMagasin(res.magasin);
+    setFormData(prev => ({ ...prev, latitude, longitude, precision_gps, position_source }));
+    setInitialData(prev => ({ ...prev, latitude, longitude, precision_gps, position_source }));
+    setSuccessMessage('Position du magasin enregistrée');
+    setTimeout(() => setSuccessMessage(''), 3000);
+  };
 
   // ==================== SOUMISSION ====================
   const handleSubmit = async (e) => {
@@ -951,6 +967,14 @@ const gateGetPosition = async () => {
                     </div>
                   </div>
                 </div>
+
+                <CarteBoutique
+                  latitude={initialData?.latitude}
+                  longitude={initialData?.longitude}
+                  source={initialData?.position_source}
+                  precision={initialData?.precision_gps}
+                  onEnregistrer={enregistrerPositionCarte}
+                />
               </div>
             </section>
 
@@ -1316,6 +1340,156 @@ const GeoGateOverlay = ({ status, message, loading, onConfirm }) => {
           l'<strong>accepter</strong> pour utiliser cette page.
         </p>
       </div>
+    </div>
+  );
+};
+
+
+// ==================== CARTE : POSITION EXACTE DU MAGASIN ====================
+// L'ordinateur donne souvent une position approximative (réseau internet, pas de GPS) :
+// on montre la carte et on laisse déplacer le repère sur la vraie boutique.
+const REPERE = L.divIcon({
+  html: '<div class="mg-repere"><span></span></div>',
+  className: 'mg-repere-wrap',
+  iconSize: [34, 44],
+  iconAnchor: [17, 42],
+});
+
+const DeplacerAuClic = ({ onChoisir }) => {
+  useMapEvents({ click: (e) => onChoisir(e.latlng) });
+  return null;
+};
+
+const Recentrer = ({ position, zoom }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (position) map.setView(position, zoom ?? map.getZoom(), { animate: true });
+  }, [position, zoom, map]);
+  return null;
+};
+
+const libellePrecision = (source, precision) => {
+  const p = parseFloat(precision);
+  if (source === 'manuel') return { texte: 'Position placée à la main sur la carte', approx: false };
+  if (source === 'ip' || (p && p > 1000)) {
+    return { texte: `Position approximative (environ ${p ? Math.round(p / 1000) : 5} km). Placez le repère sur votre boutique.`, approx: true };
+  }
+  if (p && p > 100) return { texte: `Position GPS peu précise (environ ${Math.round(p)} m). Vérifiez le repère.`, approx: true };
+  if (p) return { texte: `Position GPS (précision environ ${Math.round(p)} m)`, approx: false };
+  return { texte: 'Position enregistrée', approx: false };
+};
+
+const CarteBoutique = ({ latitude, longitude, source, precision, onEnregistrer }) => {
+  const lat = parseFloat(latitude);
+  const lng = parseFloat(longitude);
+  const connue = !isNaN(lat) && !isNaN(lng);
+  const [repere, setRepere] = useState(connue ? [lat, lng] : null);
+  const [zoom, setZoom] = useState(connue ? 17 : 6);
+  // la carte ne se recentre que sur une position trouvée (pas quand on déplace le repère)
+  const [vue, setVue] = useState(connue ? [lat, lng] : null);
+  const [recherche, setRecherche] = useState(false);
+  const [envoi, setEnvoi] = useState(false);
+  const [erreur, setErreur] = useState('');
+
+  useEffect(() => {
+    if (connue) {
+      setRepere([lat, lng]);
+      setVue([lat, lng]);
+    }
+  }, [lat, lng, connue]);
+
+  const deplace = connue && repere && (Math.abs(repere[0] - lat) > 1e-7 || Math.abs(repere[1] - lng) > 1e-7);
+  const info = libellePrecision(source, precision);
+
+  const enregistrer = async (pos, src = 'manuel', prec = '') => {
+    setEnvoi(true);
+    setErreur('');
+    try {
+      await onEnregistrer({
+        latitude: pos[0].toFixed(8),
+        longitude: pos[1].toFixed(8),
+        precision_gps: prec,
+        position_source: src,
+      });
+    } catch (e) {
+      setErreur(e.message);
+    } finally {
+      setEnvoi(false);
+    }
+  };
+
+  const maPosition = () => {
+    if (!navigator.geolocation) {
+      setErreur("Cet appareil ne donne pas sa position. Placez le repère à la main ou utilisez l'application Miyo sur le téléphone.");
+      return;
+    }
+    setRecherche(true);
+    setErreur('');
+    navigator.geolocation.getCurrentPosition(
+      (p) => {
+        setRecherche(false);
+        const pos = [p.coords.latitude, p.coords.longitude];
+        setRepere(pos);
+        setVue(pos);
+        setZoom(18);
+        enregistrer(pos, 'gps', String(Math.round(p.coords.accuracy)));
+      },
+      () => {
+        setRecherche(false);
+        setErreur("Position introuvable sur cet appareil. Placez le repère à la main sur la carte.");
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
+
+  const centre = repere || [7.54, -5.55]; // Côte d'Ivoire si aucune position
+
+  return (
+    <div className="mg-carte">
+      <div className="mg-carte-tete">
+        <div>
+          <strong>Position sur la carte</strong>
+          <span className={`mg-carte-info ${info.approx ? 'is-approx' : ''}`}>
+            {connue ? info.texte : 'Aucune position : touchez la carte à l\'endroit de votre boutique.'}
+          </span>
+        </div>
+        <button type="button" className="mg-btn mg-btn--ghost" onClick={maPosition} disabled={recherche || envoi}>
+          {recherche ? <Loader2 size={15} className="mg-spin" /> : <MapPin size={15} />} Ma position actuelle
+        </button>
+      </div>
+      <div className="mg-carte-zone">
+        <MapContainer center={centre} zoom={zoom} scrollWheelZoom className="mg-carte-map">
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <Recentrer position={vue} zoom={zoom} />
+          <DeplacerAuClic onChoisir={(ll) => setRepere([ll.lat, ll.lng])} />
+          {repere && (
+            <Marker
+              position={repere}
+              icon={REPERE}
+              draggable
+              eventHandlers={{ dragend: (e) => { const ll = e.target.getLatLng(); setRepere([ll.lat, ll.lng]); } }}
+              keyboard={false}
+            />
+          )}
+        </MapContainer>
+      </div>
+      <p className="mg-carte-aide">Faites glisser le repère, ou touchez la carte, pour le mettre exactement sur l'entrée de votre boutique.</p>
+      {erreur && <p className="mg-carte-erreur" role="alert">{erreur}</p>}
+      {(deplace || (!connue && repere)) && (
+        <div className="mg-carte-actions">
+          {connue && (
+            <button type="button" className="mg-btn mg-btn--ghost" onClick={() => { setRepere([lat, lng]); setVue([lat, lng]); }} disabled={envoi}>
+              Annuler
+            </button>
+          )}
+          <button type="button" className="mg-btn mg-btn--primary" onClick={() => enregistrer(repere)} disabled={envoi}>
+            {envoi ? <Loader2 size={15} className="mg-spin" /> : <Check size={15} />} Enregistrer cette position
+          </button>
+        </div>
+      )}
     </div>
   );
 };

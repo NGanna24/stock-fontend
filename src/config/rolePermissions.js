@@ -81,6 +81,16 @@ export const peutFaire = (role, action) => {
     return actions.includes("*") || actions.includes(action);
 };
 
+/** Baisse de prix maximum du rôle pendant la vente, en % (null = sans limite) */
+export const remiseMax = (role) => {
+    if (!effectifs || effectifs.role !== role || effectifs.proprietaire) return null;
+    const n = parseFloat(effectifs.remise_max);
+    return Number.isNaN(n) ? null : n;
+};
+
+/** Nom affiché du rôle (rôle personnalisé du patron s'il y en a un) */
+export const libelleRoleCourant = (role) => (effectifs && effectifs.role === role ? effectifs.libelle_role || null : null);
+
 /** Pour les composants : se met à jour quand le propriétaire change les droits */
 export const usePermissions = (role) => {
     const [, forcer] = useState(0);

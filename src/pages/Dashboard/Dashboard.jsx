@@ -16,6 +16,7 @@ import {
 } from "recharts";
 import DashboardService from "../../services/DashboardService";
 import { useUser } from "../../context/AuthContext";
+import { hasAccess, usePermissions } from "../../config/rolePermissions";
 import "./Dashboard.css";
 
 /* ============================================================
@@ -135,6 +136,20 @@ const SeeAll = ({ onClick }) => (
    ============================================================ */
 const Dashboard = () => {
   const { isAuthenticated, user } = useUser();
+  // Chiffres affichés selon les permissions du rôle (réglées par le propriétaire) ;
+  // le serveur retire aussi ces chiffres de sa réponse
+  usePermissions(user?.role);
+  const peut = (...pages) => pages.some((p) => hasAccess(user?.role, p));
+  const A = {
+    ventes: peut("rapport-ventes"),
+    ventesJour: peut("rapport-ventes", "caisse", "commandes-clients"),
+    benefices: peut("benefices"),
+    impayes: peut("factures", "relances", "clients"),
+    factures: peut("factures"),
+    commandes: peut("commandes-clients"),
+    mouvements: peut("mouvements", "produits"),
+    alertes: peut("alertes", "produits"),
+  };
   const { slug: paramSlug } = useParams();
   const slug = paramSlug || user?.slug || "";
   const navigate = useNavigate();
@@ -302,7 +317,7 @@ const Dashboard = () => {
       )}
 
       {/* ---------- Alertes de stock ---------- */}
-      {hasAlerts && (
+      {A.alertes && hasAlerts && (
         <div className="db-alerts" role="status">
           <span className="db-alerts-bar" aria-hidden="true" />
           <div className="db-alerts-title"><AlertTriangle size={20} /> Stock à surveiller</div>
@@ -319,7 +334,7 @@ const Dashboard = () => {
       )}
 
       {/* ---------- Coûts d'achat manquants ---------- */}
-      {num(kpis.produits_sans_cout) > 0 && (
+      {A.benefices && num(kpis.produits_sans_cout) > 0 && (
         <div className="db-notice db-notice--warn">
           <AlertCircle size={20} />
           <div>
@@ -331,12 +346,22 @@ const Dashboard = () => {
       )} 
 
       {/* ---------- Registre du jour ---------- */}
+      {(A.ventesJour || A.benefices || A.impayes) && (
       <section className="db-ledger" aria-label="Synthèse financière">
+        {A.ventes ? (
         <div className="db-ledger-cell db-ledger-main">
           <span className="db-ledger-label">Ventes du mois</span>
           <strong className="db-ledger-figure">{fmtNum(kpis.ventes_mois)}<small>FCFA</small></strong>
           <span className="db-ledger-sub">Aujourd'hui : <b>{fmtMontant(kpis.ventes_jour)}</b></span>
         </div>
+        ) : A.ventesJour ? (
+        <div className="db-ledger-cell db-ledger-main">
+          <span className="db-ledger-label">Ventes du jour</span>
+          <strong className="db-ledger-figure">{fmtNum(kpis.ventes_jour)}<small>FCFA</small></strong>
+          <span className="db-ledger-sub">depuis ce matin</span>
+        </div>
+        ) : null}
+        {A.benefices && (<>
         <div className="db-ledger-cell">
           <span className="db-ledger-label">Bénéfice du mois</span>
           <strong className="db-ledger-mid">{fmtNum(kpis.benefices_mois)}<small>FCFA</small></strong>
@@ -350,12 +375,16 @@ const Dashboard = () => {
           <strong className="db-ledger-mid">{fmtNum(kpis.benefices_jour)}<small>FCFA</small></strong>
           <span className="db-ledger-sub">sur les ventes d'aujourd'hui</span>
         </div>
+        </>)}
+        {A.impayes && (
         <button className={`db-ledger-cell db-ledger-link ${impayes > 0 ? "has-debt" : ""}`} onClick={() => go("/factures")}>
           <span className="db-ledger-label">Factures impayées</span>
           <strong className="db-ledger-mid">{impayes}<small>facture{impayes > 1 ? "s" : ""}</small></strong>
           <span className="db-ledger-sub">{fmtMontant(kpis.montant_impaye)} à encaisser <ChevronRight size={14} /></span>
         </button>
+        )}
       </section>
+      )}
 
       {/* ---------- Compteurs ---------- */}
       <div className="db-counters">
@@ -364,11 +393,13 @@ const Dashboard = () => {
           <span className="db-counter-text"><small>Produits en catalogue</small><strong>{fmtNum(kpis.total_produits)}</strong></span>
           <ChevronRight size={18} className="db-counter-arrow" />
         </button>
+        {A.commandes && (
         <button className="db-counter" onClick={() => go("/commandes-clients")}>
           <span className="db-counter-icon"><ShoppingCart size={22} /></span>
           <span className="db-counter-text"><small>Commandes en attente</small><strong>{fmtNum(kpis.commandes_en_attente)}</strong></span>
           <ChevronRight size={18} className="db-counter-arrow" />
         </button>
+        )}
         <div className="db-counter is-static">
           <span className="db-counter-icon"><Users size={22} /></span>
           <span className="db-counter-text"><small>Clients</small><strong>{fmtNum(kpis.total_clients)}</strong></span>
@@ -376,6 +407,7 @@ const Dashboard = () => {
       </div>
 
       {/* ---------- Graphique principal ---------- */}
+      {A.ventes && (
       <Panel
         title="Évolution sur 30 jours"
         className="db-panel--wide"
@@ -383,7 +415,7 @@ const Dashboard = () => {
         action={
           <div className="db-tabs" role="tablist" aria-label="Type de graphique">
             <button role="tab" aria-selected={chartTab === "ventes"} className={chartTab === "ventes" ? "is-on" : ""} onClick={() => setChartTab("ventes")}>Ventes</button>
-            <button role="tab" aria-selected={chartTab === "benefices"} className={chartTab === "benefices" ? "is-on" : ""} onClick={() => setChartTab("benefices")}>CA et bénéfice</button>
+            {A.benefices && <button role="tab" aria-selected={chartTab === "benefices"} className={chartTab === "benefices" ? "is-on" : ""} onClick={() => setChartTab("benefices")}>CA et bénéfice</button>}
           </div>
         }
       >
@@ -430,8 +462,12 @@ const Dashboard = () => {
         )}
       </Panel>
 
+      )}
+
       {/* ---------- Semaine / jour ---------- */}
-      <div className="db-duo">
+      {(A.ventes || A.ventesJour) && (
+      <div className={A.ventes ? "db-duo" : ""}>
+        {A.ventes && (
         <Panel title="Ventes par semaine" badge="4 dernières semaines">
           {ventes_semaine.some((d) => num(d.montant) > 0) ? (
             <ResponsiveContainer width="100%" height={230}>
@@ -455,6 +491,7 @@ const Dashboard = () => {
           )}
         </Panel>
 
+        )}
         <Panel title="Ventes du jour" badge="par heure">
           {ventes_jour_chart.some((h) => num(h.montant) > 0) ? (
             <ResponsiveContainer width="100%" height={230}>
@@ -476,7 +513,10 @@ const Dashboard = () => {
         </Panel>
       </div>
 
+      )}
+
       {/* ---------- Top produits ---------- */}
+      {A.ventes && (
       <Panel title="Top 5 des produits vendus" badge="30 derniers jours" action={<SeeAll onClick={() => go("/produits")} />}>
         {top_produits.length > 0 ? (
           <ol className="db-top">
@@ -508,8 +548,12 @@ const Dashboard = () => {
         )}
       </Panel>
 
+      )}
+
       {/* ---------- Activité récente ---------- */}
+      {(A.mouvements || A.factures || A.commandes) && (
       <div className="db-triple">
+        {A.mouvements && (
         <Panel title="Derniers mouvements" action={<SeeAll onClick={() => go("/mouvements")} />}>
           {derniers_mouvements.length > 0 ? (
             <ul className="db-list">
@@ -546,6 +590,8 @@ const Dashboard = () => {
           )}
         </Panel>
 
+        )}
+        {A.factures && (
         <Panel title="Dernières factures" action={<SeeAll onClick={() => go("/factures")} />}>
           {dernieres_factures.length > 0 ? (
             <ul className="db-list">
@@ -570,6 +616,8 @@ const Dashboard = () => {
           )}
         </Panel>
 
+        )}
+        {A.commandes && (
         <Panel title="Dernières commandes" action={<SeeAll onClick={() => go("/commandes-clients")} />}>
           {dernieres_commandes.length > 0 ? (
             <ul className="db-list">
@@ -593,7 +641,9 @@ const Dashboard = () => {
             <EmptyBlock icon={ShoppingCart} title="Aucune commande récente" />
           )}
         </Panel>
+        )}
       </div>
+      )}
     </div>
   );
 };

@@ -317,7 +317,7 @@ const Sidebar = () => {
               {logoFailed ? (
                 <b>M</b>
               ) : (
-                <img src="/logo-miyo.png" alt="" onError={() => setLogoFailed(true)} />
+                <img src="/logo/miyo-tete.svg" alt="" onError={() => setLogoFailed(true)} />
               )}
             </span>
             {!collapsed && (

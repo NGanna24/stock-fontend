@@ -26,7 +26,7 @@ import {
 import { CATALOGUE_MODES, infoMode, libelleMode, useModesPaiement, useModeValide } from '../../config/modesPaiement';
 
 import "./Ventes.css";
-import { hasAccess, peutFaire } from '../../config/rolePermissions';
+import { hasAccess, peutFaire, remiseMax } from '../../config/rolePermissions';
 
 // ============================================================
 // HELPERS
@@ -533,6 +533,8 @@ const Ventes = () => {
   // Droits réglés par le propriétaire (Rôles et permissions)
   const peutAnnuler = !!user && peutFaire(user.role, "ventes.annuler");
   const peutModifierPrix = !!user && peutFaire(user.role, "ventes.modifier_prix");
+  // Baisse de prix maximum du rôle (null = sans limite) ; le serveur la vérifie aussi
+  const baisseMax = user ? remiseMax(user.role) : null;
   const peutRembourser = !!user && peutFaire(user.role, "ventes.rembourser");
 
   // ============================================================
@@ -941,6 +943,17 @@ const Ventes = () => {
       if (prix <= 0) {
         showAlert("Prix non défini", "Le prix de vente de ce produit n'est pas renseigné. Veuillez saisir un prix.");
         return;
+      }
+      const prixCatalogueUnite = parseFloat(selectedUnite.prix_vente) || 0;
+      if (baisseMax !== null && prixCatalogueUnite > 0) {
+        const plancher = Math.ceil(prixCatalogueUnite * (1 - baisseMax / 100));
+        if (prix < plancher - 0.5) {
+          showAlert(
+            "Prix trop bas",
+            `Votre rôle permet de baisser le prix de ${baisseMax.toLocaleString("fr-FR")} % au maximum. Pour ce produit : au moins ${formatMontant(plancher)}.`
+          );
+          return;
+        }
       }
 
       const nouvelle = {
@@ -2315,7 +2328,9 @@ const renderListView = () => (
                       }${!peutModifierPrix ? " · prix du catalogue" : ""}`
                     : !peutModifierPrix
                       ? "Prix du catalogue appliqué : votre rôle ne permet pas de le modifier"
-                      : "\u00A0"}
+                      : baisseMax !== null && composerReady && parseFloat(selectedUnite?.prix_vente) > 0
+                        ? `Baisse maximum ${baisseMax.toLocaleString("fr-FR")} % : au moins ${formatMontant(Math.ceil(parseFloat(selectedUnite.prix_vente) * (1 - baisseMax / 100)))}`
+                        : "\u00A0"}
                 </p>
               </section>
             </div>
@@ -2674,6 +2689,7 @@ const renderListView = () => (
                 <dl className="vt-kv">
                   <div><dt>Nom</dt><dd>{selectedCommande.nomclient || "-"}</dd></div>
                   <div><dt>Téléphone</dt><dd>{selectedCommande.telephone || "-"}</dd></div>
+                  {selectedCommande.vendeur_nom && <div><dt>Vendu par</dt><dd>{selectedCommande.vendeur_nom}</dd></div>}
                 </dl>
               </section>
               <section>
@@ -2719,7 +2735,17 @@ const renderListView = () => (
                             {ligne.quantite_base > 1 && ` (${ligne.quantite_base})`}
                           </td>
                           <td className="vt-td-right vt-num">{ligne.quantite}</td>
-                          <td className="vt-td-right vt-num">{formatMontant(ligne.prix_vente)}</td>
+                          <td className="vt-td-right vt-num">
+                            {formatMontant(ligne.prix_vente)}
+                            {(() => {
+                              // Trace : prix vendu sous le prix du catalogue
+                              const cat = parseFloat(ligne.prix_catalogue);
+                              const vendu = parseFloat(ligne.prix_vente) * (1 - (parseFloat(ligne.remise) || 0) / 100);
+                              return cat > 0 && vendu < cat - 0.5 ? (
+                                <span className="vt-prix-baisse">catalogue {formatMontant(cat)} · −{Math.round((1 - vendu / cat) * 100)} %</span>
+                              ) : null;
+                            })()}
+                          </td>
                           <td className="vt-td-right vt-num">{formatMontant(ligne.montant_total)}</td>
                         </tr>
                       ))}

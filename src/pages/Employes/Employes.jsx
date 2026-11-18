@@ -148,10 +148,11 @@ function buildPhoneNumber(countryCode, localNumber) {
 /* ============================================================
    PETITS COMPOSANTS
    ============================================================ */
-const RoleTag = ({ role }) => {
+// libelle : nom d'un rôle personnalisé créé par le patron (sinon le rôle de base)
+const RoleTag = ({ role, libelle }) => {
   const cfg = ROLES_DISPONIBLES.find((r) => r.value === role);
   const tone = cfg?.tone || (role === "admin" ? "admin" : "other");
-  const label = ROLES_LABELS[role] || role;
+  const label = libelle || ROLES_LABELS[role] || role;
   return (
     <span className={`em-tag em-tag--${tone}`}>
       <i className="em-tag-dot" />
@@ -210,6 +211,11 @@ const Employes = () => {
 
   // ---------- Données ----------
   const [employes, setEmployes] = useState([]);
+  // Rôles personnalisés du patron (Rôles et permissions)
+  const [rolesPerso, setRolesPerso] = useState([]);
+  const libelleRole = (e) =>
+    (e?.role_personnalise && (rolesPerso.find((x) => x.role === e.role_personnalise)?.libelle || e.role_libelle)) ||
+    ROLES_LABELS[e?.role_nom] || e?.role_nom;
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
@@ -281,6 +287,10 @@ const Employes = () => {
     if (token) {
       loadEmployes();
       loadStats();
+      axios
+        .get(API_URL.PERMISSIONS.CHOIX_ROLES, { headers: { Authorization: `Bearer ${token}` } })
+        .then((res) => setRolesPerso((res.data?.data || []).filter((x) => x.perso)))
+        .catch(() => setRolesPerso([]));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
@@ -408,7 +418,7 @@ const Employes = () => {
       countryCode: country,
       phoneLocal: local,
       password: "",
-      roleName: employe.role_nom,
+      roleName: employe.role_personnalise || employe.role_nom,
       ...ficheDepuis(employe),
     });
     setPhotoEdition(employe.photo_url || null);
@@ -616,7 +626,7 @@ const Employes = () => {
         e.fullname,
         e.slug || "-",
         e.telephone || "-",
-        ROLES_LABELS[e.role_nom] || e.role_nom,
+        libelleRole(e),
         e.magasin_ville || `#${e.id_magasin || "-"}`,
         e.actif ? "Actif" : "Inactif",
         formatDate(e.derniere_connexion),
@@ -635,7 +645,7 @@ const Employes = () => {
         e.id_employe,
         e.fullname,
         e.telephone || "-",
-        ROLES_LABELS[e.role_nom] || e.role_nom,
+        libelleRole(e),
         e.actif ? "Actif" : "Inactif",
       ]),
       `employes_selection_${getTodayISO()}.csv`
@@ -751,7 +761,7 @@ const Employes = () => {
                 <td>
                   <span className="em-tel"><Phone size={14} /> {e.telephone || "—"}</span>
                 </td>
-                <td><RoleTag role={e.role_nom} /></td>
+                <td><RoleTag role={e.role_nom} libelle={e.role_personnalise ? libelleRole(e) : null} /></td>
                 <td>
                   <span className="em-store">
                     <Store size={14} /> {e.magasin_ville || `#${e.id_magasin || "—"}`}
@@ -797,7 +807,7 @@ const Employes = () => {
               </p>
             </div>
             <div className="em-ticket-foot" onClick={() => handleView(e)}>
-              <RoleTag role={e.role_nom} />
+              <RoleTag role={e.role_nom} libelle={e.role_personnalise ? libelleRole(e) : null} />
               <StatusTag actif={e.actif} />
             </div>
           </article>
@@ -1103,7 +1113,14 @@ const Employes = () => {
                 <div className="em-field">
                   <span className="em-field-label">Rôle *</span>
                   <div className="em-roles">
-                    {ROLES_DISPONIBLES.map((r) => (
+                    {[
+                      ...ROLES_DISPONIBLES,
+                      ...rolesPerso.map((x) => ({
+                        value: x.role,
+                        label: x.libelle,
+                        description: `Rôle personnalisé, basé sur ${ROLES_LABELS[x.role_base] || x.role_base}`,
+                      })),
+                    ].map((r) => (
                       <label
                         key={r.value}
                         className={`em-role ${formData.roleName === r.value ? "is-selected" : ""}`}
@@ -1209,7 +1226,7 @@ const Employes = () => {
                 </div>
               </div>
               <div className="em-detail-status">
-                <RoleTag role={detailEmploye.role_nom} />
+                <RoleTag role={detailEmploye.role_nom} libelle={detailEmploye.role_personnalise ? libelleRole(detailEmploye) : null} />
                 <StatusTag actif={detailEmploye.actif} />
                 <button className="em-sheet-close" onClick={() => setShowDetailModal(false)} aria-label="Fermer"><X size={20} /></button>
               </div>
@@ -1227,7 +1244,7 @@ const Employes = () => {
                 <section>
                   <h4><Briefcase size={15} /> Affectation</h4>
                   <dl>
-                    <div><dt>Rôle</dt><dd>{ROLES_LABELS[detailEmploye.role_nom] || detailEmploye.role_nom}</dd></div>
+                    <div><dt>Rôle</dt><dd>{libelleRole(detailEmploye)}</dd></div>
                     <div><dt>Magasin</dt><dd>{detailEmploye.magasin_ville || `Magasin #${detailEmploye.id_magasin || "-"}`}</dd></div>
                   </dl>
                 </section>

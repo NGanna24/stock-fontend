@@ -358,7 +358,7 @@ export default function Recettes() {
       if (mode && r.mode_paiement !== mode) return false;
       if (type !== 'tous' && r.type !== type) return false;
       if (!q) return true;
-      return norm(`${r.nomclient || ''} ${r.numero_facture || ''} ${r.numero_commande || ''} ${r.reference || ''} ${r.note || ''}`).includes(q)
+      return norm(`${r.nomclient || ''} ${r.numero_facture || ''} ${r.numero_commande || ''} ${r.reference || ''} ${r.note || ''} ${r.numero_recu ? `rec-${String(r.numero_recu).padStart(6, '0')} rec ${r.numero_recu}` : ''}`).includes(q)
         || (chiffres.length >= 3 && String(r.telephone || '').replace(/\D/g, '').includes(chiffres));
     });
   }, [recettes, mode, type, recherche]);
@@ -597,6 +597,7 @@ export default function Recettes() {
                   <tr key={r.id_paiement} className={r.type === 'remboursement' ? 'rc-row-remb' : ''}>
                     <td className="vt-num rc-col-date">
                       {dateFR(r.date_paiement)}
+                      {r.numero_recu ? <div className="vt-cell-sub rc-recu">REC-{String(r.numero_recu).padStart(6, '0')}</div> : null}
                       {r.date_creation_formatee && <div className="vt-cell-sub">saisi à {r.date_creation_formatee.slice(11)}</div>}
                     </td>
                     <td>

@@ -224,6 +224,8 @@ const libelleReglement = (p) => {
   const nb = Number(p.nb_reglements) || 0;
   return nb > 1 ? `${doc} · règlement ${p.rang_reglement}/${nb}` : doc;
 };
+// Numéro de reçu fixe, donné à chaque encaissement (pas aux remboursements)
+const numeroRecu = (p) => (p?.numero_recu ? `REC-${String(p.numero_recu).padStart(6, "0")}` : null);
 const decrire = (p) => `${formatMontantTexte(p.montant)} de ${p.nomclient || "client inconnu"}`;
 
 const Paiements = () => {
@@ -539,9 +541,10 @@ const Paiements = () => {
     const sel = paiements.filter((p) => selectedIds.includes(p.id_paiement));
     if (!sel.length) return;
     downloadCSV(
-      ["N°", "Date", "Client", "Téléphone", "Commande", "Facture", "Règlement", "Montant", "Mode", "Référence"],
+      ["N°", "Reçu", "Date", "Client", "Téléphone", "Commande", "Facture", "Règlement", "Montant", "Mode", "Référence"],
       sel.map((p, i) => [
         i + 1,
+        numeroRecu(p) || "-",
         formatDate(p.date_paiement),
         p.nomclient || "-",
         p.telephone || "-",
@@ -617,6 +620,7 @@ const Paiements = () => {
               <input type="checkbox" className="pm-check" checked={allPageSelected} onChange={toggleSelectPage} aria-label="Tout sélectionner" />
             </th>
             <th className="col-num">N°</th>
+            <th>Reçu</th>
             <th>Date</th>
             <th>Client</th>
             <th>Facture</th>
@@ -641,6 +645,7 @@ const Paiements = () => {
                   <input type="checkbox" className="pm-check" checked={selected} onChange={() => toggleSelect(p.id_paiement)} aria-label={`Sélectionner le paiement de ${decrire(p)}`} />
                 </td>
                 <td className="col-num">{firstIdx + i + 1}</td>
+                <td>{numeroRecu(p) ? <span className="pm-ref">{numeroRecu(p)}</span> : <span className="pm-muted">—</span>}</td>
                 <td className="pm-muted">{p.date_paiement_formatee || formatDate(p.date_paiement)}</td>
                 <td>
                   <span className="pm-client">
@@ -686,7 +691,7 @@ const Paiements = () => {
                   onChange={() => toggleSelect(p.id_paiement)}
                   aria-label={`Sélectionner le paiement de ${decrire(p)}`}
                 />
-                <span className="pm-ref">{libelleReglement(p)}</span>
+                <span className="pm-ref">{numeroRecu(p) || libelleReglement(p)}</span>
                 <span className="pm-ticket-more" onClick={(e) => e.stopPropagation()}>{renderMore(p)}</span>
               </div>
               <p className="pm-ticket-client">
@@ -931,6 +936,7 @@ const Paiements = () => {
                   <section>
                     <h4><FileText size={15} /> Informations</h4>
                     <dl>
+                      <div><dt>N° de reçu</dt><dd>{numeroRecu(selectedPaiement) || "-"}</dd></div>
                       <div><dt>Commande</dt><dd>{selectedPaiement.numero_commande || "-"}</dd></div>
                       <div><dt>Facture</dt><dd>{selectedPaiement.numero_facture || "-"}</dd></div>
                       <div>

@@ -343,6 +343,8 @@ export const API_URL = {
         MOI: `${BASE_URL}/api/permissions/moi`,
         LISTE: `${BASE_URL}/api/permissions`,
         ROLE: (role) => `${BASE_URL}/api/permissions/${role}`,
+        ROLES: `${BASE_URL}/api/permissions/roles`,
+        CHOIX_ROLES: `${BASE_URL}/api/permissions/choix-roles`,
     },
 
     // ==================== URLS CLIENTS ====================

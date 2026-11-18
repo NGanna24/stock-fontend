@@ -13,10 +13,10 @@ import {
     AlertCircle,
     Loader2
 } from 'lucide-react';
+import SingeMiyo from '../../components/UI/SingeMiyo';
 import './RegisterPages.css';
 
 function RegisterPage() {
-    const logoMiyo = '/logo/logo-miyo.png';
     const { register, loading, error } = useUser();
     const navigate = useNavigate();
 
@@ -28,6 +28,8 @@ function RegisterPage() {
 
     const [country, setCountry] = useState('CI');
     const [showPassword, setShowPassword] = useState(false);
+    // Le singe ferme les yeux pendant qu'on tape le code PIN caché
+    const [saisieMdp, setSaisieMdp] = useState(false);
     const [touched, setTouched] = useState({});
     const [successMessage, setSuccessMessage] = useState('');
 
@@ -148,7 +150,7 @@ function RegisterPage() {
 
                     <div className="auth-brand">
                         <div className="auth-brand-logo">
-                            <img src={logoMiyo} alt="Miyo" />
+                            <img src="/logo/miyo-tete.svg" alt="Miyo" />
                         </div>
                         <span className="auth-brand-name">Miyo Stock</span>
                     </div>
@@ -244,7 +246,8 @@ function RegisterPage() {
                                     placeholder="Code PIN (4 chiffres)"
                                     value={formData.password}
                                     onChange={handleChange}
-                                    onBlur={handleBlur}
+                                    onFocus={() => setSaisieMdp(true)}
+                                    onBlur={(e) => { setSaisieMdp(false); handleBlur(e); }}
                                     maxLength="4"
                                     disabled={loading}
                                     className={`
@@ -302,7 +305,11 @@ function RegisterPage() {
             <div className="auth-info-section">
                 <div className="auth-info-content">
                     <div className="auth-info-logo">
-                        <img src={logoMiyo} alt="Miyo Stock" />
+                        <SingeMiyo
+                            alt="Miyo Stock"
+                            yeuxFermes={saisieMdp && !showPassword && formData.password.length < 4}
+                            fache={!!error}
+                        />
                     </div>
 
                     <div className="auth-info-title">

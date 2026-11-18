@@ -1354,3 +1354,25 @@
     transition-duration: 0.01ms !important;
   }
 }
+/* ==================== CARTE : POSITION EXACTE ==================== */
+.mg-carte { margin-top: 20px; display: grid; gap: 10px; }
+.mg-carte-tete { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.mg-carte-tete strong { display: block; font-size: 14px; color: var(--ink); }
+.mg-carte-info { display: block; font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+.mg-carte-info.is-approx { color: var(--brand-hover); font-weight: 600; }
+.mg-carte-zone { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.mg-carte-map { height: 320px; width: 100%; }
+.mg-carte-aide { margin: 0; font-size: 12.5px; color: var(--ink-3); }
+.mg-carte-erreur { margin: 0; font-size: 13px; color: #B42340; }
+.mg-carte-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+
+.mg-repere-wrap { background: none; border: 0; }
+.mg-repere {
+  width: 34px; height: 34px; border-radius: 50% 50% 50% 0;
+  background: var(--brand); transform: rotate(-45deg);
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3); cursor: grab;
+}
+.mg-repere span { width: 12px; height: 12px; border-radius: 50%; background: #fff; }
+
+@media (max-width: 640px) { .mg-carte-map { height: 260px; } }

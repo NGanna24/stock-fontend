@@ -62,7 +62,19 @@ export function AuthContextProvider({ children }) {
         const charger = async () => {
             try {
                 const res = await axios.get(API_URL.PERMISSIONS.MOI, { headers: { Authorization: `Bearer ${token}` } });
-                if (actif && res.data?.data) definirPermissions(res.data.data);
+                const d = res.data?.data;
+                if (actif && d) {
+                    definirPermissions(d);
+                    // Le patron a changé le rôle de l'employé : on met le compte à jour sans reconnexion
+                    if (d.role) {
+                        setUser((prev) => {
+                            if (!prev || prev.role === d.role) return prev;
+                            const suivant = { ...prev, role: d.role };
+                            try { localStorage.setItem('user', JSON.stringify(suivant)); } catch { /* stockage indisponible */ }
+                            return suivant;
+                        });
+                    }
+                }
             } catch { /* hors ligne : on garde les derniers droits connus */ }
         };
         charger();

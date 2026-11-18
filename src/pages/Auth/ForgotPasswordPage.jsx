@@ -6,17 +6,19 @@ import {
     AlertCircle, CheckCircle, Loader2, KeyRound
 } from 'lucide-react';
 import API_URL from '../../config/api';
+import SingeMiyo from '../../components/UI/SingeMiyo';
 import './LoginPages.css';
 
 function ForgotPasswordPage() {
     const navigate = useNavigate();
-    const logoMiyo = '/logo/logo-miyo.png';
 
     const [step, setStep] = useState(1); // 1: email | 2: code | 3: nouveau PIN
     const [email, setEmail] = useState('');
     const [code, setCode] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    // Le singe ferme les yeux pendant qu'on tape le nouveau code PIN caché
+    const [saisieMdp, setSaisieMdp] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
@@ -115,7 +117,7 @@ function ForgotPasswordPage() {
 
                     <div className="auth-brand">
                         <div className="auth-brand-logo">
-                            <img src={logoMiyo} alt="Miyo" />
+                            <img src="/logo/miyo-tete.svg" alt="Miyo" />
                         </div>
                         <span className="auth-brand-name">Miyo Stock</span>
                     </div>
@@ -229,6 +231,8 @@ function ForgotPasswordPage() {
                                         placeholder="Nouveau PIN (4 chiffres)"
                                         value={newPassword}
                                         onChange={(e) => setNewPassword(e.target.value.replace(/\D/g, ''))}
+                                        onFocus={() => setSaisieMdp(true)}
+                                        onBlur={() => setSaisieMdp(false)}
                                         maxLength="4"
                                         disabled={loading}
                                         required
@@ -266,7 +270,11 @@ function ForgotPasswordPage() {
             <div className="auth-info-section">
                 <div className="auth-info-content">
                     <div className="auth-info-logo">
-                        <img src={logoMiyo} alt="Miyo Stock" />
+                        <SingeMiyo
+                            alt="Miyo Stock"
+                            yeuxFermes={saisieMdp && !showPassword && newPassword.length < 4}
+                            fache={!!error}
+                        />
                     </div>
                     <div className="auth-info-title">
                         <h2>

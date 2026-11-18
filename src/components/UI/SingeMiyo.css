@@ -1,0 +1,75 @@
+/* components/UI/SingeMiyo.css */
+.singe-miyo {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Les trois images sont posées exactement l'une sur l'autre */
+.singe-miyo > img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  padding: 0;
+  animation: none !important;
+  pointer-events: none;
+  user-select: none;
+}
+.singe-miyo > .sm-yeux,
+.singe-miyo > .sm-fache {
+  filter: none !important;
+  opacity: 0;
+}
+
+/* Clignement de temps en temps */
+.singe-miyo > .sm-yeux {
+  animation: smCligner 4.8s linear infinite !important;
+}
+
+/* Il ferme les yeux pendant qu'on tape un mot de passe caché */
+.singe-miyo.yeux-fermes > .sm-yeux {
+  animation: none !important;
+  opacity: 1;
+  transition: opacity 0.12s ease-out;
+}
+
+/* Il se fâche : sourcils froncés, bouche boudeuse, il secoue la tête */
+.singe-miyo.fache > .sm-yeux {
+  animation: none !important;
+  opacity: 0;
+}
+.singe-miyo.fache > .sm-fache {
+  opacity: 1;
+  transition: opacity 0.15s ease-out;
+}
+
+/* Page de connexion : le singe flotte, saute de joie en cas de succès */
+.monkey-circle .singe-miyo {
+  animation: monkeyIdle 3s ease-in-out infinite;
+}
+.monkey-wrapper.is-success .monkey-circle .singe-miyo {
+  animation: monkeyHappy 0.6s cubic-bezier(0.34, 1.56, 0.64, 1) 4;
+}
+.singe-miyo.fache,
+.monkey-wrapper .monkey-circle .singe-miyo.fache {
+  animation: smSecoue 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) 3;
+}
+
+@keyframes smCligner {
+  0%, 70%, 73%, 77%, 80%, 100% { opacity: 0; }
+  71%, 72%, 78%, 79% { opacity: 1; }
+}
+@keyframes smSecoue {
+  0%, 100% { transform: rotate(0deg) translateX(0); }
+  15% { transform: rotate(-7deg) translateX(-4px); }
+  30% { transform: rotate(7deg) translateX(4px); }
+  45% { transform: rotate(-5deg) translateX(-3px); }
+  60% { transform: rotate(5deg) translateX(3px); }
+  75% { transform: rotate(-2deg) translateX(-1px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .singe-miyo, .singe-miyo > .sm-yeux { animation: none !important; }
+}

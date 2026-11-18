@@ -13,13 +13,14 @@ import {
     Loader2
 } from 'lucide-react';
 import { lireRaisonDeconnexion } from '../../securite/session';
+import SingeMiyo from '../../components/UI/SingeMiyo';
 import './LoginPages.css';
 
 function LoginPage() {
     const { login, loading, error } = useUser();
     const navigate = useNavigate();
 
-    const logoMiyo = '/logo/logo-miyo.png';
+    const logoMiyo = '/logo/logo-miyo.svg';
 
     const [credentials, setCredentials] = useState({
         telephone: '',
@@ -38,6 +39,8 @@ function LoginPage() {
         try { localStorage.setItem('miyo:pays-connexion', code); } catch { /* stockage indisponible */ }
     };
     const [showPassword, setShowPassword] = useState(false);
+    // Le singe ferme les yeux pendant qu'on tape le mot de passe caché
+    const [saisieMdp, setSaisieMdp] = useState(false);
 
     const [monkeyState, setMonkeyState] = useState('idle');
     const [statusMessage, setStatusMessage] = useState('');
@@ -132,7 +135,7 @@ function LoginPage() {
 
                     <div className="auth-brand">
                         <div className="auth-brand-logo">
-                            <img src={logoMiyo} alt="Miyo" />
+                            <img src="/logo/miyo-tete.svg" alt="Miyo" />
                         </div>
                         <span className="auth-brand-name">Miyo Stock</span>
                     </div>
@@ -190,6 +193,8 @@ function LoginPage() {
                                     placeholder="Mot de passe (4 chiffres)"
                                     value={credentials.password}
                                     onChange={handleChange}
+                                    onFocus={() => setSaisieMdp(true)}
+                                    onBlur={() => setSaisieMdp(false)}
                                     maxLength="4"
                                     disabled={loading || monkeyState === 'success'}
                                     required
@@ -252,7 +257,11 @@ function LoginPage() {
 
                     <div className={`monkey-wrapper ${monkeyState === 'error' ? 'is-error' : ''} ${monkeyState === 'success' ? 'is-success' : ''}`}>
                         <div className="monkey-circle">
-                            <img src={logoMiyo} alt="Miyo Stock" />
+                            <SingeMiyo
+                                alt="Miyo Stock"
+                                yeuxFermes={saisieMdp && !showPassword && credentials.password.length < 4}
+                                fache={monkeyState === 'error'}
+                            />
                         </div>
                     </div>
 

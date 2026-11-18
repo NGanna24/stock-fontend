@@ -84,6 +84,8 @@ const RapportVentes = () => {
     const parJour = data?.par_jour || [];
     const parStatut = data?.par_statut || [];
     const topClients = data?.top_clients || [];
+    // Prix baissés pendant la vente (sous le prix du catalogue), par vendeur
+    const baisses = data?.prix_baisses || { total: 0, par_vendeur: [], lignes: [] };
 
     return (
         <Page className="rpv">
@@ -111,6 +113,7 @@ const RapportVentes = () => {
                     { id: "produits", label: "Produits", count: parProduit.length },
                     { id: "clients", label: "Meilleurs clients", count: topClients.length },
                     { id: "commandes", label: "Ventes", count: commandes.length },
+                    { id: "baisses", label: "Prix baissés", count: baisses.lignes.length },
                 ]} />
 
                 {loading && !data && <Carte><div className="vt-graph vt-graph-vide">Chargement du rapport…</div></Carte>}
@@ -282,6 +285,55 @@ const RapportVentes = () => {
                         </table>
                         {topClients.length === 0 && <Empty title="Aucun client sur la période" />}
                     </div>
+                )}
+
+                {data && onglet === "baisses" && (
+                    <>
+                        <Chiffres items={[
+                            { label: "Manque à gagner", value: fcfa(baisses.total), note: "Écart avec le prix du catalogue", fort: true, tone: baisses.total > 0 ? "signal" : undefined },
+                            { label: "Articles vendus moins cher", value: baisses.lignes.length, note: baisses.lignes.length >= 50 ? "50 derniers affichés" : "Sur la période" },
+                            { label: "Vendeurs concernés", value: baisses.par_vendeur.length, note: "Qui a baissé les prix" },
+                        ]} />
+                        <div className="vt-table-wrap">
+                            <table className="vt-table rpv-table">
+                                <thead><tr><th>N°</th><th>Vendeur</th><th className="vt-th-right">Ventes</th><th className="vt-th-right rp-hide">Articles</th><th className="vt-th-right">Manque à gagner</th></tr></thead>
+                                <tbody>
+                                    {baisses.par_vendeur.map((v, i) => (
+                                        <tr key={v.vendeur}>
+                                            <td className="vt-muted">{i + 1}</td>
+                                            <td><div className="vt-cell-main vt-cell-main--plain">{v.vendeur}</div></td>
+                                            <td className="vt-td-right vt-num">{v.nb_ventes}</td>
+                                            <td className="vt-td-right vt-num rp-hide">{v.nb_lignes}</td>
+                                            <td className="vt-td-right vt-num vt-strong">{fcfa(v.montant_baisse)}</td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            {baisses.par_vendeur.length === 0 && <Empty title="Aucun prix baissé sur la période" />}
+                        </div>
+                        {baisses.lignes.length > 0 && (
+                            <div className="vt-table-wrap">
+                                <table className="vt-table rpv-table">
+                                    <thead><tr><th>N°</th><th>Article</th><th className="rp-hide">Vendeur</th><th className="vt-th-right">Catalogue</th><th className="vt-th-right">Vendu</th><th className="vt-th-right">Écart</th></tr></thead>
+                                    <tbody>
+                                        {baisses.lignes.map((l, i) => (
+                                            <tr key={`${l.id_commande}-${i}`}>
+                                                <td className="vt-muted">{i + 1}</td>
+                                                <td>
+                                                    <div className="vt-cell-main vt-cell-main--plain">{l.produit}</div>
+                                                    <div className="vt-cell-sub">{l.numero_commande} · {dateFR(l.date_commande)} · {l.quantite} {l.nom_unite_vente || "unité"}</div>
+                                                </td>
+                                                <td className="rp-hide">{l.vendeur}</td>
+                                                <td className="vt-td-right vt-num">{fcfa(l.prix_catalogue)}</td>
+                                                <td className="vt-td-right vt-num">{fcfa(l.prix_vendu)}</td>
+                                                <td className="vt-td-right vt-num vt-strong">{fcfa(l.montant_baisse)}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </>
                 )}
 
                 {data && onglet === "commandes" && (

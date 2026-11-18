@@ -217,11 +217,9 @@ function ModalDetail({ ligne, detail, chargement, erreur, onClose }) {
         )}
 
         <div className="jr-block">
-          <h3 className="vt-section-title">Où et comment</h3>
+          <h3 className="vt-section-title">Appareil utilisé</h3>
           <dl className="jr-kv">
             <div><dt>Appareil</dt><dd>{chargement && !detail ? '…' : appareil(detail?.user_agent)}</dd></div>
-            <div><dt>Adresse IP</dt><dd className="vt-num">{d.ip || '-'}</dd></div>
-            <div><dt>Opération technique</dt><dd className="jr-tech">{d.methode} {d.chemin}</dd></div>
           </dl>
         </div>
       </div>
@@ -323,12 +321,12 @@ export default function Journal() {
       const res = await JournalService.exporter(token, filtres);
       const lignes = res.data || [];
       const clean = (v) => String(v ?? '').replace(/"/g, '""');
-      let csv = ['Date', 'Heure', 'Personne', 'Rôle', 'Module', 'Action', 'Description', 'Référence', 'Adresse IP']
+      let csv = ['Date', 'Heure', 'Personne', 'Rôle', 'Module', 'Action', 'Description', 'Référence']
         .map((h) => `"${h}"`).join(';') + '\n';
       lignes.forEach((l) => {
         const x = new Date(l.date_action);
         csv += [isoLocal(x).split('-').reverse().join('/'), heure(l.date_action), l.acteur_nom, roleLabel(l.acteur_role),
-          l.module, actionInfo(l.action).un, `${l.acteur_nom || ''} ${l.libelle}`.trim(), l.reference, l.ip]
+          l.module, actionInfo(l.action).un, `${l.acteur_nom || ''} ${l.libelle}`.trim(), l.reference]
           .map((c) => `"${clean(c)}"`).join(';') + '\n';
       });
       const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
