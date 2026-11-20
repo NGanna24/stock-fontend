@@ -9,6 +9,7 @@ import { Page, PageHead, ErrorBar, Empty, Badge, Periode, Onglets, Chiffres, Car
 import "../RapportVentes/RapportVentes.css";
 import "./RapportStocks.css";
 
+import { exporterCsvEnExcel } from "../../../utils/exportExcel";
 // ---------- Graphiques d'origine (gardés tels quels : vos clients les connaissent) ----------
 const formatMontant = fcfa;
 const formatMontantCourt = (value) => {
@@ -68,10 +69,7 @@ const RapportStocks = () => {
     const handleExport = async () => {
         try {
             const response = await RapportStockService.exportRapportStocks(token, dateDebut, dateFin);
-            const url = URL.createObjectURL(new Blob([response.data], { type: "text/csv;charset=utf-8;" }));
-            const a = document.createElement("a");
-            a.href = url; a.download = `rapport_stocks_${dateFin}.csv`; a.click();
-            URL.revokeObjectURL(url);
+            await exporterCsvEnExcel({ donnees: response.data, titre: 'Rapport des stocks', sousTitre: `Au ${dateFin}`, fichier: `rapport_stocks_${dateFin}.csv` });
         } catch (e) {
             showToast("Erreur lors de l'export", "error");
         }

@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import "./Entrees.css";
 
+import { exporterExcel } from "../../../utils/exportExcel";
 const Entrees = () => {
   const { user } = useUser();
   
@@ -353,6 +354,19 @@ const Entrees = () => {
     }
   };
 
+  // Export Excel des entrées affichées (recherche et filtre appliqués)
+  const handleExport = () =>
+    exporterExcel({
+      titre: "Entrées de stock",
+      fichier: `entrees_stock_${new Date().toISOString().split("T")[0]}`,
+      entetes: ["Référence", "Désignation", "SKU", "Fournisseur", "Qté commandée", "Qté reçue", "Écart", "État", "BL", "Date de réception", "Lot", "Péremption", "Emplacement", "Statut", "Notes"],
+      lignes: filteredEntrees.map((e) => [
+        e.reference, e.designation, e.sku, e.fournisseur, e.quantite_commandee, e.quantite_recue, e.ecart,
+        e.etat_marchandise, e.num_bon_livraison, e.date_reception, e.num_lot, e.date_peremption,
+        [e.emplacement, e.rayon, e.etagere].filter(Boolean).join(" / "), getStatutLabel(e.statut), e.notes,
+      ]),
+    });
+
   const getStatutLabel = (statut) => {
     switch(statut) {
       case "valide": return "Validé";
@@ -422,7 +436,7 @@ const Entrees = () => {
             <Plus size={18} />
             <span>Nouvelle Entrée</span>
           </button>
-          <button className="btn btn-secondary" onClick={() => window.print()}>
+          <button className="btn btn-secondary" onClick={handleExport}>
             <Download size={18} />
             <span>Exporter</span>
           </button>

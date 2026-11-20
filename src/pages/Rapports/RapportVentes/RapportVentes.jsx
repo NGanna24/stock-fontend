@@ -8,6 +8,7 @@ import StockSelector from "../../../components/StockSelector/StockSelector";
 import { Page, PageHead, ErrorBar, Empty, Badge, Periode, Onglets, Chiffres, Carte, useToast, Toast, bornesPeriode, fcfa, dateFR, pluriel } from "../../../components/UI/Vt";
 import "./RapportVentes.css";
 
+import { exporterCsvEnExcel } from "../../../utils/exportExcel";
 // ---------- Graphiques d'origine (gardés tels quels : vos clients les connaissent) ----------
 const formatMontant = fcfa;
 const formatMontantCourt = (value) => {
@@ -69,10 +70,7 @@ const RapportVentes = () => {
     const handleExport = async () => {
         try {
             const response = await RapportVenteService.exportRapportVentes(token, dateDebut, dateFin);
-            const url = URL.createObjectURL(new Blob([response.data], { type: "text/csv;charset=utf-8;" }));
-            const a = document.createElement("a");
-            a.href = url; a.download = `rapport_ventes_${dateDebut}_${dateFin}.csv`; a.click();
-            URL.revokeObjectURL(url);
+            await exporterCsvEnExcel({ donnees: response.data, titre: 'Rapport des ventes', sousTitre: `Du ${dateDebut} au ${dateFin}`, fichier: `rapport_ventes_${dateDebut}_${dateFin}.csv` });
         } catch (e) {
             showToast("Erreur lors de l'export", "error");
         }

@@ -10,6 +10,7 @@ import { Page, PageHead, ErrorBar, Empty, Periode, Onglets, Chiffres, Carte, Sea
 import "../Rapports/RapportVentes/RapportVentes.css";
 import "./BeneficesMarges.css";
 
+import { exporterCsvEnExcel } from "../../utils/exportExcel";
 // ---------- Graphiques d'origine (gardés tels quels : vos clients les connaissent) ----------
 const formatMontant = fcfa;
 const formatMontantCourt = (value) => {
@@ -76,10 +77,7 @@ const BeneficesMarges = () => {
     const handleExport = async () => {
         try {
             const response = await BeneficeService.exportBenefices(token, dateDebut, dateFin);
-            const url = URL.createObjectURL(new Blob([response.data], { type: "text/csv;charset=utf-8;" }));
-            const a = document.createElement("a");
-            a.href = url; a.download = `benefices_${dateDebut}_${dateFin}.csv`; a.click();
-            URL.revokeObjectURL(url);
+            await exporterCsvEnExcel({ donnees: response.data, titre: 'Bénéfices et marges', sousTitre: `Du ${dateDebut} au ${dateFin}`, fichier: `benefices_${dateDebut}_${dateFin}.csv` });
         } catch (e) {
             showToast("Erreur lors de l'export", "error");
         }

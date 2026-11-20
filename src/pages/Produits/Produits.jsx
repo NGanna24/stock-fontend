@@ -22,6 +22,7 @@ import ChoixEmplacement from "../../components/Emplacement/ChoixEmplacement";
 import "./Produits.css";
 import { useDisableNumberScroll } from "../../hooks/useDisableNumberScroll";
 import { peutFaire } from '../../config/rolePermissions';
+import { exporterCsvEnExcel } from "../../utils/exportExcel";
 /* ============================================================
    CONSTANTES & UTILITAIRES
    ============================================================ */
@@ -608,14 +609,10 @@ const Produits = () => {
   const handleExport = async () => {
     try {
       const response = await ProduitService.exportProduits(token);
-      if (response.success && response.data) {
-        const blob = new Blob(["\uFEFF", response.data], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `produits_${new Date().toISOString().split("T")[0]}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
+      // Le serveur renvoie directement le CSV (texte) ; on accepte aussi { success, data }
+      const donnees = typeof response === "string" || response instanceof Blob ? response : response?.success ? response.data : null;
+      if (donnees) {
+        await exporterCsvEnExcel({ donnees, titre: 'Produits', fichier: `produits_${new Date().toISOString().split("T")[0]}.csv` });
         showToast("success", "Export terminé");
       } else showToast("error", response.message || "Export impossible");
     } catch (err) {

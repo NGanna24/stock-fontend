@@ -2,6 +2,7 @@
 import API_URL from '../config/api';
 import axios from 'axios';
 
+import { exporterCsvEnExcel } from "../utils/exportExcel";
 const nettoyer = (p = {}) => {
     const o = {};
     Object.entries(p).forEach(([k, v]) => { if (v !== '' && v !== null && v !== undefined) o[k] = v; });
@@ -74,12 +75,7 @@ class ClientService {
     static async export(token, params = {}) {
         try {
             const res = await axios.get(API_URL.CLIENT.EXPORT, { headers: this._h(token), params: nettoyer(params), responseType: 'blob' });
-            const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }));
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `clients_${new Date().toISOString().slice(0, 10)}.csv`;
-            a.click();
-            URL.revokeObjectURL(url);
+            await exporterCsvEnExcel({ donnees: res.data, titre: 'Clients', fichier: `clients_${new Date().toISOString().slice(0, 10)}` });
             return { success: true };
         } catch (error) {
             console.error('❌ Export clients error:', error);

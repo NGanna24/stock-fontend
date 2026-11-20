@@ -16,6 +16,7 @@ import '../Ventes/Ventes.css';
 import './Journal.css';
 import { hasAccess } from '../../config/rolePermissions';
 
+import { exporterCsvEnExcel } from "../../utils/exportExcel";
 // ============================================================
 // HELPERS
 // ============================================================
@@ -329,13 +330,7 @@ export default function Journal() {
           l.module, actionInfo(l.action).un, `${l.acteur_nom || ''} ${l.libelle}`.trim(), l.reference]
           .map((c) => `"${clean(c)}"`).join(';') + '\n';
       });
-      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `journal_activite_${debut}_${fin}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await exporterCsvEnExcel({ donnees: csv, titre: "Journal d'activité", sousTitre: `Du ${debut} au ${fin}`, fichier: `journal_activite_${debut}_${fin}.csv` });
       showToast(`${lignes.length} action${lignes.length > 1 ? 's' : ''} exportée${lignes.length > 1 ? 's' : ''}${lignes.length >= 5000 ? ' (limite de 5 000 atteinte)' : ''}`);
     } catch (e) {
       showToast(e.message || "Erreur lors de l'export", 'error');

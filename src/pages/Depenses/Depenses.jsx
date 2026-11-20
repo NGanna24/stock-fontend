@@ -18,6 +18,7 @@ import '../Ventes/Ventes.css';
 import './Depenses.css';
 import { hasAccess } from '../../config/rolePermissions';
 
+import { exporterCsvEnExcel } from "../../utils/exportExcel";
 // ============================================================
 // HELPERS
 // ============================================================
@@ -721,7 +722,7 @@ export default function Depenses() {
         }
     };
 
-    const exporter = () => {
+    const exporter = async () => {
         const clean = (v) => String(v ?? '').replace(/"/g, '""');
         let csv = ['Date', 'Libellé', 'Catégorie', 'Mode de paiement', 'Référence', 'Note', 'Montant (FCFA)']
             .map((h) => `"${h}"`).join(';') + '\n';
@@ -730,13 +731,7 @@ export default function Depenses() {
                 modeLabel(d.mode_paiement), d.reference || '', d.note || '', Math.round(d.montant)]
                 .map((c) => `"${clean(c)}"`).join(';') + '\n';
         });
-        const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `depenses_${debut}_${fin}.csv`;
-        a.click();
-        URL.revokeObjectURL(url);
+        await exporterCsvEnExcel({ donnees: csv, titre: 'Dépenses', sousTitre: libellePeriode, fichier: `depenses_${debut}_${fin}.csv` });
     };
 
     const libellePeriode = periode === 'perso'

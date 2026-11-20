@@ -18,6 +18,7 @@ import RetourPDFActions from "../../components/RetourFournisseur/RetourPDFAction
 import StockInputWithSelector from "../../components/StockSelector/StockInputWithSelector";
 import { peutFaire } from '../../config/rolePermissions';
 
+import { exporterExcel } from "../../utils/exportExcel";
 // Quantité en unité de base affichée dans les unités du produit : « 2 Cartons 3 Pièces »
 const plurielU = (n, mot) => (n > 1 && !/[sxz]$/i.test(mot) ? `${mot}s` : mot);
 const enUnites = (base, produit) => {
@@ -471,16 +472,7 @@ const RetoursFournisseurs = () => {
           r.id, r.numero, r.date, r.fournisseur, r.motif,
           formatMontant(r.montant), r.statut
         ]);
-        const cell = (c) => `"${String(c ?? '').replace(/\u00A0/g, ' ').replace(/"/g, '""')}"`;
-        let csv = headers.map(cell).join(";") + "\n";
-        rows.forEach(row => { csv += row.map(cell).join(";") + "\n"; });
-        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `retours_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
+        await exporterExcel({ titre: 'Retours fournisseurs', fichier: `retours_${new Date().toISOString().split('T')[0]}.csv`, entetes: headers, lignes: rows });
       }
     } catch (err) {
       console.error('❌ Export error:', err);

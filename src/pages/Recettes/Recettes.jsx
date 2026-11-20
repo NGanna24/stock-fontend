@@ -22,6 +22,7 @@ import '../Ventes/Ventes.css';
 import './Recettes.css';
 import { peutFaire } from '../../config/rolePermissions';
 
+import { exporterCsvEnExcel } from "../../utils/exportExcel";
 // ============================================================
 // HELPERS
 // ============================================================
@@ -390,12 +391,7 @@ export default function Recettes() {
     setExporting(true);
     try {
       const res = await RecetteService.exportRecettes(token, { dateDebut: debut, dateFin: fin, modePaiement: mode || undefined });
-      const url = URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8;' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `recettes_${debut}_${fin}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await exporterCsvEnExcel({ donnees: res.data, titre: 'Recettes', sousTitre: `Du ${debut} au ${fin}`, fichier: `recettes_${debut}_${fin}.csv` });
     } catch (e) {
       showToast(e.message || "Erreur lors de l'export", 'error');
     } finally {

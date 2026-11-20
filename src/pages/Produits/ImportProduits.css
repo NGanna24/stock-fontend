@@ -1,0 +1,177 @@
+/* pages/Produits/ImportProduits.css
+   Fenêtre « Importer depuis Excel ». Préfixe imp-, variables de la page Produits. */
+
+.imp-sheet { max-width: 1100px; }
+
+.imp-body {
+  flex: 1; min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 20px 24px 24px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+/* ---------- Réglages ---------- */
+.imp-reglages { display: flex; flex-direction: column; gap: 14px; }
+.imp-etape, .imp-depot {
+  display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 14px 16px;
+  background: var(--paper-2);
+  border-radius: var(--radius);
+}
+.imp-depot {
+  border: 1.5px dashed var(--line-strong);
+  background: var(--paper);
+  transition: border-color var(--ease), background-color var(--ease);
+}
+.imp-depot.is-plein { border-style: solid; border-color: var(--signal); background: var(--signal-tint); }
+.imp-num {
+  width: 30px; height: 30px; flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--ink);
+  color: var(--miyo-text-inverse);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--display); font-weight: 700; font-size: 14px;
+}
+.imp-etape-txt { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 2px; }
+.imp-etape-txt strong { font-size: 14.5px; color: var(--ink); overflow-wrap: anywhere; }
+.imp-etape-txt span { font-size: 13px; color: var(--steel); }
+
+.imp-aide { margin: -6px 0 0; font-size: 12.5px; color: var(--steel); }
+.imp-grille { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+
+.imp-erreur {
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 11px 14px;
+  border-radius: var(--radius);
+  background: var(--bad-soft);
+  color: var(--oxide);
+  font-size: 13.5px; font-weight: 500;
+}
+.imp-erreur svg { flex-shrink: 0; margin-top: 1px; }
+
+/* ---------- Bilan ---------- */
+.imp-apercu { display: flex; flex-direction: column; gap: 14px; }
+.imp-bilan {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.imp-bilan-cell { background: var(--paper); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.imp-bilan-cell span { font-size: 12px; color: var(--steel); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+.imp-bilan-cell strong { font-family: var(--display); font-size: 24px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; }
+.imp-bilan-cell--erreur strong { color: var(--oxide); }
+
+.imp-liste { margin: 0; padding-left: 22px; display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; color: var(--ink-2); }
+.imp-liste li::marker { color: var(--steel); font-weight: 600; }
+.imp-li-attention { color: var(--signal-deep); font-weight: 600; }
+
+/* ---------- Filtres ---------- */
+.imp-filtres { display: flex; flex-wrap: wrap; gap: 8px; }
+.imp-filtre {
+  display: inline-flex; align-items: center; gap: 7px;
+  height: 34px; padding: 0 13px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--line-strong);
+  background: var(--paper);
+  color: var(--ink-2);
+  font-size: 13px; font-weight: 600;
+  cursor: pointer;
+}
+.imp-filtre b {
+  min-width: 22px; padding: 1px 6px;
+  border-radius: var(--radius-full);
+  background: var(--paper-2);
+  font-variant-numeric: tabular-nums; text-align: center;
+}
+.imp-filtre.is-on { background: var(--ink); border-color: var(--ink); color: var(--miyo-text-inverse); }
+.imp-filtre.is-on b { background: rgba(255, 255, 255, .2); }
+.imp-filtre--erreur:not(.is-on) b { background: var(--bad-soft); color: var(--oxide); }
+.imp-filtre--attention:not(.is-on) b { background: var(--signal-tint); color: var(--signal-deep); }
+
+/* ---------- Tableau ---------- */
+.imp-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13.5px; }
+.imp-c-num { width: 64px; }
+.imp-c-stock { width: 92px; }
+.imp-c-prix { width: 112px; }
+.imp-c-carton { width: 170px; }
+.imp-c-etat { width: 290px; }
+.imp-table th {
+  text-align: left;
+  font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--steel);
+  padding: 9px 10px;
+  background: var(--paper-2);
+}
+.imp-table th.pr-num { text-align: right; }
+.imp-table td {
+  padding: 10px;
+  vertical-align: top;
+  border-bottom: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+.imp-tr--erreur td { background: color-mix(in srgb, var(--bad-soft) 55%, transparent); }
+.imp-td-num b { display: block; font-variant-numeric: tabular-nums; }
+.imp-td-num small, .imp-sous { display: block; font-size: 12px; color: var(--steel); margin-top: 2px; }
+.imp-nom { color: var(--ink); font-weight: 600; }
+
+.imp-etat {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  font-size: 12px; font-weight: 700;
+  white-space: nowrap;
+}
+.imp-etat--pret { background: var(--ink); color: var(--miyo-text-inverse); }
+.imp-etat--attention { background: var(--signal-tint); color: var(--signal-deep); }
+.imp-etat--erreur { background: var(--oxide); color: #fff; }
+.imp-etat--existe { background: var(--paper-2); color: var(--steel); }
+.imp-msgs { margin: 6px 0 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--ink-2); }
+.imp-tr--erreur .imp-msgs { color: var(--oxide); }
+
+.imp-plus { align-self: center; }
+.imp-vide { text-align: center; margin: 8px 0; }
+
+/* ---------- Pied ---------- */
+.imp-foot { align-items: center; flex-wrap: wrap; }
+.imp-foot-info { flex: 1; min-width: 200px; font-size: 13.5px; color: var(--steel); }
+
+/* ---------- Terminé ---------- */
+.imp-fini { display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; padding: 30px 10px; }
+.imp-fini-mark {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: var(--signal); color: var(--miyo-text-inverse);
+  display: flex; align-items: center; justify-content: center;
+}
+.imp-fini h3 { margin: 0; font-family: var(--display); font-size: 22px; color: var(--ink); }
+.imp-fini .imp-liste { text-align: left; max-width: 560px; }
+
+/* ---------- Petits écrans : une fiche par ligne, jamais de défilement horizontal ---------- */
+@media (max-width: 760px) {
+  .imp-body { padding: 16px; }
+  .imp-grille { grid-template-columns: minmax(0, 1fr); }
+  .imp-bilan { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .imp-table, .imp-table tbody, .imp-table tr, .imp-table td { display: block; width: 100%; }
+  .imp-table colgroup, .imp-table thead { display: none; }
+  .imp-table tr {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    margin-bottom: 10px;
+    overflow: hidden;
+  }
+  .imp-table td {
+    border-bottom: 1px solid var(--line);
+    text-align: left !important;
+  }
+  .imp-table td:last-child { border-bottom: 0; }
+  .imp-table td::before {
+    content: attr(data-titre);
+    font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--steel);
+    display: block; margin-bottom: 3px;
+  }
+  .imp-foot .pr-btn { flex: 0 0 auto; }
+  .imp-foot-info { min-width: 0; flex: 0 0 auto; text-align: center; }
+}

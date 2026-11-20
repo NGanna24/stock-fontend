@@ -993,7 +993,23 @@
   border-color: var(--signal);
   background: var(--signal-tint);
 }
-.ca-addbar-search { flex: 1 1 260px; min-width: 0; }
+.ca-addbar-search { flex: 1 1 100%; min-width: 0; }
+/* Unité, quantité, prix et bouton Ajouter : toujours sur la même ligne */
+.ca-addbar-row {
+  flex: 1 1 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 96px 130px auto;
+  gap: 8px;
+  align-items: end;
+}
+.ca-addfield { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ca-addlabel {
+  font-size: 11.5px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .05em;
+  color: var(--steel);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ca-addfield .ca-input { width: 100%; }
 .ca-chips { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; min-height: 40px; }
 .ca-chip {
   display: inline-flex; align-items: center; gap: 5px;
@@ -1017,7 +1033,8 @@
 .ca-input--qty { width: 84px; text-align: center; font-weight: 600; }
 .ca-input--price { width: 130px; text-align: right; font-weight: 600; }
 .ca-addbtn {
-  width: 44px; height: 40px;
+  height: 40px; padding: 0 16px; gap: 6px;
+  font-size: 14px; font-weight: 600; font-family: inherit; white-space: nowrap;
   border: 1px solid var(--signal);
   border-radius: var(--radius);
   background: var(--signal);
@@ -1312,6 +1329,8 @@
   .ca-overlay { padding: 0; align-items: flex-end; }
   .ca-sheet, .ca-detail { max-height: 96vh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
   .ca-sheet-main { padding: 18px 16px; }
+  .ca-addbar-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; }
+  .ca-addfield--unite { grid-column: 1 / -1; }
   .ca-field--date { flex: 1 1 100%; }
   .ca-detail-cols { grid-template-columns: 1fr; gap: 18px; }
   .ca-sheet-foot { flex-direction: column-reverse; }

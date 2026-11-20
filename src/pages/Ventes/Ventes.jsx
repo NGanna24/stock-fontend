@@ -28,6 +28,7 @@ import { CATALOGUE_MODES, infoMode, libelleMode, useModesPaiement, useModeValide
 import "./Ventes.css";
 import { hasAccess, peutFaire, remiseMax } from '../../config/rolePermissions';
 
+import { exporterExcel } from "../../utils/exportExcel";
 // ============================================================
 // HELPERS
 // ============================================================
@@ -1537,22 +1538,12 @@ const Ventes = () => {
     try {
       const response = await CommandeVenteService.exportCommandes(token);
       if (response.success && response.data) {
-        const clean = (v) => String(v ?? "").replace(/\u00A0/g, " ").replace(/"/g, '""');
         const headers = ["ID", "Numéro", "Date", "Client", "Téléphone", "Facture", "Montant", "Statut", "Notes"];
         const rows = response.data.map((c) => [
           c.id, c.numero, c.date, c.client || "-", c.telephone || "-",
           c.facture || "-", formatMontant(c.montant), c.statut, c.notes || "",
         ]);
-        let csv = headers.join(",") + "\n";
-        rows.forEach((row) => { csv += row.map((cell) => `"${clean(cell)}"`).join(",") + "\n"; });
-
-        const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `ventes_${new Date().toISOString().split("T")[0]}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
+        await exporterExcel({ titre: 'Ventes', fichier: `ventes_${new Date().toISOString().split("T")[0]}.csv`, entetes: headers, lignes: rows });
       }
     } catch (err) {
       console.error("Export error:", err);

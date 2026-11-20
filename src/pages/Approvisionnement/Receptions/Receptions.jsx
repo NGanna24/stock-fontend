@@ -5,7 +5,7 @@ import {
   RefreshCw, Grid, List, Package, Banknote, Calendar, Clock,
   AlertCircle, CheckCircle, Ban, FileText, Building, Truck,
   ClipboardList, CheckSquare, Square, AlertTriangle, Trash2,
-  ShoppingBag, ChevronDown, Warehouse, Store
+  ShoppingBag, ChevronDown, Warehouse, Store, PackageCheck
 } from "lucide-react";
 import ReceptionService from "../../../services/receptionService";
 import CommandeAchatService from "../../../services/commandeAchatService";
@@ -17,6 +17,7 @@ import StockInputWithSelector from "../../../components/StockSelector/StockInput
 import "./Receptions.css";
 import { peutFaire } from '../../../config/rolePermissions';
 
+import { exporterExcel } from "../../../utils/exportExcel";
 // ------------------------------------------------------------
 // Quantités en plusieurs unités : une ligne est commandée dans une unité
 // d'achat (ex. Carton ×12) ; on peut recevoir « 9 cartons + 6 pièces ».
@@ -773,18 +774,7 @@ const Receptions = () => {
           formatMontant(r.montant), r.statut, r.notes || ""
         ]);
 
-        let csv = headers.join(",") + "\n";
-        rows.forEach(row => {
-          csv += row.map(cell => `"${cell}"`).join(",") + "\n";
-        });
-
-        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `receptions_${new Date().toISOString().split('T')[0]}.csv`;
-        link.click();
-        URL.revokeObjectURL(url);
+        await exporterExcel({ titre: 'Réceptions de stock', fichier: `receptions_${new Date().toISOString().split('T')[0]}.csv`, entetes: headers, lignes: rows });
         showToast('Export terminé');
       }
     } catch (error) {
@@ -1084,6 +1074,7 @@ const Receptions = () => {
             <thead>
               <tr>
                 <th className="c-check"></th>
+                <th className="c-num">N°</th>
                 <th className="c-produit">Produit</th>
                 <th className="c-qte">Commandé</th>
                 <th className="c-recu">Reçu</th>
@@ -1112,7 +1103,8 @@ const Receptions = () => {
                         {estValide ? <CheckSquare size={20} /> : <Square size={20} />}
                       </button>
                     </td>
-                    <td className="c-produit">
+                    <td className="c-num" data-titre="N°">{index + 1}</td>
+                    <td className="c-produit" data-titre="Produit">
                       <div className="rc-product">
                         <strong>{ligne.produit_nom}</strong>
                         {ligne.produit_reference && (
@@ -1120,7 +1112,7 @@ const Receptions = () => {
                         )}
                       </div>
                     </td>
-                    <td className="c-qte">
+                    <td className="c-qte" data-titre="Commandé">
                       <div className="rc-qty">
                         {ligne.quantite_base > 1 && !Number.isInteger(Number(ligne.quantite_commandee)) ? (
                           <strong>{enUnites(baseCommandee(ligne), ligne)}</strong>
@@ -1135,7 +1127,7 @@ const Receptions = () => {
                         )}
                       </div>
                     </td>
-                    <td className="c-recu">
+                    <td className="c-recu" data-titre="Reçu">
                       {ligne.quantite_base > 1 ? (
                         <StockInputWithSelector
                           name={`recu-${index}`}
@@ -1160,8 +1152,8 @@ const Receptions = () => {
                         </div>
                       )}
                     </td>
-                    <td className="c-ecart">{renderEcart(ligne.ecart, uniteLabel, ligne)}</td>
-                    <td className="c-prix">
+                    <td className="c-ecart" data-titre="Écart">{renderEcart(ligne.ecart, uniteLabel, ligne)}</td>
+                    <td className="c-prix" data-titre="Prix d'achat">
                       <div className="rc-input-group">
                         <input
                           type="number"
@@ -1174,7 +1166,7 @@ const Receptions = () => {
                         />
                       </div>
                     </td>
-                    <td className="c-etat">
+                    <td className="c-etat" data-titre="État">
                       <select
                         value={ligne.etat_marchandise || 'bon'}
                         onChange={(e) => handleEtatChange(index, e.target.value)}
@@ -1187,7 +1179,7 @@ const Receptions = () => {
                         <option value="partiel">Partiel</option>
                       </select>
                     </td>
-                    <td className="c-date">
+                    <td className="c-date" data-titre="Péremption">
                       <input
                         type="date"
                         value={ligne.date_peremption || ''}
@@ -1285,20 +1277,20 @@ const Receptions = () => {
           ) : (
             currentItems.map((reception, i) => (
               <tr key={reception.id_reception}>
-                <td className="col-num">{indexOfFirstItem + i + 1}</td>
-                <td><span className="rc-num">{reception.numero_reception}</span></td>
-                <td>{formatDate(reception.date_reception)}</td>
-                <td>
+                <td className="col-num" data-titre="N°">{indexOfFirstItem + i + 1}</td>
+                <td data-titre="Numéro"><span className="rc-num">{reception.numero_reception}</span></td>
+                <td data-titre="Date">{formatDate(reception.date_reception)}</td>
+                <td data-titre="Fournisseur">
                   <span className="rc-with-icon">
                     <Building size={14} />
                     {reception.fournisseur_nom || '-'}
                   </span>
                 </td>
-                <td>{reception.numero_commande || '-'}</td>
-                <td className="is-num"><strong>{formatMontant(reception.montant_total)}</strong></td>
-                <td className="is-num">{reception.lignes?.length || 0}</td>
-                <td>{renderStatut(reception.statut)}</td>
-                <td className="is-end">
+                <td data-titre="Commande">{reception.numero_commande || '-'}</td>
+                <td className="is-num" data-titre="Montant"><strong>{formatMontant(reception.montant_total)}</strong></td>
+                <td className="is-num" data-titre="Produits">{reception.lignes?.length || 0}</td>
+                <td data-titre="Statut">{renderStatut(reception.statut)}</td>
+                <td className="is-end" data-titre="Actions">
                   <div className="rc-row-actions">{renderRowActions(reception)}</div>
                 </td>
               </tr>
@@ -1377,11 +1369,14 @@ const Receptions = () => {
 
       {/* EN-TÊTE */}
       <div className="rc-header">
-        <div>
-          <h1 className="rc-title">Réceptions de stock</h1>
-          <p className="rc-subtitle">
-            {isEntrepot ? `Entrepôt ${currentEntrepot?.nom || ''} · ` : ''}{stats.total} réception(s) · {commandesDisponibles.length} commande(s) en attente de livraison
-          </p>
+        <div className="rc-head-id">
+          <span className="rc-head-mark"><PackageCheck size={22} /></span>
+          <div>
+            <h1 className="rc-title">Réceptions de stock</h1>
+            <p className="rc-subtitle">
+              {isEntrepot ? `Entrepôt ${currentEntrepot?.nom || ''} · ` : ''}{stats.total} réception(s) · {commandesDisponibles.length} commande(s) en attente de livraison
+            </p>
+          </div>
         </div>
         <div className="rc-header-actions">
           <button
@@ -1530,9 +1525,12 @@ const Receptions = () => {
         <div className="rc-overlay rc-overlay--sheet">
           <div className="rc-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="rc-sheet-head">
-              <div>
-                <h2>Nouvelle réception</h2>
-                <p>Enregistrez la livraison d'une commande fournisseur</p>
+              <div className="rc-sheet-title">
+                <span className="rc-sheet-mark"><PackageCheck size={20} /></span>
+                <div>
+                  <h2>Nouvelle réception</h2>
+                  <p>Enregistrez la livraison d'une commande fournisseur</p>
+                </div>
               </div>
               <button className="rc-icon-btn" onClick={() => !saving && setShowModal(false)} aria-label="Fermer">
                 <X size={20} />
@@ -1607,11 +1605,14 @@ const Receptions = () => {
         <div className="rc-overlay rc-overlay--sheet" onClick={() => setShowDetailModal(false)}>
           <div className="rc-sheet" onClick={(e) => e.stopPropagation()}>
             <div className="rc-sheet-head">
-              <div>
-                <h2>{selectedReception.numero_reception}</h2>
-                <p>
-                  <Calendar size={13} /> {formatDate(selectedReception.date_reception)}
-                </p>
+              <div className="rc-sheet-title">
+                <span className="rc-sheet-mark"><PackageCheck size={20} /></span>
+                <div>
+                  <h2>{selectedReception.numero_reception}</h2>
+                  <p>
+                    <Calendar size={13} /> {formatDate(selectedReception.date_reception)}
+                  </p>
+                </div>
               </div>
               <div className="rc-sheet-head-end">
                 {renderStatut(selectedReception.statut)}
@@ -1654,6 +1655,7 @@ const Receptions = () => {
                       <table className="rc-detail-table">
                         <thead>
                           <tr>
+                            <th className="c-num">N°</th>
                             <th>Produit</th>
                             <th>Unité</th>
                             <th>Commandé</th>
@@ -1675,26 +1677,27 @@ const Receptions = () => {
 
                             return (
                               <tr key={index}>
-                                <td><strong>{ligne.produit_nom}</strong></td>
-                                <td>
+                                <td className="c-num" data-titre="N°">{index + 1}</td>
+                                <td data-titre="Produit"><strong>{ligne.produit_nom}</strong></td>
+                                <td data-titre="Unité">
                                   {uniteLabel}
                                   {qteBase > 1 && <small className="rc-muted"> ×{qteBase}</small>}
                                 </td>
-                                <td>{ligne.quantite_commandee || 0}</td>
-                                <td className="rc-received">{ligne.quantite_recue}</td>
-                                <td>{renderEcart(ecart, uniteLabel)}</td>
-                                <td>
+                                <td data-titre="Commandé">{ligne.quantite_commandee || 0}</td>
+                                <td className="rc-received" data-titre="Reçu">{ligne.quantite_recue}</td>
+                                <td data-titre="Écart">{renderEcart(ecart, uniteLabel)}</td>
+                                <td data-titre="Prix unit.">
                                   {prixUV !== null
                                     ? formatMontant(prixUV)
                                     : <em className="rc-muted">À définir</em>}
                                 </td>
-                                <td>
+                                <td data-titre="État">
                                   <span className={`rc-etat etat-${ligne.etat_marchandise || 'bon'}`}>
                                     {ligne.etat_marchandise || 'bon'}
                                   </span>
                                 </td>
-                                <td>{ligne.num_lot || '-'}</td>
-                                <td>{ligne.date_peremption ? formatDate(ligne.date_peremption) : '-'}</td>
+                                <td data-titre="Lot">{ligne.num_lot || '-'}</td>
+                                <td data-titre="Péremption">{ligne.date_peremption ? formatDate(ligne.date_peremption) : '-'}</td>
                               </tr>
                             );
                           })}

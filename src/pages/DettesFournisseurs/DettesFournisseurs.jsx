@@ -17,6 +17,7 @@ import '../Ventes/Ventes.css';
 import './DettesFournisseurs.css';
 import { hasAccess } from '../../config/rolePermissions';
 
+import { exporterCsvEnExcel } from "../../utils/exportExcel";
 // ============================================================
 // HELPERS
 // ============================================================
@@ -347,7 +348,7 @@ export default function DettesFournisseurs() {
   const visibles = filtres.slice((pageCourante - 1) * PAR_PAGE, pageCourante * PAR_PAGE);
   const totaux = data?.totaux || { total_du: 0, total_avances: 0, nb_fournisseurs_dus: 0, total_recu: 0, total_paye: 0 };
 
-  const exporter = () => {
+  const exporter = async () => {
     const clean = (v) => String(v ?? '').replace(/"/g, '""');
     let csv = ['Fournisseur', 'Téléphone', 'Reçu', 'Retours', 'Payé', 'Reste à payer', 'Avance', 'Commandes dues', 'Dernier paiement']
       .map((h) => `"${h}"`).join(';') + '\n';
@@ -356,13 +357,7 @@ export default function DettesFournisseurs() {
         Math.round(f.avance), f.nb_commandes_dues, f.dernier_paiement ? dateFR(f.dernier_paiement) : '']
         .map((c) => `"${clean(c)}"`).join(';') + '\n';
     });
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `dettes_fournisseurs_${aujourdhui()}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    await exporterCsvEnExcel({ donnees: csv, titre: 'Dettes fournisseurs', fichier: `dettes_fournisseurs_${aujourdhui()}.csv` });
   };
 
   if (!autorise) {

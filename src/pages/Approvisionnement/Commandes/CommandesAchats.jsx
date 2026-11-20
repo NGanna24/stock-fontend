@@ -19,6 +19,7 @@ import ConfirmModal from "../../../components/ConfirmModal/ConfirmModal";
 import "./CommandesAchats.css";
 import { peutFaire } from '../../../config/rolePermissions';
 
+import { exporterExcel } from "../../../utils/exportExcel";
 /* ============================================================
    CONSTANTES & UTILITAIRES
    ============================================================ */
@@ -56,17 +57,14 @@ const num = (v) => parseFloat(v) || 0;
 const getTodayISO = () => new Date().toISOString().split("T")[0];
 const produitLabel = (p) => p.nom + (p.modele_nom ? ` - ${p.modele_nom}` : "") + (p.id_produit < 0 ? " · nouveau à l'entrepôt" : "");
 
-const downloadCSV = (headers, rows, filename) => {
-  const esc = (c) => `"${String(c ?? "").replace(/"/g, '""')}"`;
-  const csv = [headers, ...rows].map((r) => r.map(esc).join(";")).join("\n");
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-};
+// Export Excel mis en forme (outil commun exportExcel)
+const downloadCSV = (headers, rows, filename) =>
+  exporterExcel({
+    titre: /selection/.test(filename) ? "Commandes d'achat (sélection)" : "Commandes d'achat",
+    fichier: filename,
+    entetes: headers,
+    lignes: rows,
+  });
 
 /* ============================================================
    PETITS COMPOSANTS
@@ -1360,7 +1358,9 @@ const toggleSelect = (id) =>
                       </div>
 
                       {ligneForm.id_produit && (
-                        <>
+                        <div className="ca-addbar-row">
+                          <div className="ca-addfield ca-addfield--unite">
+                            <span className="ca-addlabel">Unité</span>
                           <div className="ca-chips">
                             {loadingUnites && <Loader size={15} className="ca-spin" />}
                             {unitesVente.map((u, idx) => (
@@ -1377,6 +1377,9 @@ const toggleSelect = (id) =>
                               </button>
                             ))}
                           </div>
+                          </div>
+                          <label className="ca-addfield">
+                            <span className="ca-addlabel">Quantité</span>
                           <input
                             ref={qteRef}
                             type="text"
@@ -1390,6 +1393,9 @@ const toggleSelect = (id) =>
                             disabled={saving || editingLigneIndex !== null}
                             aria-label="Quantité"
                           />
+                          </label>
+                          <label className="ca-addfield">
+                            <span className="ca-addlabel">Prix unitaire</span>
                           <input
                             type="text"
                             inputMode="decimal"
@@ -1402,6 +1408,7 @@ const toggleSelect = (id) =>
                             disabled={saving || editingLigneIndex !== null}
                             aria-label="Prix d'achat unitaire"
                           />
+                          </label>
                           <button
                             type="button"
                             className="ca-addbtn"
@@ -1410,9 +1417,9 @@ const toggleSelect = (id) =>
                             title="Ajouter à la commande"
                             aria-label="Ajouter à la commande"
                           >
-                            <Plus size={19} />
+                            <Plus size={18} /> Ajouter
                           </button>
-                        </>
+                        </div>
                       )}
                     </div>
 

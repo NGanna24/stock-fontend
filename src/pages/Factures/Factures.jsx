@@ -18,6 +18,7 @@ import "../Ventes/Ventes.css";
 import "./Factures.css";
 import { hasAccess } from '../../config/rolePermissions';
 
+import { exporterCsvEnExcel } from "../../utils/exportExcel";
 // ============================================================
 // HELPERS
 // ============================================================
@@ -473,13 +474,7 @@ const Factures = () => {
           Math.round(f.montant || 0), Math.round(f.paye || 0), Math.round(f.reste || 0),
           f.statut, f.mode, f.notes, f.utilisateur].map((c) => `"${clean(c)}"`).join(";") + "\n";
       });
-      const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `factures_${getTodayISO()}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      await exporterCsvEnExcel({ donnees: csv, titre: 'Factures', fichier: `factures_${getTodayISO()}.csv` });
     } catch (err) {
       showToast(err.message || "Erreur lors de l'exportation", "error");
     }

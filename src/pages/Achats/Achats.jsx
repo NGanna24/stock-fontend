@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import "./Achats.css";
 
+import { exporterExcel } from "../../utils/exportExcel";
 const Achats = () => {
   // État pour les achats
   const [achats, setAchats] = useState([]);
@@ -467,7 +468,7 @@ const Achats = () => {
   };
 
   // Exporter en CSV
-  const handleExport = () => {
+  const handleExport = async () => {
     const headers = ["Numéro", "Date", "Type", "Fournisseur", "Facture", "Total", "Statut"];
     const data = achats.map(a => [
       a.numero,
@@ -479,17 +480,7 @@ const Achats = () => {
       getStatutLabel(a.statut)
     ]);
     
-    let csv = headers.join(",") + "\n";
-    data.forEach(row => {
-      csv += row.join(",") + "\n";
-    });
-    
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `achats_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    await exporterExcel({ titre: 'Achats', fichier: `achats_${new Date().toISOString().split('T')[0]}.csv`, entetes: headers, lignes: data });
   };
 
   // Statistiques

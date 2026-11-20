@@ -14,6 +14,7 @@ import { CATALOGUE_MODES, infoMode } from '../../config/modesPaiement';
 import "./Paiements.css";
 import { hasAccess, peutFaire } from '../../config/rolePermissions';
 
+import { exporterExcel } from "../../utils/exportExcel";
 /* ============================================================
    CONSTANTES & UTILITAIRES
    ============================================================ */
@@ -62,17 +63,14 @@ const formatDate = (d) => {
 const num = (v) => parseFloat(v) || 0;
 const getTodayISO = () => new Date().toISOString().split("T")[0];
 
-const downloadCSV = (headers, rows, filename) => {
-  const esc = (c) => `"${String(c ?? "").replace(/"/g, '""')}"`;
-  const csv = [headers, ...rows].map((r) => r.map(esc).join(";")).join("\n");
-  const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-};
+// Export Excel mis en forme (outil commun exportExcel)
+const downloadCSV = (headers, rows, filename) =>
+  exporterExcel({
+    titre: /selection/.test(filename) ? "Paiements (sélection)" : "Paiements",
+    fichier: filename,
+    entetes: headers,
+    lignes: rows,
+  });
 
 /* ============================================================
    PETITS COMPOSANTS

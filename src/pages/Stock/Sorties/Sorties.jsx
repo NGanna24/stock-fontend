@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import "./Sorties.css";
 
+import { exporterExcel } from "../../../utils/exportExcel";
 const Sorties = () => {
   // État pour les sorties
   const [sorties, setSorties] = useState([]);
@@ -481,7 +482,7 @@ const Sorties = () => {
   };
 
   // Exporter en CSV
-  const handleExport = () => {
+  const handleExport = async () => {
     const headers = ["Numéro", "Date", "Type", "Destination", "Total", "Statut"];
     const data = sorties.map(s => [
       s.numero,
@@ -492,17 +493,7 @@ const Sorties = () => {
       getStatutLabel(s.statut)
     ]);
     
-    let csv = headers.join(",") + "\n";
-    data.forEach(row => {
-      csv += row.join(",") + "\n";
-    });
-    
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sorties_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
+    await exporterExcel({ titre: 'Sorties de stock', fichier: `sorties_${new Date().toISOString().split('T')[0]}.csv`, entetes: headers, lignes: data });
   };
 
   // Statistiques

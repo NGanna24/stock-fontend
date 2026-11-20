@@ -9,6 +9,7 @@ import { Page, PageHead, Overview, Stage, SearchBox, Badge, ErrorBar, Empty, Ske
 import "./Alertes.css";
 
 
+import { exporterCsvEnExcel } from "../../utils/exportExcel";
 const TYPES = {
     rupture:   { label: "Rupture", tone: "bad" },
     stock_bas: { label: "Stock bas", tone: "warn" },
@@ -52,13 +53,7 @@ const Alertes = () => {
     const handleExport = async () => {
         try {
             const response = await AlerteService.exportAlertes(token);
-            const blob = new Blob([response.data], { type: "text/csv;charset=utf-8;" });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `alertes_stock_${new Date().toISOString().split("T")[0]}.csv`;
-            link.click();
-            URL.revokeObjectURL(url);
+            await exporterCsvEnExcel({ donnees: response.data, titre: 'Alertes de stock', fichier: `alertes_stock_${new Date().toISOString().split("T")[0]}.csv` });
         } catch (e) {
             showToast("Erreur lors de l'export", "error");
         }
