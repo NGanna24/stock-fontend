@@ -21,7 +21,7 @@ class RetourClientService {
             );
             return response.data;
         } catch (error) {
-            console.error('❌ SearchCommande retour error:', error);
+            console.error('SearchCommande retour error:', error);
             throw this.handleError(error);
         }
     }
@@ -42,7 +42,7 @@ class RetourClientService {
             });
             return response.data;
         } catch (error) {
-            console.error('❌ GetAll retours error:', error);
+            console.error('GetAll retours error:', error);
             throw this.handleError(error);
         }
     }
@@ -65,7 +65,7 @@ class RetourClientService {
             );
             return response.data;
         } catch (error) {
-            console.error('❌ GetById retour error:', error);
+            console.error('GetById retour error:', error);
             throw this.handleError(error);
         }
     }
@@ -89,7 +89,7 @@ class RetourClientService {
             );
             return response.data;
         } catch (error) {
-            console.error('❌ Create retour error:', error);
+            console.error('Create retour error:', error);
             throw this.handleError(error);
         }
     }
@@ -113,7 +113,31 @@ class RetourClientService {
             );
             return response.data;
         } catch (error) {
-            console.error('❌ Annuler retour error:', error);
+            console.error('Annuler retour error:', error);
+            throw this.handleError(error);
+        }
+    }
+
+    /** Le patron (ou un rôle autorisé) valide un retour en attente */
+    static async approuver(token, id) {
+        try {
+            const response = await axios.patch(`${API_URL.RETOUR_CLIENT.GET_BY_ID(id)}/approuver`, {},
+                { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } });
+            return response.data;
+        } catch (error) {
+            console.error('Approuver retour error:', error);
+            throw this.handleError(error);
+        }
+    }
+
+    /** Refuser un retour en attente (rien n'avait bougé) */
+    static async refuser(token, id, motif = '') {
+        try {
+            const response = await axios.patch(`${API_URL.RETOUR_CLIENT.GET_BY_ID(id)}/refuser`, { motif },
+                { headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' } });
+            return response.data;
+        } catch (error) {
+            console.error('Refuser retour error:', error);
             throw this.handleError(error);
         }
     }
@@ -136,7 +160,7 @@ class RetourClientService {
             );
             return response.data;
         } catch (error) {
-            console.error('❌ GetStats retours error:', error);
+            console.error('GetStats retours error:', error);
             throw this.handleError(error);
         }
     }
@@ -160,4 +184,4 @@ class RetourClientService {
     }
 }
 
-export default RetourClientService;
+export default RetourClientService;

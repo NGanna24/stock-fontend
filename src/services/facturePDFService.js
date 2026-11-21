@@ -341,7 +341,7 @@ class FacturePDFService {
             const encodedSubject = encodeURIComponent(emailData.subject);
             const encodedBody = encodeURIComponent(
                 emailData.message +
-                '\n\n📎 Pièce jointe: ' + this._fileName(factureData) + '\n\n---\nCe message a été généré automatiquement.'
+                '\n\nPièce jointe : ' + this._fileName(factureData) + '\n\n---\nCe message a été généré automatiquement.'
             );
             mailtoLink.href = `mailto:${emailData.to}?subject=${encodedSubject}&body=${encodedBody}`;
             mailtoLink.click();

@@ -719,7 +719,7 @@ const BonCommandePDF = ({ data }) => {
                 <View style={styles.footer} fixed>
                     <View style={styles.footerCol}>
                         <View style={styles.footerIcon}>
-                            <Text style={styles.footerIconText}>📞</Text>
+                            <Text style={styles.footerIconText}>Tél.</Text>
                         </View>
                         <View>
                             {magasin?.telephone && (

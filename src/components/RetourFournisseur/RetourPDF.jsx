@@ -720,7 +720,7 @@ const RetourPDF = ({ data }) => {
                 <View style={styles.footer} fixed>
                     <View style={styles.footerCol}>
                         {magasin?.telephone && (
-                            <Text style={styles.footerText}>📞 {magasin.telephone}</Text>
+                            <Text style={styles.footerText}>Tél. {magasin.telephone}</Text>
                         )}
                     </View>
 

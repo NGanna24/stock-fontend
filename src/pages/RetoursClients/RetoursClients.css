@@ -63,3 +63,68 @@
 .rcl-repart li span { flex: 1; min-width: 0; }
 .rcl-repart li strong { color: var(--ink); white-space: nowrap; }
 .rcl-note { margin: 8px 0 0; font-size: 12.5px; color: var(--ink-3); }
+
+/* ---------- Assistant v2 : ventes récentes, articles à cocher, choix en pastilles ---------- */
+.vt .rcl-liste-titre { margin: 16px 0 0; }
+.vt .rcl-ventes { margin-top: 8px; }
+.vt .rcl-vente { display: flex; align-items: center; gap: 12px; text-align: left; }
+.vt .rcl-vente-num { width: 18px; flex-shrink: 0; text-align: right; font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.vt .rcl-vente-corps { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.vt .rcl-vente-droite { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+
+.vt .rcl-ligne { padding: 0; gap: 0; overflow: hidden; }
+.vt .rcl-ligne-tete {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  padding: 12px 14px; border: 0; background: transparent; text-align: left;
+  font: inherit; color: inherit; cursor: pointer;
+}
+.vt .rcl-ligne-tete:disabled { cursor: default; }
+.vt .rcl-ligne-tete:focus-visible { outline: 2px solid var(--signal); outline-offset: -2px; }
+.vt .rcl-case {
+  width: 20px; height: 20px; flex-shrink: 0; border-radius: 5px;
+  border: 1.5px solid var(--line-strong); background: var(--surface);
+  display: inline-flex; align-items: center; justify-content: center; color: #fff;
+  transition: background-color var(--ease), border-color var(--ease);
+}
+.vt .rcl-ligne[data-etat="choisi"] .rcl-case,
+.vt .rcl-ligne[data-etat="erreur"] .rcl-case { background: var(--signal); border-color: var(--signal); }
+.vt .rcl-ligne[data-etat="vide"] .rcl-case { background: var(--sunken); }
+.vt .rcl-ligne-num { width: 16px; flex-shrink: 0; font-size: 12px; color: var(--ink-3); text-align: right; font-variant-numeric: tabular-nums; }
+.vt .rcl-ligne .rcl-ligne-nom { flex: 1; min-width: 0; flex-direction: column; align-items: flex-start; flex-wrap: nowrap; gap: 2px; }
+.vt .rcl-ligne-droite { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
+.vt .rcl-ligne .rcl-saisie { padding: 0 14px 14px 62px; }
+.vt .rcl-ligne .rcl-erreur { padding: 0 14px 12px 62px; }
+.vt .rcl-qte-ligne { display: flex; align-items: flex-start; gap: 8px; }
+.vt .rcl-qte-ligne > :first-child { flex: 1; min-width: 0; }
+
+.vt .rcl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.vt .rcl-chips button {
+  height: 32px; padding: 0 12px; border-radius: 999px;
+  border: 1px solid var(--line-strong); background: var(--surface);
+  color: var(--ink-2); font: inherit; font-size: 13px; font-weight: 500; cursor: pointer;
+  transition: background-color var(--ease), border-color var(--ease), color var(--ease);
+}
+.vt .rcl-chips button:hover:not(:disabled) { border-color: var(--signal); color: var(--ink); }
+.vt .rcl-chips button[aria-pressed="true"] { background: var(--signal-soft); border-color: var(--signal); color: var(--ink); font-weight: 600; }
+.vt .rcl-chips--grand button { height: 38px; padding: 0 16px; font-size: 14px; }
+.vt .rcl-bilan { display: flex; flex-direction: column; }
+
+@media (max-width: 640px) {
+  .vt .rcl-ligne .rcl-saisie { grid-template-columns: 1fr; padding-left: 14px; }
+  .vt .rcl-ligne .rcl-erreur { padding-left: 14px; }
+}
+
+/* ---------- Retours à valider par le patron ---------- */
+.vt .rcl-attente {
+  display: flex; align-items: center; gap: 12px; width: 100%;
+  margin: 0 0 14px; padding: 12px 16px; border-radius: var(--radius);
+  border: 1px solid var(--miyo-warning); background: var(--miyo-warning-soft);
+  color: var(--ink); text-align: left; font: inherit; cursor: pointer;
+}
+.vt .rcl-attente > svg { color: var(--miyo-warning); flex-shrink: 0; }
+.vt .rcl-attente > span:nth-child(2) { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.vt .rcl-attente > span:nth-child(2) > span { font-size: 12.5px; color: var(--ink-2); }
+.vt .rcl-attente-voir { font-weight: 600; font-size: 13px; color: var(--ink); flex-shrink: 0; }
+.vt .rcl-attente:hover .rcl-attente-voir { text-decoration: underline; }
+.vt .rcl-avis { margin: 0 0 12px; }
+.vt .vt-actions .vt-btn--sm { white-space: nowrap; }

@@ -672,8 +672,8 @@ const MapView = ({ loading, magasins, center, onSelect }) => {
                     <span>{[m.ville, m.pays].filter(Boolean).join(", ") || "—"}</span>
                   </div>
                 </div>
-                {m.telephone && <p>📞 {m.telephone}</p>}
-                {m.nom_patron && <p>👤 {m.nom_patron}</p>}
+                {m.telephone && <p>Tél. {m.telephone}</p>}
+                {m.nom_patron && <p>Patron : {m.nom_patron}</p>}
                 <button className="mg-popup-btn" onClick={() => onSelect(m.id_magasin)}>
                   Voir la fiche
                 </button>

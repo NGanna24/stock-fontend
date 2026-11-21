@@ -303,10 +303,10 @@ const Entrees = () => {
 
       setShowModal(false);
       setEditingEntree(null);
-      alert('✅ Entrée en stock enregistrée avec succès !');
+      alert('Entrée en stock enregistrée avec succès.');
     } catch (error) {
       console.error('❌ Erreur:', error);
-      alert('❌ Erreur lors de l\'enregistrement');
+      alert('Erreur lors de l\'enregistrement');
     } finally {
       setLoading(false);
     }
@@ -387,10 +387,10 @@ const Entrees = () => {
 
   const getEtatMarchandiseLabel = (etat) => {
     const etats = {
-      'bon': '✅ Bon état',
-      'endommager': '⚠️ Endommagé',
-      'manquant': '❌ Manquant',
-      'partiel': '🔄 Partiel'
+      'bon': 'Bon état',
+      'endommager': 'Endommagé',
+      'manquant': 'Manquant',
+      'partiel': 'Partiel'
     };
     return etats[etat] || etat;
   };
@@ -850,10 +850,10 @@ const Entrees = () => {
                         onChange={handleInputChange}
                         className="form-select"
                       >
-                        <option value="bon">✅ Bon état</option>
-                        <option value="endommager">⚠️ Endommagé</option>
-                        <option value="manquant">❌ Manquant</option>
-                        <option value="partiel">🔄 Partiel</option>
+                        <option value="bon">Bon état</option>
+                        <option value="endommager">Endommagé</option>
+                        <option value="manquant">Manquant</option>
+                        <option value="partiel">Partiel</option>
                       </select>
                     </div>
                   </div>

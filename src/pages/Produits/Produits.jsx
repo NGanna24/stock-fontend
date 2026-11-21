@@ -1205,7 +1205,7 @@ const renderTable = () => (
                     <ul className="pr-tagcard-units">
                       {unitesActives.map((u, i) => (
                         <li key={i}>
-                          <span>{u.nom}{num(u.quantite_base) > 1 ? ` ×${num(u.quantite_base)}` : ""}{u.est_principal ? " ★" : ""}</span>
+                          <span>{u.nom}{num(u.quantite_base) > 1 ? ` ×${num(u.quantite_base)}` : ""}{u.est_principal ? " (principale)" : ""}</span>
                           <b>{formatPrice(u.prix_vente)}</b>
                         </li>
                       ))}

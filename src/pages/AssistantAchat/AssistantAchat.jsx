@@ -1026,7 +1026,7 @@ const AssistantAchat = () => {
 
                                                             {p.quantite_en_commande > 0 && (
                                                                 <span className="en-commande">
-                                                                    <span>⏳</span>
+                                                                    <span>…</span>
                                                                     <StockSelector
                                                                         idProduit={`assistant-cmd-${p.id_produit}`}
                                                                         stockBase={p.quantite_en_commande}
