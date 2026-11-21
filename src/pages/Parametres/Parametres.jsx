@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Printer, Lock, Bell, Monitor, UserCog, Info, RefreshCw, ChevronRight, Loader,
   User, Store, Users, CreditCard, History, Check, FileText, Receipt, HelpCircle, Wallet, Stamp, LayoutTemplate,
+  ShieldCheck,
 } from 'lucide-react';
 import { Page, PageHead, useToast, Toast, fcfa } from '../../components/UI/Vt';
 import { useUser } from '../../context/AuthContext';
@@ -459,6 +460,11 @@ export default function Parametres() {
                 <strong className="vt-num">{horsLigne?.enAttente ?? 0}</strong>
               </li>
             </ol>
+            <Ligne titre="Politique de confidentialité" aide="Quelles données Miyo enregistre, pourquoi, et comment elles sont protégées.">
+              <a className="vt-btn" href="https://n-double.com/realisations/miyo/confidentialite" target="_blank" rel="noopener noreferrer">
+                <ShieldCheck size={16} /> Lire la politique
+              </a>
+            </Ligne>
             <Ligne titre="Recharger Miyo" aide="À utiliser si un écran s'affiche mal ou après une mise à jour. Vos ventes hors ligne ne sont pas effacées.">
               <button type="button" className="vt-btn" onClick={viderCache} disabled={nettoyage}>
                 {nettoyage ? <Loader size={16} className="vt-spin" /> : <RefreshCw size={16} />}
