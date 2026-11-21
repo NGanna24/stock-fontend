@@ -6,6 +6,7 @@
 // Droits : admin = tout ; manager = consulter / ajouter / modifier (pas de suppression,
 // pas de gestion des catégories). Le backend applique les mêmes règles.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNouveauDepuisMenu } from '../../components/Bureau/MenuBureau';
 import {
     Plus, Download, RefreshCw, X, Check, Loader, Pencil, Trash2, AlertTriangle,
     ChevronLeft, ChevronRight, Wallet, Tags, CalendarClock, Coins, CreditCard,
@@ -628,6 +629,8 @@ export default function Depenses() {
 
     // Modales
     const [formDepense, setFormDepense] = useState(null); // {} = nouvelle, objet = modification
+    // Fichier > Nouvelle dépense (logiciel installé)
+    useNouveauDepuisMenu('depenses', () => setFormDepense({}));
     const [aSupprimer, setASupprimer] = useState(null);
     const [deleting, setDeleting] = useState(false);
     const [repriseOuverte, setRepriseOuverte] = useState(false);

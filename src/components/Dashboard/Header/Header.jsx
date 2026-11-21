@@ -123,7 +123,13 @@ const Header = () => {
     (async () => {
       try {
         const res = await MagasinService.getMonMagasin(token);
-        if (res.success) setMagasin(res.magasin || res.data);
+        if (res.success) {
+          const m = res.magasin || res.data;
+          setMagasin(m);
+          // Le menu du logiciel installé affiche le nom du magasin (Aide > À propos, signalement)
+          window.__miyoMagasin = m?.nom_commercial || "";
+          window.dispatchEvent(new CustomEvent("miyo:magasin", { detail: window.__miyoMagasin }));
+        }
       } catch (e) {
         console.error("❌ Erreur chargement magasin:", e);
       }
@@ -177,7 +183,27 @@ const Header = () => {
     setDarkMode(next);
     document.body.classList.toggle("dark-mode", next);
     localStorage.setItem("darkMode", String(next));
+    window.dispatchEvent(new CustomEvent("miyo:theme", { detail: next }));
   };
+
+  /* ---------- Commandes du menu du logiciel installé (Édition, Affichage, Fichier) ---------- */
+  useEffect(() => {
+    const onMenu = (e) => {
+      const action = e.detail?.action;
+      if (action === "recherche") {
+        inputRef.current?.focus();
+        inputRef.current?.select();
+      } else if (action === "theme") {
+        toggleDarkMode();
+      } else if (action === "deconnexion") {
+        setShowDropdown(false);
+        setShowLogoutModal(true);
+      }
+    };
+    window.addEventListener("miyo:menu", onMenu);
+    return () => window.removeEventListener("miyo:menu", onMenu);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [darkMode]);
 
   /* ---------- Recherche dynamique ---------- */
   useEffect(() => {

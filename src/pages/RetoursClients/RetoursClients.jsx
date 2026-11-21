@@ -16,6 +16,7 @@ import {
 } from "../../components/UI/Vt";
 import "./RetoursClients.css";
 import { hasAccess, peutFaire } from '../../config/rolePermissions';
+import { useNouveauDepuisMenu } from '../../components/Bureau/MenuBureau';
 
 // ============================================================
 // Helpers
@@ -162,6 +163,9 @@ const RetoursClients = () => {
       handleOpenWizardAvecCommande(parseInt(commandeParam));
     }
   }, [searchParams]);
+
+  // Fichier > Nouveau retour client (logiciel installé)
+  useNouveauDepuisMenu('retours-clients', () => { if (canManage) handleOpenWizard(); });
 
   // ========== WIZARD : ouvrir avec une commande pré-sélectionnée ==========
   const handleOpenWizardAvecCommande = async (idCommande) => {

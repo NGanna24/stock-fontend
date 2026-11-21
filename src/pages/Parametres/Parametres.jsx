@@ -133,6 +133,15 @@ export default function Parametres() {
     return voulue;
   });
   const rubrique = sections.some((x) => x.id === actif) ? actif : sections[0]?.id;
+  // Lien vers une rubrique alors que la page est déjà ouverte (menu du logiciel : Abonnement, Impression)
+  useEffect(() => {
+    const surAncre = () => {
+      const voulue = (window.location.hash || '').replace('#', '');
+      if (voulue) setActif(voulue);
+    };
+    window.addEventListener('hashchange', surAncre);
+    return () => window.removeEventListener('hashchange', surAncre);
+  }, []);
   const ouvrir = (id) => {
     setActif(id);
     try { localStorage.setItem(CLE_RUBRIQUE, id); } catch { /* sans importance */ }
